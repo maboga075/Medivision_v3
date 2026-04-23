@@ -27,30 +27,16 @@ import { processHypothesisAddition } from '../utils/hypothesisValidation';
 import { HYPOTHESES_DIAGNOSTIQUES, REPORT_TYPES } from '../utils/constants';
 import { buildClinicalSummary } from '../utils/clinicalSummary';
 import { buildAIPayload } from '../utils/aiPayload';
-import ReportPage, { AnnexesPage } from '../components/ReportTemplate/ReportTemplate';
-import PrintStyles from '../components/ReportTemplate/PrintStyles';
+import OCTReport, { type OCTReportData } from '../components/reports/OCTReport';
 import ValidationBadge from '../components/shared/ValidationBadge';
+import { mapAIResultToOCTReportData, DEFAULT_PRACTITIONER } from '../utils/reportDataMapper';
 
 import type { PatientFirestore } from '../types/patient';
 import type { EyeState, HypotheseDiagnostique, RawConsultationData } from '../types/clinical';
-import type { AIResult, ValidationResult, AIProviderKey } from '../types/ai';
-import type { ReportData, ReportEdits } from '../types/report';
+import type { ValidationResult } from '../types/ai';
 import type { ReportType } from '../utils/constants';
 
 type ConsultationView = 'form' | 'report';
-
-const getActiveEngine = (): AIProviderKey => {
-  try {
-    const cfg = localStorage.getItem('medivision_ai_config');
-    if (cfg) {
-      const parsed = JSON.parse(cfg) as { activeEngine?: AIProviderKey };
-      return parsed.activeEngine ?? 'gemini';
-    }
-  } catch {
-    // ignore
-  }
-  return 'gemini';
-};
 
 export default function Consultation() {
   const [patients, setPatients] = useState<PatientFirestore[]>([]);
@@ -66,13 +52,10 @@ export default function Consultation() {
   const [forceShowPosterior, setForceShowPosterior] = useState(false);
 
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [aiResult, setAiResult] = useState<AIResult | null>(null);
   const [jsonValidation, setJsonValidation] = useState<ValidationResult | null>(null);
-  const [edits, setEdits] = useState<ReportEdits>({});
-  const [reportData, setReportData] = useState<ReportData | null>(null);
+  const [octReportData, setOctReportData] = useState<OCTReportData | null>(null);
 
   const reportRef = useRef<HTMLDivElement>(null);
-  const annexesRef = useRef<HTMLDivElement>(null);
 
   const [hypothesesDiagnostiques, setHypothesesDiagnostiques] = useState<HypotheseDiagnostique[]>([]);
   const [hypotheseLibre, setHypotheseLibre] = useState('');
@@ -133,9 +116,8 @@ export default function Consultation() {
     setEyeOG(createEyeState());
     setForceShowAnterior(false);
     setForceShowPosterior(false);
-    setAiResult(null);
-    setReportData(null);
-    setEdits({});
+    setOctReportData(null);
+    setJsonValidation(null);
     setHypothesesDiagnostiques([]);
     setHypotheseLibre('');
     setSelectedCat(Object.keys(HYPOTHESES_DIAGNOSTIQUES)[0]);
@@ -148,10 +130,6 @@ export default function Consultation() {
   const handlePatientSelect = (p: PatientFirestore) => {
     setSelectedPatient(p);
     resetExam();
-  };
-
-  const handleEdit = (field: string, value: string) => {
-    setEdits((prev) => ({ ...prev, [field]: value }));
   };
 
   const handlePrint = () => {
@@ -185,6 +163,8 @@ export default function Consultation() {
     setIsAnalyzing(true);
 
     try {
+      // Étape 1 — Construction du JSON brut d'entrée
+      console.info('[IA] Étape 1 — Construction rawInputJson');
       const rawInputJson: RawConsultationData = {
         patient: {
           nom: selectedPatient.nom,
@@ -201,50 +181,49 @@ export default function Consultation() {
         oeil_droit: eyeOD,
         oeil_gauche: eyeOG,
       };
+      console.info('[IA] rawInputJson:', rawInputJson);
 
+      // Étape 2 — Normalisation clinique
+      console.info('[IA] Étape 2 — Normalisation clinique');
       const normalizedJson = normalizeClinicalData(rawInputJson);
-      const clinicalSummary = buildClinicalSummary(normalizedJson);
-      const aiPayload = buildAIPayload(normalizedJson, clinicalSummary, reportType);
+      if (!normalizedJson) throw new Error('La normalisation clinique a échoué.');
+      console.info('[IA] normalizedJson:', normalizedJson);
 
-      if (!aiPayload) {
+      // Étape 3 — Résumé clinique
+      console.info('[IA] Étape 3 — Résumé clinique');
+      const clinicalSummary = buildClinicalSummary(normalizedJson);
+      if (!clinicalSummary) throw new Error('La construction du résumé clinique a échoué.');
+      console.info('[IA] clinicalSummary:', clinicalSummary);
+
+      // Étape 4 — Payload IA
+      console.info('[IA] Étape 4 — Construction du payload IA');
+      const aiPayload = buildAIPayload(normalizedJson, clinicalSummary, reportType);
+      if (!aiPayload || Object.keys(aiPayload).length === 0) {
         throw new Error('Données cliniques insuffisantes pour construire le payload IA.');
       }
+      console.info('[IA] aiPayload:', aiPayload);
 
-      console.info('[Consultation] Payload IA:', aiPayload);
-
+      // Étape 5 — Appel moteur IA
+      console.info('[IA] Étape 5 — Appel moteur IA');
       const { result, validation } = await callNativeAI(aiPayload);
+      if (!result) throw new Error('Le moteur IA n\'a retourné aucun résultat.');
+      console.info('[IA] result:', result);
 
-      const newReportData: ReportData = {
-        context: {
-          patientNom: selectedPatient.nom,
-          patientAge: selectedPatient.age,
-          patientFolderId: selectedPatient.folderId,
-          patientTel: selectedPatient.tel,
-          dateExamen: selectedPatient.dateExamen,
-          prescripteur: selectedPatient.medecinPrescripteur,
-          motifs: selectedPatient.motifs,
-          antecedents: selectedPatient.antecedents,
-          typeExamen: reportType,
-          showAnterior,
-          showPosterior,
-        },
-        eyes: { oeilDroit: eyeOD, oeilGauche: eyeOG },
-        aiResult: result,
-        meta: {
-          generePar: getActiveEngine(),
-          dateGeneration: new Date().toISOString(),
-          versionSchema: '2.0.0',
-        },
-      };
+      // Étape 6 — Mapping vers OCTReportData
+      console.info('[IA] Étape 6 — Mapping vers OCTReportData');
+      const mapped = mapAIResultToOCTReportData(rawInputJson, result, {
+        title: DEFAULT_PRACTITIONER.title,
+        specialty: DEFAULT_PRACTITIONER.specialty,
+        email: DEFAULT_PRACTITIONER.email,
+        phone: DEFAULT_PRACTITIONER.phone,
+      });
 
-      setAiResult(result);
       setJsonValidation(validation);
-      setReportData(newReportData);
-      setEdits({});
+      setOctReportData(mapped);
       setView('report');
       window.scrollTo(0, 0);
     } catch (e) {
-      console.error('[Consultation] Erreur IA:', e);
+      console.error('[IA] Erreur pipeline:', e);
       alert(e instanceof Error ? e.message : 'Erreur réseau pendant la génération IA.');
     } finally {
       setIsAnalyzing(false);
@@ -253,8 +232,6 @@ export default function Consultation() {
 
   return (
     <>
-      <PrintStyles />
-
       <div className="flex h-full bg-slate-50 overflow-hidden">
         {/* File d'attente */}
         <aside className="w-full sm:w-80 md:w-96 lg:w-[400px] bg-white border-r border-slate-200 h-full flex flex-col z-10 shrink-0">
@@ -684,23 +661,15 @@ export default function Consultation() {
               )}
 
               {/* Vue rapport */}
-              {view === 'report' && reportData && aiResult && (
+              {view === 'report' && octReportData && (
                 <div className="animate-in slide-in-from-bottom-8">
                   <div className="mb-6 no-print">
                     <ValidationBadge validation={jsonValidation} />
                   </div>
 
-                  <ReportPage
-                    ref={reportRef}
-                    data={reportData}
-                    edits={edits}
-                    onEdit={handleEdit}
-                  />
-
-                  <AnnexesPage
-                    ref={annexesRef}
-                    data={reportData}
-                  />
+                  <div ref={reportRef}>
+                    <OCTReport data={octReportData} />
+                  </div>
                 </div>
               )}
             </div>

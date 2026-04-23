@@ -98,6 +98,14 @@ export interface RawConsultationData {
   };
   oeil_droit: EyeState;
   oeil_gauche: EyeState;
+
+  // Champs optionnels Session 1 — contexte acquisition
+  anteriorSegmentDone?: boolean;
+  octaDone?: boolean;
+  acquisitionQualityOD?: 'bon' | 'faible' | 'impossible';
+  acquisitionQualityOG?: 'bon' | 'faible' | 'impossible';
+  discSurfaceOD?: string;
+  discSurfaceOG?: string;
 }
 
 export interface DonneesCliniquesNormalisees {

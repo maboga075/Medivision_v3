@@ -17,24 +17,29 @@ export interface AIConfig {
 
 // Structure de sortie JSON du moteur IA (schéma strict imposé au LLM)
 export interface AIInterpretation {
-  segment_anterieur?: string;
-  synthese_oct?: string;
-  macula?: string;
-  papille?: string;
-  vascularisation?: string;
+  segment_anterieur?: string;  // conditionnel : seulement si OCT antérieur réalisé
+  macula_od?: string;
+  macula_og?: string;
+  papille_od?: string;
+  papille_og?: string;
+  rnfl_od?: string;            // format : "normal" | "inf. en X" | "limite en X" | "dans les normes"
+  rnfl_og?: string;
+  gcl_od?: string;
+  gcl_og?: string;
   peripherie?: string;
+  octa?: string;               // conditionnel : seulement si OCTA réalisé
 }
 
 export type AISeverite = 'normal' | 'surveillance' | 'alerte';
 
 export interface AIRecommandations {
   hygiene: string;
-  suivi: string;
+  suivi: string;               // contrôle, examens complémentaires, surveillance
 }
 
 export interface AIResult {
   interpretation: AIInterpretation;
-  conclusion: string;
+  conclusion: string;          // diagnostic uniquement, pas de suivi
   recommandations: AIRecommandations;
   severite: AISeverite;
 }

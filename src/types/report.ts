@@ -1,13 +1,63 @@
 // Types pour le compte rendu structuré complet (MedivisionReport)
-// Ce type représente la structure complète d'un compte rendu généré.
 
+import type { ReactNode } from 'react';
 import type { AIProviderKey, AIResult } from './ai';
 import type { EyeState } from './clinical';
 
 export type ExamenType = 'OCT' | 'Retinographie' | 'OCTA' | 'Pachymetrie' | 'Segment_Anterieur';
 export type SeveriteReport = 'normal' | 'surveillance' | 'alerte';
 
-// Contexte de la consultation au moment de la génération du rapport
+// ─── Types OCT Report (source de vérité, importés par OCTReport.tsx) ─────────
+
+export type PillVariant = 'normal' | 'alert' | 'critical';
+
+export interface ParamRow {
+  label: string;
+  hint?: string;
+  pill?: { variant: PillVariant; text: string };
+  value?: string;
+  flag?: 'alert' | 'critical';
+}
+
+export interface EyeData {
+  code: 'OD' | 'OG';
+  name: string;
+  latin: string;
+  morphology: ParamRow[];
+  biometrics: ParamRow[];
+}
+
+export interface OCTReportData {
+  reportNumber: string;
+  examTitle: string;
+  examSubtitle: string;
+  brand: {
+    clinic: string;
+    name: string;
+    taglineParts: string[];
+  };
+  patient: { surname: string; age: number; sex: 'M' | 'F' };
+  prescriber: string;
+  indication: { main: string; soft?: string };
+  history: string;
+  eyes: { od: EyeData; og: EyeData };
+  interpretation: ReactNode;
+  conclusion: { headline: ReactNode; caveat: ReactNode };
+  recommendations: { hygiene: ReactNode[]; followUp: ReactNode[] };
+  signature: {
+    city: string;
+    dateLabel: string;
+    clinicLine: string;
+    email: string;
+    phone: string;
+    doctorTitle: string;
+    doctorName: string;
+    specialty: string;
+  };
+}
+
+// ─── Types rapport legacy (conservation pour compatibilité) ──────────────────
+
 export interface ReportContext {
   patientNom: string;
   patientAge: number | string;
@@ -22,13 +72,11 @@ export interface ReportContext {
   showPosterior: boolean;
 }
 
-// Données brutes des yeux au moment du rendu rapport
 export interface ReportEyeData {
   oeilDroit: EyeState;
   oeilGauche: EyeState;
 }
 
-// Valeurs du rapport (données saisies + résultat IA)
 export interface ReportData {
   context: ReportContext;
   eyes: ReportEyeData;
@@ -40,10 +88,8 @@ export interface ReportData {
   };
 }
 
-// Champs éditables inline dans le rendu (patchs utilisateur)
 export type ReportEdits = Record<string, string>;
 
-// Props communes pour les composants du rapport
 export interface ReportComponentProps {
   data: ReportData;
   edits: ReportEdits;

@@ -168,20 +168,35 @@ const ReportPage = forwardRef<HTMLDivElement, ReportTemplateProps>(
             {safeInterp.segment_anterieur && (
               <EditableSection label="Segment Antérieur" value={getVal(edits, 'segment_anterieur', safeInterp.segment_anterieur)} field="segment_anterieur" onEdit={onEdit} />
             )}
-            {safeInterp.synthese_oct && (
-              <EditableSection label="RNFL / GCL" value={getVal(edits, 'synthese_oct', safeInterp.synthese_oct)} field="synthese_oct" onEdit={onEdit} />
+            {safeInterp.macula_od && (
+              <EditableSection label="Macula OD" value={getVal(edits, 'macula_od', safeInterp.macula_od)} field="macula_od" onEdit={onEdit} />
             )}
-            {safeInterp.macula && (
-              <EditableSection label="Macula" value={getVal(edits, 'macula', safeInterp.macula)} field="macula" onEdit={onEdit} />
+            {safeInterp.macula_og && (
+              <EditableSection label="Macula OG" value={getVal(edits, 'macula_og', safeInterp.macula_og)} field="macula_og" onEdit={onEdit} />
             )}
-            {safeInterp.papille && (
-              <EditableSection label="Papille" value={getVal(edits, 'papille', safeInterp.papille)} field="papille" onEdit={onEdit} />
+            {safeInterp.papille_od && (
+              <EditableSection label="Papille OD" value={getVal(edits, 'papille_od', safeInterp.papille_od)} field="papille_od" onEdit={onEdit} />
             )}
-            {safeInterp.vascularisation && (
-              <EditableSection label="Vascularisation" value={getVal(edits, 'vascularisation', safeInterp.vascularisation)} field="vascularisation" onEdit={onEdit} />
+            {safeInterp.papille_og && (
+              <EditableSection label="Papille OG" value={getVal(edits, 'papille_og', safeInterp.papille_og)} field="papille_og" onEdit={onEdit} />
+            )}
+            {safeInterp.rnfl_od && (
+              <EditableSection label="RNFL OD" value={getVal(edits, 'rnfl_od', safeInterp.rnfl_od)} field="rnfl_od" onEdit={onEdit} />
+            )}
+            {safeInterp.rnfl_og && (
+              <EditableSection label="RNFL OG" value={getVal(edits, 'rnfl_og', safeInterp.rnfl_og)} field="rnfl_og" onEdit={onEdit} />
+            )}
+            {safeInterp.gcl_od && (
+              <EditableSection label="GCL++ OD" value={getVal(edits, 'gcl_od', safeInterp.gcl_od)} field="gcl_od" onEdit={onEdit} />
+            )}
+            {safeInterp.gcl_og && (
+              <EditableSection label="GCL++ OG" value={getVal(edits, 'gcl_og', safeInterp.gcl_og)} field="gcl_og" onEdit={onEdit} />
             )}
             {safeInterp.peripherie && (
               <EditableSection label="Périphérie" value={getVal(edits, 'peripherie', safeInterp.peripherie)} field="peripherie" onEdit={onEdit} />
+            )}
+            {safeInterp.octa && (
+              <EditableSection label="OCTA" value={getVal(edits, 'octa', safeInterp.octa)} field="octa" onEdit={onEdit} />
             )}
           </div>
         </div>
