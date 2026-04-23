@@ -1,0 +1,947 @@
+<!DOCTYPE html><html lang="fr"><head>
+
+
+
+
+
+
+
+
+
+
+<meta charset="UTF-8">
+<title>Compte rendu OCT — Clinique Medivision</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700&amp;family=Inter+Tight:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+  /* ═══════════════════════════════════════════════════════
+     MEDIVISION OCT REPORT — PREMIUM EDITION
+     A single-page, print-ready clinical document
+     Design language: editorial medical · deep teal × graphite
+     ═══════════════════════════════════════════════════════ */
+
+  :root {
+    --ink: #0B1B2B;
+    --ink-soft: #1E2F3F;
+    --mute: #6B7B8A;
+    --line: #E2E8EC;
+    --line-strong: #C9D3DA;
+    --bg: #FAFBFC;
+    --paper: #FFFFFF;
+
+    /* Brand / accents */
+    --teal: #0A6E6B;          /* Medivision signature */
+    --teal-deep: #064645;
+    --teal-wash: #E8F2F1;
+    --gold: #B8893A;           /* Signature / editorial accent */
+    --amber: #C86A1C;          /* Pathology flag */
+    --crimson: #B4322A;        /* Critical */
+    --sage: #5C8A6E;           /* Normal / reassuring */
+
+    /* Eye differentiation — subtle */
+    --od-tint: #F4F8FB;        /* right eye — cool wash */
+    --od-bar: #2C6A9E;
+    --og-tint: #F9F7F2;        /* left eye — warm wash */
+    --og-bar: #A67938;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    font-family: 'Inter Tight', -apple-system, sans-serif;
+    color: var(--ink);
+    background: #EDEEF0;
+    -webkit-font-smoothing: antialiased;
+    font-feature-settings: 'ss01', 'cv11', 'tnum';
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  *, *::before, *::after {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* ─── PAGE ─────────────────────────────────────────── */
+  .page {
+    width: 210mm;
+    height: 297mm;
+    margin: 18px auto;
+    background: var(--paper);
+    position: relative;
+    box-shadow: 0 20px 60px -20px rgba(10,27,43,0.25),
+                0 1px 3px rgba(10,27,43,0.06);
+    padding: 14mm 13mm 12mm 13mm;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* Watermark — designer eye mark */
+  .page::before {
+    content: '';
+    position: absolute;
+    top: 6mm; right: 6mm;
+    width: 240px; height: 240px;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 240' fill='none' stroke='%230A6E6B' stroke-width='1' stroke-linecap='round' stroke-linejoin='round'><path d='M12 120c24-50 60-76 108-76s84 26 108 76c-24 50-60 76-108 76S36 170 12 120Z' opacity='0.025'/><path d='M40 120c18-36 46-56 80-56s62 20 80 56c-18 36-46 56-80 56S58 156 40 120Z' opacity='0.035'/><circle cx='120' cy='120' r='40' opacity='0.045'/><circle cx='120' cy='120' r='24' opacity='0.055'/><circle cx='120' cy='120' r='10' fill='%230A6E6B' stroke='none' opacity='0.05'/><circle cx='128' cy='112' r='4' fill='%230A6E6B' stroke='none' opacity='0.03'/></svg>");
+    background-size: contain;
+    background-repeat: no-repeat;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .page > * { position: relative; z-index: 1; }
+
+  /* ─── HEADER ───────────────────────────────────────── */
+  .masthead {
+    padding-bottom: 13px;
+    border-bottom: 1.5px solid var(--ink);
+  }
+  .masthead-top {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 8px;
+  }
+  .masthead-top .kicker {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.2em;
+    color: var(--teal);
+    text-transform: uppercase;
+    font-weight: 600;
+  }
+  .masthead-main {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: center;
+    gap: 14px;
+  }
+  .masthead-main .doc-title {
+    text-align: right;
+  }
+
+  .brand-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .brand-mark {
+    width: 46px; height: 46px;
+    border-radius: 12px;
+    background: linear-gradient(155deg, var(--teal) 0%, var(--teal-deep) 100%);
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 6px -2px rgba(6,70,69,0.35),
+                inset 0 1px 0 rgba(255,255,255,0.12);
+  }
+  .brand-mark svg {
+    width: 30px; height: 30px;
+    color: #F6F1E4;
+  }
+  .brand-mark::after {
+    content: '';
+    position: absolute;
+    right: -2px; bottom: -2px;
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: var(--gold);
+    border: 1.5px solid var(--paper);
+  }
+
+  .brand-text .wordmark {
+    font-family: 'Fraunces', serif;
+    font-weight: 500;
+    font-size: 22px;
+    letter-spacing: -0.022em;
+    color: var(--ink);
+    line-height: 1;
+  }
+  .brand-text .wordmark em {
+    font-style: italic;
+    font-weight: 400;
+    color: var(--teal);
+  }
+  .brand-text .tagline {
+    font-size: 8.5px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--mute);
+    margin-top: 5px;
+    font-weight: 500;
+  }
+  .brand-text .tagline .sep {
+    color: var(--gold);
+    margin: 0 6px;
+    font-weight: 700;
+  }
+
+  .doc-title {
+    text-align: right;
+  }
+  .doc-title .main {
+    font-family: 'Fraunces', serif;
+    font-size: 22px;
+    font-weight: 500;
+    font-style: italic;
+    letter-spacing: -0.01em;
+    line-height: 1;
+    color: var(--ink);
+  }
+  .doc-title .sub {
+    font-size: 8.5px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--mute);
+    margin-top: 5px;
+    font-weight: 500;
+  }
+
+  /* ─── PATIENT META STRIP ──────────────────────────── */
+  .meta {
+    display: grid;
+    grid-template-columns: 1.8fr 1fr 1.4fr 1.1fr;
+    gap: 0;
+    padding: 9px 0 10px;
+    border-bottom: 1px solid var(--line);
+  }
+  .meta-cell {
+    padding: 0 14px;
+    border-right: 1px solid var(--line);
+  }
+  .meta-cell:first-child { padding-left: 0; }
+  .meta-cell:last-child  { border-right: 0; padding-right: 0; }
+
+  .meta-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 7px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--mute);
+    margin-bottom: 3px;
+    font-weight: 500;
+  }
+  .meta-value {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ink);
+    line-height: 1.25;
+    letter-spacing: -0.005em;
+  }
+  .meta-value .soft {
+    font-weight: 400;
+    color: var(--mute);
+    font-size: 10.5px;
+  }
+
+  /* ─── CLINICAL GRID — OD / OG ─────────────────────── */
+  .clinical {
+    margin-top: 11px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+
+  .eye {
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .eye.od { background: var(--od-tint); border-right: 1px solid var(--line); }
+  .eye.og { background: var(--og-tint); }
+
+  .eye-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 9px 12px 9px 0;
+    background: var(--paper);
+    border-bottom: 1px solid var(--line);
+    position: relative;
+  }
+  .eye.od .eye-header::before,
+  .eye.og .eye-header::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 4px;
+  }
+  .eye.od .eye-header::before { background: var(--od-bar); }
+  .eye.og .eye-header::before { background: var(--og-bar); }
+
+  .eye-label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-family: 'Fraunces', serif;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    padding-left: 12px;
+  }
+  .eye-label .code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    padding: 4px 9px;
+    border-radius: 4px;
+    color: white;
+    line-height: 1;
+  }
+  .eye.od .eye-label .code { background: var(--od-bar); }
+  .eye.og .eye-label .code { background: var(--og-bar); }
+  .eye-label .name {
+    color: var(--ink);
+    font-size: 14px;
+  }
+  .eye-label .latin {
+    font-style: italic;
+    font-weight: 400;
+    color: var(--mute);
+    font-size: 10.5px;
+  }
+
+  /* Real eye pictogram — lightweight SVG */
+  .eye-pict {
+    width: 22px; height: 22px;
+    flex-shrink: 0;
+    display: block;
+  }
+  .eye.od .eye-pict { color: var(--od-bar); }
+  .eye.og .eye-pict { color: var(--og-bar); }
+
+  /* Section within eye column */
+  .section {
+    padding: 8px 12px 9px;
+  }
+  .section + .section {
+    border-top: 1px dashed var(--line-strong);
+  }
+  .section-title {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--teal-deep);
+    font-weight: 600;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .section-title::before {
+    content: '';
+    width: 3px; height: 3px;
+    background: var(--teal);
+    border-radius: 50%;
+  }
+
+  /* Parameter rows */
+  .param {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: baseline;
+    padding: 3px 0;
+    gap: 8px;
+  }
+  .param + .param {
+    border-top: 1px solid rgba(201,211,218,0.45);
+  }
+  .param-key {
+    font-size: 10px;
+    color: var(--ink-soft);
+    font-weight: 500;
+  }
+  .param-key .hint {
+    color: var(--mute);
+    font-weight: 400;
+    font-size: 8.5px;
+  }
+  .param-val {
+    font-size: 10.5px;
+    font-weight: 600;
+    color: var(--ink);
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: -0.01em;
+  }
+
+  /* Status pills — stronger, clearer */
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 3px 9px;
+    border-radius: 99px;
+    font-family: 'Inter Tight', sans-serif;
+    letter-spacing: 0.01em;
+    border: 1px solid transparent;
+    line-height: 1.1;
+  }
+  .pill.normal {
+    background: rgba(92,138,110,0.14);
+    color: #2F5A40;
+    border-color: rgba(92,138,110,0.35);
+  }
+  .pill.normal::before {
+    content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--sage);
+    box-shadow: 0 0 0 2px rgba(92,138,110,0.18);
+  }
+  .pill.alert {
+    background: rgba(200,106,28,0.16);
+    color: #8F4A13;
+    border-color: rgba(200,106,28,0.40);
+    font-weight: 700;
+  }
+  .pill.alert::before {
+    content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--amber);
+    box-shadow: 0 0 0 2px rgba(200,106,28,0.22);
+  }
+  .pill.critical {
+    background: rgba(180,50,42,0.14);
+    color: #8A241E;
+    border-color: rgba(180,50,42,0.40);
+    font-weight: 700;
+  }
+  .pill.critical::before {
+    content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--crimson);
+    box-shadow: 0 0 0 2px rgba(180,50,42,0.20);
+  }
+
+  /* Morphology description blocks */
+  .morpho {
+    font-size: 10px;
+    line-height: 1.5;
+    color: var(--ink-soft);
+  }
+  .morpho .flag {
+    background: linear-gradient(180deg, transparent 55%, rgba(200,106,28,0.2) 55%);
+    color: var(--amber);
+    font-weight: 600;
+  }
+  .morpho .good {
+    color: var(--sage);
+    font-weight: 500;
+  }
+  .morpho .dim {
+    color: var(--mute);
+  }
+
+  /* ─── INTERPRETATION ──────────────────────────────── */
+  .interpretation {
+    margin-top: 10px;
+    padding: 11px 14px 12px;
+    background: linear-gradient(180deg, #FCFCFB 0%, #F7F7F4 100%);
+    border-left: 3px solid var(--teal);
+    border-radius: 0 5px 5px 0;
+  }
+  .interp-header {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    margin-bottom: 6px;
+  }
+  .interp-header .title {
+    font-family: 'Inter Tight', sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--teal-deep);
+  }
+  .interp-header .title::before {
+    content: '';
+    display: inline-block;
+    width: 18px; height: 1.5px;
+    background: var(--teal);
+    vertical-align: middle;
+    margin-right: 8px;
+    margin-bottom: 3px;
+  }
+  .interp-body {
+    font-size: 10.5px;
+    line-height: 1.55;
+    color: var(--ink-soft);
+    text-align: justify;
+    hyphens: auto;
+  }
+  .interp-body .key {
+    font-weight: 600;
+    color: var(--ink);
+  }
+
+  /* ─── CONCLUSION — HERO ────────────────────────────── */
+  .conclusion {
+    margin-top: 10px;
+    padding: 13px 16px 14px;
+    background: transparent;
+    color: var(--ink);
+    border-radius: 5px;
+    border: 1px solid var(--line-strong);
+    border-left: 3px solid var(--teal);
+    position: relative;
+    overflow: hidden;
+  }
+  .conclusion-row {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 14px;
+    align-items: center;
+    position: relative;
+  }
+  .conclusion-badge {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 3px;
+    border-right: 1px solid var(--line-strong);
+    padding-right: 14px;
+  }
+  .conclusion-badge .mark {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 8px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--gold);
+    font-weight: 600;
+  }
+  .conclusion-badge .label {
+    font-family: 'Inter Tight', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--teal-deep);
+    line-height: 1.1;
+  }
+  .conclusion-text {
+    font-family: 'Inter Tight', sans-serif;
+    font-size: 11px;
+    font-weight: 400;
+    line-height: 1.55;
+    letter-spacing: 0;
+    color: var(--ink);
+  }
+  .conclusion-text strong {
+    font-weight: 700;
+    color: var(--teal-deep);
+    background-image: linear-gradient(180deg, transparent 0, transparent 72%, rgba(184,137,58,0.35) 72%, rgba(184,137,58,0.35) 94%, transparent 94%);
+    padding: 0 2px;
+  }
+  .conclusion-text em {
+    font-style: normal;
+    color: var(--ink-soft);
+    font-size: 11px;
+    display: block;
+    margin-top: 4px;
+  }
+
+  /* ─── RECOMMENDATIONS — TWO COLUMN ────────────────── */
+  .recommendations {
+    margin-top: 10px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .rec-card {
+    padding: 10px 12px 11px;
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    background: var(--paper);
+  }
+  .rec-card.follow {
+    background: var(--teal-wash);
+    border-color: rgba(10,110,107,0.25);
+  }
+  .rec-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 7px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--line);
+  }
+  .rec-card.follow .rec-head { border-bottom-color: rgba(10,110,107,0.2); }
+  .rec-num { display: none; }
+  .rec-title {
+    font-family: 'Inter Tight', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--teal-deep);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .rec-title::before {
+    content: '';
+    display: inline-block;
+    width: 14px; height: 1.5px;
+    background: var(--teal);
+  }
+  .rec-icon {
+    margin-left: auto;
+    width: 18px; height: 18px;
+    color: var(--teal-deep);
+    opacity: 0.75;
+  }
+  .rec-list {
+    list-style: none;
+    font-size: 9.5px;
+    line-height: 1.5;
+    color: var(--ink-soft);
+  }
+  .rec-list li {
+    padding: 2px 0 2px 14px;
+    position: relative;
+  }
+  .rec-list li::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 7px;
+    width: 5px; height: 1.5px;
+    background: var(--teal);
+  }
+  .rec-list li strong {
+    font-weight: 600;
+    color: var(--ink);
+  }
+
+  /* ─── SIGNATURE ───────────────────────────────────── */
+  .sign-block {
+    margin-top: auto;
+    padding-top: 12px;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: flex-end;
+    border-top: 1px solid var(--line);
+  }
+  .sign-left {
+    font-size: 8.5px;
+    color: var(--mute);
+    line-height: 1.45;
+  }
+  .sign-left .city {
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-size: 10px;
+    color: var(--ink-soft);
+    margin-bottom: 2px;
+  }
+  .sign-left .contact {
+    letter-spacing: 0.03em;
+  }
+
+  .sign-right {
+    text-align: right;
+  }
+  .sign-doctor {
+    font-family: 'Fraunces', serif;
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--teal);
+    letter-spacing: -0.01em;
+    line-height: 1;
+  }
+  .sign-doctor .dr {
+    font-style: italic;
+    color: var(--teal);
+  }
+  .sign-spec {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 7.5px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--mute);
+    margin-top: 3px;
+    font-weight: 500;
+  }
+  .sign-line {
+    width: 140px;
+    height: 26px;
+    margin-top: 4px;
+    margin-left: auto;
+    border-bottom: 1px solid var(--ink);
+    position: relative;
+  }
+
+  /* ─── PRINT RULES ──────────────────────────────────── */
+  @media print {
+    body { background: white; }
+    .page {
+      margin: 0;
+      box-shadow: none;
+      width: 210mm;
+      height: 297mm;
+    }
+    @page { size: A4; margin: 0; }
+  }
+</style>
+</head>
+<body data-cc-id="cc-1" style="cursor: crosshair;">
+
+<div class="page">
+
+  <!-- ══════════════ HEADER ══════════════ -->
+  <header class="masthead">
+    <div class="masthead-top">
+      <div class="kicker" data-cc-id="cc-1" style="letter-spacing: 1.6px; line-height: 1.15; width: 210px; height: 8px; padding: 0px;">Compte rendu · N° 2026-0422-01</div>
+    </div>
+    <div class="masthead-main">
+      <div class="brand-row">
+        <div class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 16c3.5-5.5 8-8.2 13-8.2S25.5 10.5 29 16c-3.5 5.5-8 8.2-13 8.2S6.5 21.5 3 16Z"></path>
+            <circle cx="16" cy="16" r="4.2" fill="currentColor" stroke="none"></circle>
+            <circle cx="17.4" cy="14.6" r="1.1" fill="#0A6E6B" stroke="none"></circle>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <div class="wordmark">Clinique <em>Medivision</em></div>
+          <div class="tagline" data-cc-id="cc-1" style="">Ophtalmologie<span class="sep">·</span>Imagerie rétinienne<span class="sep">·</span>Libreville</div>
+        </div>
+      </div>
+      <div class="doc-title">
+        <div class="main" data-cc-id="cc-1" style="font-size: 22px;">OCT / Rétinographie</div>
+        <div class="sub" data-cc-id="cc-2" style="">Examen du 22 avril 2026 — Segment postérieur</div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ══════════════ META ══════════════ -->
+  <section class="meta">
+    <div class="meta-cell">
+      <div class="meta-label">Patient</div>
+      <div class="meta-value">MBOUSSOU &nbsp;<span class="soft">· 67 ans · M</span></div>
+    </div>
+    <div class="meta-cell">
+      <div class="meta-label">Prescripteur</div>
+      <div class="meta-value">Dr. Milebou</div>
+    </div>
+    <div class="meta-cell">
+      <div class="meta-label">Motif</div>
+      <div class="meta-value">Excavation papillaire <span class="soft">bilatérale</span></div>
+    </div>
+    <div class="meta-cell">
+      <div class="meta-label">Antécédents</div>
+      <div class="meta-value">Sans particularité</div>
+    </div>
+  </section>
+
+  <!-- ══════════════ CLINICAL GRID ══════════════ -->
+  <section class="clinical">
+
+    <!-- ━━━━ OEIL DROIT ━━━━ -->
+    <div class="eye od">
+      <div class="eye-header">
+        <div class="eye-label">
+          <span class="code">OD</span>
+          <svg class="eye-pict" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M2 12c2.8-4.5 6.3-6.8 10-6.8S19.2 7.5 22 12c-2.8 4.5-6.3 6.8-10 6.8S4.8 16.5 2 12Z"></path>
+            <circle cx="12" cy="12" r="3.4" fill="currentColor" stroke="none"></circle>
+            <circle cx="13.1" cy="10.9" r="0.9" fill="#FFFFFF" stroke="none"></circle>
+          </svg>
+          <span class="name">Œil droit</span>
+          <span class="latin">· dexter</span>
+        </div>
+      </div>
+
+      <!-- A. Morphologie -->
+      <div class="section">
+        <div class="section-title">Analyse morphologique</div>
+        <div class="param">
+          <div class="param-key">Macula <span class="hint">· profil fovéolaire</span></div>
+          <div class="param-val"><span class="pill normal">Physiologique</span></div>
+        </div>
+        <div class="param">
+          <div class="param-key">Papille optique</div>
+          <div class="param-val"><span class="pill alert">Excavation ↑</span></div>
+        </div>
+        <div class="param">
+          <div class="param-key">Rétine périphérique</div>
+          <div class="param-val"><span class="pill normal">Calme 360°</span></div>
+        </div>
+        <div class="param">
+          <div class="param-key">OCTA <span class="hint">· densité capillaire</span></div>
+          <div class="param-val"><span class="pill normal">Préservée</span></div>
+        </div>
+      </div>
+
+      <!-- B. Biométrie -->
+      <div class="section">
+        <div class="section-title" data-cc-id="cc-4" style="">Paramètres biométriques</div>
+        <div class="param">
+          <div class="param-key">RNFL <span class="hint">· fibres péripapillaires</span></div>
+          <div class="param-val">Dans les normes</div>
+        </div>
+        <div class="param">
+          <div class="param-key">GCL++ <span class="hint">· cell. ganglionnaires</span></div>
+          <div class="param-val">Dans les normes</div>
+        </div>
+        <div class="param">
+          <div class="param-key">Rapport C/D <span class="hint">· vertical</span></div>
+          <div class="param-val" style="color: var(--amber);" data-cc-id="cc-4">0.70 ⚠</div>
+        </div>
+        <div class="param">
+          <div class="param-key">Surface discale</div>
+          <div class="param-val">2.0 mm²</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ━━━━ OEIL GAUCHE ━━━━ -->
+    <div class="eye og">
+      <div class="eye-header">
+        <div class="eye-label">
+          <span class="code">OG</span>
+          <svg class="eye-pict" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M2 12c2.8-4.5 6.3-6.8 10-6.8S19.2 7.5 22 12c-2.8 4.5-6.3 6.8-10 6.8S4.8 16.5 2 12Z"></path>
+            <circle cx="12" cy="12" r="3.4" fill="currentColor" stroke="none"></circle>
+            <circle cx="13.1" cy="10.9" r="0.9" fill="#FFFFFF" stroke="none"></circle>
+          </svg>
+          <span class="name">Œil gauche</span>
+          <span class="latin">· sinister</span>
+        </div>
+      </div>
+
+      <!-- A. Morphologie -->
+      <div class="section">
+        <div class="section-title">Analyse morphologique</div>
+        <div class="param">
+          <div class="param-key">Macula <span class="hint">· profil fovéolaire</span></div>
+          <div class="param-val"><span class="pill normal">Physiologique</span></div>
+        </div>
+        <div class="param">
+          <div class="param-key">Papille optique</div>
+          <div class="param-val"><span class="pill normal">Sans particularité</span></div>
+        </div>
+        <div class="param">
+          <div class="param-key" data-cc-id="cc-5" style="">Rétine périphérique</div>
+          <div class="param-val"><span class="pill normal">Calme 360°</span></div>
+        </div>
+        <div class="param">
+          <div class="param-key">OCTA <span class="hint">· densité capillaire</span></div>
+          <div class="param-val"><span class="pill normal">Préservée</span></div>
+        </div>
+      </div>
+
+      <!-- B. Biométrie -->
+      <div class="section">
+        <div class="section-title">Paramètres biométriques</div>
+        <div class="param">
+          <div class="param-key">RNFL <span class="hint">· fibres péripapillaires</span></div>
+          <div class="param-val" data-cc-id="cc-3" style="color: rgb(200, 106, 28);">Inférieur en temporal inf.</div>
+        </div>
+        <div class="param">
+          <div class="param-key">GCL++ <span class="hint">· cell. ganglionnaires</span></div>
+          <div class="param-val">Dans les normes</div>
+        </div>
+        <div class="param">
+          <div class="param-key">Rapport C/D <span class="hint">· vertical</span></div>
+          <div class="param-val">0.60</div>
+        </div>
+        <div class="param">
+          <div class="param-key">Surface discale</div>
+          <div class="param-val">2.0 mm²</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════ INTERPRETATION ══════════════ -->
+  <section class="interpretation">
+    <div class="interp-header">
+      <span class="title">Analyse clinique</span>
+    </div>
+    <p class="interp-body">
+      L'analyse automatisée des fibres nerveuses péripapillaires (<span class="key">RNFL</span>)
+      et du complexe ganglionnaire (<span class="key">GCL++</span>) est strictement normale et
+      <span class="key">symétrique bilatéralement</span>, sans perte axonale détectable.
+      La rétinographie confirme un aspect maculaire physiologique avec un reflet fovéolaire
+      conservé. On note en revanche une <span class="key">excavation papillaire asymétrique</span>,
+      avec un rapport C/D vertical estimé à <span class="key">0.70 à droite contre 0.60 à gauche</span>
+      pour des surfaces discales moyennes et symétriques (2 mm²). L'anneau neurorétinien demeure
+      qualitativement préservé et la rétine périphérique est calme à plat sur 360°.
+    </p>
+  </section>
+
+  <!-- ══════════════ CONCLUSION ══════════════ -->
+  <section class="conclusion">
+    <div class="conclusion-row">
+      <div class="conclusion-badge">
+        <span class="mark">· Synthèse</span>
+        <span class="label">Conclusion</span>
+      </div>
+      <div class="conclusion-text">
+        Excavation papillaire asymétrique cliniquement suspecte mais isolée,
+        sans traduction structurelle objective sur le RNFL ou le GCL.
+        <em>L'ensemble évoque prioritairement une excavation physiologique à surveiller ;
+        un glaucome à angle ouvert pré-périmétrique ne peut toutefois être formellement écarté.</em>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════ RECOMMENDATIONS ══════════════ -->
+  <section class="recommendations">
+
+    <div class="rec-card">
+      <div class="rec-head">
+        <span class="rec-title">Hygiène &amp; prévention</span>
+        <svg class="rec-icon" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+          <path d="M12 21s-7.7-4.7-9.6-10.2A5.6 5.6 0 0 1 12 6.2a5.6 5.6 0 0 1 9.6 4.6C19.7 16.3 12 21 12 21Z"></path>
+        </svg>
+      </div>
+      <ul class="rec-list">
+        <li><strong>Activité physique</strong> régulière — 30 min de marche quotidienne favorisant la perfusion oculaire.</li>
+        <li><strong>Alimentation</strong> riche en oméga-3, légumes verts et antioxydants (lutéine, zéaxanthine).</li>
+        <li><strong>Hydratation</strong> — 1.5 à 2 L d'eau/jour ; limiter la caféine et l'alcool en excès.</li>
+        <li><strong>Gestion du stress</strong> &amp; <strong>sommeil</strong> de qualité (7–8 h) — facteurs reconnus de régulation de la pression intraoculaire.</li>
+        <li><strong>Protection solaire</strong> oculaire (verres UV 400) en extérieur.</li>
+      </ul>
+    </div>
+
+    <div class="rec-card follow">
+      <div class="rec-head">
+        <span class="rec-title">Suivi &amp; examens complémentaires</span>
+        <svg class="rec-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+          <circle cx="12" cy="12" r="9"></circle><polyline points="12 7 12 12 15 14"></polyline>
+        </svg>
+      </div>
+      <ul class="rec-list">
+        <li>Mesure de la <strong>pression intraoculaire (PIO)</strong> et pachymétrie cornéenne.</li>
+        <li><strong>Champ visuel automatisé</strong> type Humphrey 24-2 (SITA-Standard).</li>
+        <li><strong>Contrôle OCT annuel</strong> — suivi RNFL/GCL pour confirmer la stabilité structurelle.</li>
+        <li>Consultation ophtalmologique clinique avec gonioscopie recommandée.</li>
+      </ul>
+    </div>
+
+  </section>
+
+  <!-- ══════════════ SIGNATURE ══════════════ -->
+  <footer class="sign-block">
+    <div class="sign-left">
+      <div class="city">Fait à Libreville, le 22 avril 2026</div>
+      <div class="contact">
+        CLINIQUE MEDIVISION · Libreville, Gabon<br>
+        yoanmboussou@gmail.com · +241 76 51 50 12
+      </div>
+    </div>
+    <div class="sign-right">
+      <div class="sign-doctor"><span class="dr">Dr.</span> Yoan MBOUSSOU</div>
+      <div class="sign-spec" data-cc-id="cc-2" style="">Médecin SPÉCIALISTE EN<div>Imagerie rétinienne</div></div>
+      <div class="sign-line"></div>
+    </div>
+  </footer>
+
+</div>
+
+
+
+</body></html>
