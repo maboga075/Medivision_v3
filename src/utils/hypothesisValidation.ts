@@ -13,13 +13,12 @@ const EXCLUSIVE_CATEGORIES = [
 // Lit les observations depuis un EyeState brut (avant normalisation)
 const hasSignInRawEye = (eye: EyeState, keywords: string[]): boolean => {
   const allObs = [
-    ...eye.obsPapille,
-    ...eye.obsMacula,
-    ...eye.obsVasc,
-    ...eye.obsPeriph,
-    ...eye.obsAnterieur,
-    ...eye.obsFavoris,
-    ...(eye.octaPerformed ? eye.obsOCTA : []),
+    ...(eye.observationsPapille ?? []),
+    ...(eye.observationsMacula ?? []),
+    ...(eye.observationsPeripherie ?? []),
+    ...(eye.obsAnterieur ?? []),
+    ...(eye.observationsDivers ? [eye.observationsDivers] : []),
+    ...(eye.octaPerformed ? (eye.obsOCTA ?? []) : []),
   ];
   return allObs.some((item) =>
     keywords.some((kw) => item.toLowerCase().includes(kw.toLowerCase()))

@@ -13,6 +13,7 @@ export interface ImageData {
 export interface EyeState {
   acquisitionStatus: AcquisitionStatus;
   acquisitionMotif: string;
+  acquisitionQuality?: 'bon' | 'faible' | 'impossible';
 
   hasFollowUp: boolean;
   followUpDate: string;
@@ -30,13 +31,15 @@ export interface EyeState {
   discSurface: string;
   cupDisc: string;
 
-  obsFavoris: string[];
   octaPerformed: boolean;
   obsOCTA: string[];
-  obsPapille: string[];
-  obsMacula: string[];
-  obsVasc: string[];
-  obsPeriph: string[];
+
+  // Champs bubble-picker (remplacent obsMacula, obsPapille, obsPeriph, obsFavoris, obsVasc)
+  observationsMacula: string[];
+  observationsPapille: string[];
+  observationsPeripherie: string[];
+  observationsDivers: string;
+
   obsFree: string;
   images: ImageData[];
 }

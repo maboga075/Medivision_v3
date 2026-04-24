@@ -176,31 +176,37 @@ function buildMorphologyRows(
 ): ParamRow[] {
   const rows: ParamRow[] = [];
 
-  const addRow = (label: string, obs: string[], hint?: string) => {
+  // Sections principales : toujours affichées, "Sans particularité" si vide
+  const addMainRow = (label: string, obs: string[], hint?: string) => {
+    const filtered = obs.filter((o) => o && o.trim() && o !== '—');
+    const toShow = filtered.length > 0 ? filtered : ['Sans particularité'];
+    rows.push({ label, hint, pills: buildPills(toShow) });
+  };
+
+  // Sections conditionnelles : affichées seulement si données présentes
+  const addOptRow = (label: string, obs: string[], hint?: string) => {
     const filtered = obs.filter((o) => o && o.trim() && o !== '—');
     if (filtered.length === 0) return;
     rows.push({ label, hint, pills: buildPills(filtered) });
   };
 
-  addRow('Macula', eye.obsMacula);           // A3 : sans hint "profil fovéolaire"
-  addRow('Papille optique', eye.obsPapille);
-  // A4 : ligne Vaisseaux supprimée
-  addRow('Périphérie', eye.obsPeriph);
+  addMainRow('Macula', eye.observationsMacula ?? []);
+  addMainRow('Papille optique', eye.observationsPapille ?? []);
+  addMainRow('Périphérie', eye.observationsPeripherie ?? []);
 
-  // A5 : Cornée conditionnelle (sauf si anteriorSegmentDone explicitement false)
-  if (anteriorSegmentDone !== false && eye.obsAnterieur.length > 0) {
-    addRow('Cornée / Ant.', eye.obsAnterieur);
-  }
-  if (eye.obsFavoris.length > 0) {
-    addRow('Divers', eye.obsFavoris);
-  }
-  // A6 : OCTA conditionnel (sauf si octaDone explicitement false)
-  if (octaDone !== false && eye.octaPerformed && eye.obsOCTA.length > 0) {
-    addRow('OCTA', eye.obsOCTA, 'densité capillaire');
+  // A5 : Cornée conditionnelle
+  if (anteriorSegmentDone !== false && (eye.obsAnterieur ?? []).length > 0) {
+    addOptRow('Cornée / Ant.', eye.obsAnterieur ?? []);
   }
 
-  if (rows.length === 0) {
-    rows.push({ label: 'Données', pills: [{ variant: 'normal', text: 'Non documentées' }] });
+  // Divers (texte libre)
+  if (eye.observationsDivers?.trim()) {
+    addOptRow('Divers', [eye.observationsDivers.trim()]);
+  }
+
+  // A6 : OCTA conditionnel
+  if (octaDone !== false && eye.octaPerformed && (eye.obsOCTA ?? []).length > 0) {
+    addOptRow('OCTA', eye.obsOCTA ?? [], 'densité capillaire');
   }
 
   return rows;

@@ -64,7 +64,7 @@ function removeEmptyFields<T>(obj: T): T {
   return obj;
 }
 
-// CORRECTION : mappe les champs plats obs* vers l'objet observations imbriqué
+// Mappe les champs bubble-picker vers l'objet observations imbriqué
 const buildObservations = (eye: EyeState): ObservationsNormalisees => {
   const obs: ObservationsNormalisees = {};
 
@@ -73,15 +73,18 @@ const buildObservations = (eye: EyeState): ObservationsNormalisees => {
     if (clean.length > 0) obs[key] = clean;
   };
 
-  assign('papille', eye.obsPapille);
-  assign('macula', eye.obsMacula);
-  assign('vasculaire', eye.obsVasc);
-  assign('peripherie', eye.obsPeriph);
-  assign('anterieur', eye.obsAnterieur);
-  assign('favoris', eye.obsFavoris);
+  assign('papille', eye.observationsPapille ?? []);
+  assign('macula', eye.observationsMacula ?? []);
+  // vasculaire supprimé (Session 2 A4)
+  assign('peripherie', eye.observationsPeripherie ?? []);
+  assign('anterieur', eye.obsAnterieur ?? []);
+
+  if (eye.observationsDivers?.trim()) {
+    obs.favoris = [eye.observationsDivers.trim()];
+  }
 
   if (eye.octaPerformed) {
-    assign('octa', eye.obsOCTA);
+    assign('octa', eye.obsOCTA ?? []);
   }
 
   return obs;

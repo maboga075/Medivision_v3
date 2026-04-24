@@ -62,6 +62,67 @@ export const REPORT_TYPES = [
 
 export type ReportType = typeof REPORT_TYPES[number];
 
+export const BUBBLE_PICKER_SUGGESTIONS = {
+  macula: [
+    'OMC (œdème maculaire cystoïde)',
+    'Œdème diffus',
+    'Décollement EP',
+    'Drusens',
+    'Membrane épirétinienne',
+    'Trou maculaire',
+    'Hémorragies maculaires',
+    'Atrophie maculaire',
+    'Décollement rétinien',
+    'Exsudats maculaires',
+    'Trou lamellaire',
+    'Remaniement de l\'EP',
+    'Décollement séreux rétinien',
+    'Traction vitréo-maculaire',
+  ],
+  papille: [
+    'Excavation augmentée',
+    'Asymétrie C/D',
+    'Pâleur papillaire',
+    'Hémorragies péripapillaires',
+    'Œdème papillaire',
+    'Drusen papillaire',
+    'Atrophie péripapillaire',
+    'Encoche rebord neuro-rétinien',
+    'Contours flous',
+    'Tilted disc',
+    'Raréfaction vasculaire péripapillaire',
+  ],
+  peripherie: [
+    'Déchirure rétinienne',
+    'Décollement rétinien',
+    'Palissades',
+    'Néovaisseaux',
+    'Hémorragies périphériques',
+    'Trous atrophiques',
+    'Rétinoschisis',
+    'Dégénérescence palissadique',
+    'Givre rétinien',
+  ],
+  anterieur: [
+    'Amincissement focal (suspect kératocône)',
+    'Bombement cornéen inférieur',
+    'Cicatrices cornéennes',
+    'Stries de Vogt',
+    'Œdème cornéen',
+    'Infiltrat',
+    'Asymétrie cornéenne',
+    'Opacité cristallinienne',
+  ],
+  octa: [
+    'Diminution de la densité vasculaire',
+    'Néovaisseaux choroïdiens',
+    'Désorganisation maille capillaire',
+    'Territoires ischémiques',
+    'Élargissement de la ZAF',
+    'Raréfaction capillaire périfovéolaire',
+  ],
+} as const;
+
 export const NORMAL_VALUES: string[] = [
   "Sans particularité", "Dans les normes", "Stable", "—", "",
   "Contours nets", "Bords réguliers", "Absence de néovaisseaux",

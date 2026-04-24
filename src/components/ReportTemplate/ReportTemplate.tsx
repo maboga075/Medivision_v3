@@ -122,8 +122,8 @@ const ReportPage = forwardRef<HTMLDivElement, ReportTemplateProps>(
                 },
                 {
                   label: 'Cornée',
-                  od: oeilDroit.obsAnterieur.join(', '),
-                  og: oeilGauche.obsAnterieur.join(', '),
+                  od: (oeilDroit.obsAnterieur ?? []).join(', ') || '—',
+                  og: (oeilGauche.obsAnterieur ?? []).join(', ') || '—',
                   fieldOD: 'ant_obs_od',
                   fieldOG: 'ant_obs_og',
                 },
@@ -151,9 +151,8 @@ const ReportPage = forwardRef<HTMLDivElement, ReportTemplateProps>(
               edits={edits}
               onEdit={onEdit}
               rows={[
-                { label: 'Papille', od: oeilDroit.obsPapille.join(', '), og: oeilGauche.obsPapille.join(', '), fieldOD: 'ret_papille_od', fieldOG: 'ret_papille_og' },
-                { label: 'Macula', od: oeilDroit.obsMacula.join(', '), og: oeilGauche.obsMacula.join(', '), fieldOD: 'ret_macula_od', fieldOG: 'ret_macula_og' },
-                { label: 'Vaisseaux', od: oeilDroit.obsVasc.join(', '), og: oeilGauche.obsVasc.join(', '), fieldOD: 'ret_vais_od', fieldOG: 'ret_vais_og' },
+                { label: 'Papille', od: (oeilDroit.observationsPapille ?? []).join(', ') || '—', og: (oeilGauche.observationsPapille ?? []).join(', ') || '—', fieldOD: 'ret_papille_od', fieldOG: 'ret_papille_og' },
+                { label: 'Macula', od: (oeilDroit.observationsMacula ?? []).join(', ') || '—', og: (oeilGauche.observationsMacula ?? []).join(', ') || '—', fieldOD: 'ret_macula_od', fieldOG: 'ret_macula_og' },
               ]}
             />
           )}

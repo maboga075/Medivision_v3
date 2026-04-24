@@ -19,9 +19,8 @@ import { db, collection, onSnapshot, query, orderBy, where } from '../services/f
 import PatientEditModal from '../components/modals/PatientEditModal';
 import { sendViaWhatsApp, sendViaEmail } from '../services/communication';
 import { callNativeAI } from '../services/aiManager';
-import EyeForm from '../components/forms/EyeForm';
+import EyeExamSection from '../components/forms/EyeExamSection';
 import { createEyeState } from '../utils/clinicalData';
-import { usePrefs } from '../hooks/usePrefs';
 import { normalizeClinicalData } from '../utils/clinicalPayload';
 import { processHypothesisAddition } from '../utils/hypothesisValidation';
 import { HYPOTHESES_DIAGNOSTIQUES, REPORT_TYPES } from '../utils/constants';
@@ -41,8 +40,6 @@ type ConsultationView = 'form' | 'report';
 export default function Consultation() {
   const [patients, setPatients] = useState<PatientFirestore[]>([]);
   const [selectedPatient, setSelectedPatient] = useState<PatientFirestore | null>(null);
-  const { prefs, updatePrefs } = usePrefs();
-
   const [view, setView] = useState<ConsultationView>('form');
   const [reportType, setReportType] = useState<ReportType>('Compte rendu OCT');
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -50,6 +47,7 @@ export default function Consultation() {
   const [eyeOG, setEyeOG] = useState<EyeState>(createEyeState());
   const [forceShowAnterior, setForceShowAnterior] = useState(false);
   const [forceShowPosterior, setForceShowPosterior] = useState(false);
+  const [octaDone, setOctaDone] = useState(false);
 
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [jsonValidation, setJsonValidation] = useState<ValidationResult | null>(null);
@@ -116,6 +114,7 @@ export default function Consultation() {
     setEyeOG(createEyeState());
     setForceShowAnterior(false);
     setForceShowPosterior(false);
+    setOctaDone(false);
     setOctReportData(null);
     setJsonValidation(null);
     setHypothesesDiagnostiques([]);
@@ -180,6 +179,10 @@ export default function Consultation() {
         },
         oeil_droit: eyeOD,
         oeil_gauche: eyeOG,
+        anteriorSegmentDone: showAnterior,
+        octaDone: octaDone,
+        acquisitionQualityOD: eyeOD.acquisitionQuality ?? 'bon',
+        acquisitionQualityOG: eyeOG.acquisitionQuality ?? 'bon',
       };
       console.info('[IA] rawInputJson:', rawInputJson);
 
@@ -451,81 +454,78 @@ export default function Consultation() {
                     </div>
                   </header>
 
-                  {/* Sélecteur de type d'examen */}
-                  <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm mb-6 flex flex-col md:flex-row flex-wrap gap-4 items-center justify-between">
-                    <div className="flex flex-wrap items-center gap-4 w-full md:w-auto">
-                      <label className="text-sm font-black uppercase text-slate-500 tracking-wider">
-                        Type d'examen
-                      </label>
-                      <select
-                        className="p-3 border-2 border-slate-200 rounded-xl text-sm font-bold outline-none bg-slate-50 w-full sm:w-64"
-                        value={reportType}
-                        onChange={(e) => {
-                          setReportType(e.target.value as ReportType);
-                          setForceShowAnterior(false);
-                          setForceShowPosterior(false);
-                        }}
-                      >
-                        {REPORT_TYPES.map((t) => (
-                          <option key={t} value={t}>
-                            {t}
-                          </option>
-                        ))}
-                      </select>
+                  {/* Sélecteur de type d'examen + options */}
+                  <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm mb-6 flex flex-col gap-4">
+                    <div className="flex flex-col md:flex-row flex-wrap gap-4 items-center justify-between">
+                      <div className="flex flex-wrap items-center gap-4 w-full md:w-auto">
+                        <label className="text-sm font-black uppercase text-slate-500 tracking-wider">
+                          Type d'examen
+                        </label>
+                        <select
+                          className="p-3 border-2 border-slate-200 rounded-xl text-sm font-bold outline-none bg-slate-50 w-full sm:w-64"
+                          value={reportType}
+                          onChange={(e) => {
+                            setReportType(e.target.value as ReportType);
+                            setForceShowAnterior(false);
+                            setForceShowPosterior(false);
+                          }}
+                        >
+                          {REPORT_TYPES.map((t) => (
+                            <option key={t} value={t}>
+                              {t}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
-                    <div className="flex flex-wrap gap-4 items-center">
-                      {isAnteriorBase && (
-                        <button
-                          onClick={() => setForceShowPosterior(!forceShowPosterior)}
-                          className={`text-sm font-bold px-4 py-2 rounded-xl active:scale-95 transition-all ${
-                            forceShowPosterior
-                              ? 'bg-indigo-500 text-white border-2 border-indigo-500 shadow-md'
-                              : 'bg-white border-2 border-indigo-200 text-indigo-600'
-                          }`}
-                        >
-                          + Rétine/Postérieur
-                        </button>
-                      )}
-                      {!isAnteriorBase && (
-                        <button
-                          onClick={() => setForceShowAnterior(!forceShowAnterior)}
-                          className={`text-sm font-bold px-4 py-2 rounded-xl active:scale-95 transition-all ${
-                            forceShowAnterior
-                              ? 'bg-teal-500 text-white border-2 border-teal-500 shadow-md'
-                              : 'bg-white border-2 border-teal-200 text-teal-600'
-                          }`}
-                        >
-                          + Cornée/Antérieur
-                        </button>
-                      )}
+
+                    {/* Checkboxes options d'acquisition */}
+                    <div className="flex flex-wrap gap-6 pt-3 border-t border-slate-100">
+                      <label className="flex items-center gap-3 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={showAnterior}
+                          onChange={(e) => {
+                            if (isAnteriorBase) setForceShowPosterior(e.target.checked);
+                            else setForceShowAnterior(e.target.checked);
+                          }}
+                          className="w-5 h-5 rounded border-2 border-slate-300 accent-teal-600 cursor-pointer"
+                        />
+                        <span className="font-medium text-slate-700 text-sm">
+                          OCT segment antérieur réalisé
+                        </span>
+                      </label>
+                      <label className="flex items-center gap-3 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={octaDone}
+                          onChange={(e) => setOctaDone(e.target.checked)}
+                          className="w-5 h-5 rounded border-2 border-slate-300 accent-teal-600 cursor-pointer"
+                        />
+                        <span className="font-medium text-slate-700 text-sm">
+                          OCTA réalisé
+                        </span>
+                      </label>
                     </div>
                   </div>
 
-                  {/* Formulaires oculaires */}
+                  {/* Formulaires oculaires — bubble-picker */}
                   <div className="flex flex-col lg:flex-row gap-6 mb-6">
-                    <EyeForm
+                    <EyeExamSection
                       side="OD"
-                      label="ŒIL DROIT"
-                      color="#0C2233"
                       eye={eyeOD}
-                      onChange={setEyeOD}
+                      onUpdate={setEyeOD}
                       isOCT={reportType.includes('OCT')}
-                      prefs={prefs}
-                      updatePrefs={updatePrefs}
                       showAnterior={showAnterior}
-                      showPosterior={showPosterior}
+                      octaDone={octaDone}
                     />
-                    <EyeForm
+                    <EyeExamSection
                       side="OG"
-                      label="ŒIL GAUCHE"
-                      color="#13344D"
                       eye={eyeOG}
-                      onChange={setEyeOG}
+                      onUpdate={setEyeOG}
                       isOCT={reportType.includes('OCT')}
-                      prefs={prefs}
-                      updatePrefs={updatePrefs}
                       showAnterior={showAnterior}
-                      showPosterior={showPosterior}
+                      octaDone={octaDone}
                     />
                   </div>
 
