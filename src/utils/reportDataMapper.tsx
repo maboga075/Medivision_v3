@@ -131,54 +131,76 @@ function determinePillVariant(observations: string[]): PillVariant {
   return 'normal';
 }
 
-function buildPillText(observations: string[]): string {
-  // Si "Sans particularité" + anomalies → montrer seulement les anomalies
+/* A7 — Une bulle par anomalie */
+function buildPills(
+  observations: string[]
+): Array<{ variant: PillVariant; text: string }> {
   const anomalies = observations.filter(
     (o) => o.toLowerCase() !== 'sans particularité'
   );
   const relevant = anomalies.length > 0 ? anomalies : observations;
-  return relevant
-    .slice(0, 2)
-    .join(' · ')
-    .slice(0, 38);
+  return relevant.map((obs) => ({
+    variant: determinePillVariant([obs]),
+    text: obs.slice(0, 38).trim(),
+  }));
+}
+
+/* ─── A10 — Formater valeur RNFL/GCL++ avec couleur ───────────── */
+
+function formatBiometricValue(value: string): { text: string; color: string } {
+  if (!value) return { text: '—', color: 'var(--ink)' };
+  const lower = value.toLowerCase();
+
+  if (lower.includes('inf.') || lower.includes('inférieur')) {
+    const match = value.match(/\b(TI|TS|TSI|Sup|Inf)\b/i);
+    const loc = match ? match[1].toUpperCase() : '';
+    return { text: loc ? `Inf. en ${loc}` : 'Inférieur', color: 'var(--crimson)' };
+  }
+  if (lower.includes('limite')) {
+    const match = value.match(/\b(TI|TS|TSI|Sup|Inf)\b/i);
+    const loc = match ? match[1].toUpperCase() : '';
+    return { text: loc ? `Limite en ${loc}` : 'Limite', color: 'var(--amber)' };
+  }
+  if (lower.includes('normal') || lower.includes('normes')) {
+    return { text: 'Dans les normes', color: 'var(--sage)' };
+  }
+  return { text: value, color: 'var(--ink)' };
 }
 
 /* ─── Morphologie (pills) ──────────────────────────────────────── */
 
-function buildMorphologyRows(eye: EyeState): ParamRow[] {
+function buildMorphologyRows(
+  eye: EyeState,
+  anteriorSegmentDone?: boolean,
+  octaDone?: boolean
+): ParamRow[] {
   const rows: ParamRow[] = [];
 
   const addRow = (label: string, obs: string[], hint?: string) => {
     const filtered = obs.filter((o) => o && o.trim() && o !== '—');
     if (filtered.length === 0) return;
-    rows.push({
-      label,
-      hint,
-      pill: {
-        variant: determinePillVariant(filtered),
-        text: buildPillText(filtered),
-      },
-    });
+    rows.push({ label, hint, pills: buildPills(filtered) });
   };
 
-  addRow('Macula', eye.obsMacula, 'profil fovéolaire');
+  addRow('Macula', eye.obsMacula);           // A3 : sans hint "profil fovéolaire"
   addRow('Papille optique', eye.obsPapille);
-  addRow('Vaisseaux', eye.obsVasc);
+  // A4 : ligne Vaisseaux supprimée
   addRow('Périphérie', eye.obsPeriph);
 
-  if (eye.obsAnterieur.length > 0) {
+  // A5 : Cornée conditionnelle (sauf si anteriorSegmentDone explicitement false)
+  if (anteriorSegmentDone !== false && eye.obsAnterieur.length > 0) {
     addRow('Cornée / Ant.', eye.obsAnterieur);
   }
   if (eye.obsFavoris.length > 0) {
     addRow('Divers', eye.obsFavoris);
   }
-  if (eye.octaPerformed && eye.obsOCTA.length > 0) {
+  // A6 : OCTA conditionnel (sauf si octaDone explicitement false)
+  if (octaDone !== false && eye.octaPerformed && eye.obsOCTA.length > 0) {
     addRow('OCTA', eye.obsOCTA, 'densité capillaire');
   }
 
-  // Si aucune ligne (examen vide), insérer une ligne neutre
   if (rows.length === 0) {
-    rows.push({ label: 'Données', pill: { variant: 'normal', text: 'Non documentées' } });
+    rows.push({ label: 'Données', pills: [{ variant: 'normal', text: 'Non documentées' }] });
   }
 
   return rows;
@@ -189,18 +211,28 @@ function buildMorphologyRows(eye: EyeState): ParamRow[] {
 function buildBiometricRows(eye: EyeState): ParamRow[] {
   const rows: ParamRow[] = [];
 
+  // A8 : RNFL avec nouveau hint et couleur
   if (eye.rnfl) {
-    const lower = eye.rnfl.toLowerCase();
-    const flag: ParamRow['flag'] =
-      lower.includes('inférieur') || lower.includes('limite') ? 'alert' : undefined;
-    const hint = eye.rnflLoc ? eye.rnflLoc : 'fibres péripapillaires';
-    rows.push({ label: 'RNFL', hint, value: eye.rnfl, flag });
+    const fmt = formatBiometricValue(eye.rnfl);
+    rows.push({
+      label: 'RNFL',
+      hint: 'fibres nerveuses péripapillaires',
+      value: fmt.text,
+      customColor: fmt.color,
+      isBiometricGraded: true,
+    });
   }
 
+  // A9 : GCL++ avec nouveau hint et couleur
   if (eye.gcl) {
-    const lower = eye.gcl.toLowerCase();
-    const flag: ParamRow['flag'] = lower.includes('inférieur') ? 'alert' : undefined;
-    rows.push({ label: 'GCL++', hint: 'cell. ganglionnaires', value: eye.gcl, flag });
+    const fmt = formatBiometricValue(eye.gcl);
+    rows.push({
+      label: 'GCL++',
+      hint: 'complexe cell. ganglionnaires',
+      value: fmt.text,
+      customColor: fmt.color,
+      isBiometricGraded: true,
+    });
   }
 
   if (eye.cupDisc) {
@@ -222,14 +254,11 @@ function buildBiometricRows(eye: EyeState): ParamRow[] {
   }
 
   if (eye.hasFollowUp && eye.rnflEvolution && eye.rnflEvolution !== 'Non évaluable') {
-    const flag: ParamRow['flag'] = eye.rnflEvolution.toLowerCase().includes('diminution')
-      ? 'alert'
-      : undefined;
+    const fmt = formatBiometricValue(eye.rnflEvolution);
     const hint = eye.followUpDate ? `vs ${eye.followUpDate}` : 'évolution';
-    rows.push({ label: 'Évolution RNFL', hint, value: eye.rnflEvolution, flag });
+    rows.push({ label: 'Évolution RNFL', hint, value: fmt.text, customColor: fmt.color });
   }
 
-  // Si aucune biométrie, insérer ligne neutre
   if (rows.length === 0) {
     rows.push({ label: 'Biométrie', value: '—' });
   }
@@ -239,12 +268,19 @@ function buildBiometricRows(eye: EyeState): ParamRow[] {
 
 /* ─── Données par œil ──────────────────────────────────────────── */
 
-function buildEyeData(side: 'OD' | 'OG', eye: EyeState): EyeData {
+function buildEyeData(
+  side: 'OD' | 'OG',
+  eye: EyeState,
+  anteriorSegmentDone?: boolean,
+  octaDone?: boolean,
+  acquisitionQuality?: 'bon' | 'faible' | 'impossible'
+): EyeData {
   return {
     code: side,
     name: side === 'OD' ? 'Œil droit' : 'Œil gauche',
     latin: side === 'OD' ? 'dexter' : 'sinister',
-    morphology: buildMorphologyRows(eye),
+    acquisitionQuality,
+    morphology: buildMorphologyRows(eye, anteriorSegmentDone, octaDone),
     biometrics: buildBiometricRows(eye),
   };
 }
@@ -283,7 +319,7 @@ function buildInterpretation(interp: AIInterpretation): ReactNode {
   );
 }
 
-/* ─── Conclusion ───────────────────────────────────────────────── */
+/* ─── Conclusion (A11 : diagnostic pur, suivi → recommandations) ─ */
 
 const SEVERITY_LABEL: Record<string, string> = {
   normal: 'Examen dans les normes',
@@ -295,12 +331,7 @@ function buildConclusion(aiResult: AIResult): OCTReportData['conclusion'] {
   const sevLabel = SEVERITY_LABEL[aiResult.severite] ?? '';
   return {
     headline: highlightText(aiResult.conclusion),
-    caveat: (
-      <>
-        {sevLabel ? `${sevLabel}. ` : ''}
-        {aiResult.recommandations.suivi}
-      </>
-    ),
+    caveat: sevLabel || '',  // diagnostic uniquement, suivi dans recommandations
   };
 }
 
@@ -309,7 +340,6 @@ function buildConclusion(aiResult: AIResult): OCTReportData['conclusion'] {
 function splitToItems(text: string): ReactNode[] {
   if (!text || text === '—') return [];
 
-  // Tenter de séparer par phrases (". " suivi d'une majuscule ou fin de chaîne)
   const items = text
     .split(/\.\s+(?=[A-ZÀÂÉÈÊÙÛÔÎ\d])|(?<=\.)\s*$|\n+/)
     .map((s) => s.trim().replace(/\.$/, '').trim())
@@ -345,9 +375,9 @@ export function mapAIResultToOCTReportData(
     // name est toujours DEFAULT_PRACTITIONER.name — contactInfo.name est le patient
   };
 
-  const motifMain = consultation.contexte.motifs[0] ?? 'Bilan ophtalmologique';
-  const motifSoft =
-    consultation.contexte.motifs.slice(1).join(', ') || undefined;
+  // A1 : tous les motifs en indication.main (séparés par virgule → multi-lignes dans OCTReport)
+  const motifMain =
+    consultation.contexte.motifs.join(', ') || 'Bilan ophtalmologique';
 
   const history =
     consultation.contexte.antecedents.join(', ') || 'Sans particularité';
@@ -375,21 +405,33 @@ export function mapAIResultToOCTReportData(
     patient: {
       surname: consultation.patient.nom.toUpperCase(),
       age: patientAge,
-      sex: 'M', // champ non saisi — valeur par défaut
+      sex: 'M',
     },
 
     prescriber,
 
     indication: {
       main: motifMain,
-      soft: motifSoft,
     },
 
     history,
 
+    // A5/A6 : passer les flags d'acquisition aux builders
     eyes: {
-      od: buildEyeData('OD', consultation.oeil_droit),
-      og: buildEyeData('OG', consultation.oeil_gauche),
+      od: buildEyeData(
+        'OD',
+        consultation.oeil_droit,
+        consultation.anteriorSegmentDone,
+        consultation.octaDone,
+        consultation.acquisitionQualityOD
+      ),
+      og: buildEyeData(
+        'OG',
+        consultation.oeil_gauche,
+        consultation.anteriorSegmentDone,
+        consultation.octaDone,
+        consultation.acquisitionQualityOG
+      ),
     },
 
     interpretation: buildInterpretation(aiResult.interpretation),

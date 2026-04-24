@@ -284,6 +284,33 @@
   border-bottom: 1px solid var(--ink);
 }
 
+/* Badge qualité acquisition */
+.pill-acquisition {
+  font-size: 9px;
+  padding: 3px 7px;
+  border-radius: 99px;
+  font-weight: 600;
+  flex-shrink: 0;
+  margin-left: auto;
+  border: 1px solid transparent;
+  line-height: 1.1;
+}
+.pill-acquisition.pill-bon {
+  background: rgba(92,138,110,.14);
+  color: #2F5A40;
+  border-color: rgba(92,138,110,.35);
+}
+.pill-acquisition.pill-faible {
+  background: rgba(200,106,28,.16);
+  color: #8F4A13;
+  border-color: rgba(200,106,28,.40);
+}
+.pill-acquisition.pill-impossible {
+  background: rgba(180,50,42,.14);
+  color: #8A241E;
+  border-color: rgba(180,50,42,.40);
+}
+
 /* Print */
 @media print {
   body { background: #fff; }

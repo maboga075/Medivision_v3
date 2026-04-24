@@ -57,23 +57,37 @@ const Pill: React.FC<{ variant: PillVariant; children: React.ReactNode }> = ({ v
   <span className={`pill ${variant}`}>{children}</span>
 );
 
+/* A7 — ParamLine : une bulle par anomalie (pills[]), ou valeur colorée (value + customColor) */
 const ParamLine: React.FC<{ row: ParamRow }> = ({ row }) => (
   <div className="param">
     <div className="param-key">
       {row.label}{" "}
       {row.hint && <span className="hint">· {row.hint}</span>}
     </div>
-    <div
-      className="param-val"
-      style={row.flag === "alert" ? { color: "var(--amber)" }
-            : row.flag === "critical" ? { color: "var(--crimson)" }
-            : undefined}
-    >
-      {row.pill ? <Pill variant={row.pill.variant}>{row.pill.text}</Pill> : row.value}
+    <div className="param-val">
+      {row.pills && row.pills.length > 0 ? (
+        <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          {row.pills.map((p, i) => (
+            <Pill key={i} variant={p.variant}>{p.text}</Pill>
+          ))}
+        </div>
+      ) : row.value ? (
+        <span
+          style={
+            row.customColor ? { color: row.customColor }
+            : row.flag === 'alert' ? { color: 'var(--amber)' }
+            : row.flag === 'critical' ? { color: 'var(--crimson)' }
+            : undefined
+          }
+        >
+          {row.value}
+        </span>
+      ) : null}
     </div>
   </div>
 );
 
+/* A2 — EyeColumn : badge qualité acquisition dans l'en-tête */
 const EyeColumn: React.FC<{ eye: EyeData; side: "od" | "og" }> = ({ eye, side }) => (
   <div className={`eye ${side}`}>
     <div className="eye-header">
@@ -83,6 +97,13 @@ const EyeColumn: React.FC<{ eye: EyeData; side: "od" | "og" }> = ({ eye, side })
         <span className="name">{eye.name}</span>
         <span className="latin">· {eye.latin}</span>
       </div>
+      {eye.acquisitionQuality && (
+        <div className={`pill-acquisition pill-${eye.acquisitionQuality}`}>
+          {eye.acquisitionQuality === 'bon' ? '✓ Bon'
+           : eye.acquisitionQuality === 'faible' ? '⚠ Faible'
+           : '✗ Analyse impossible'}
+        </div>
+      )}
     </div>
 
     <div className="section">
@@ -142,11 +163,16 @@ const OCTReport: React.FC<{ data: OCTReportData }> = ({ data }) => {
           <div className="meta-label">Prescripteur</div>
           <div className="meta-value">{d.prescriber}</div>
         </div>
+        {/* A1 — Motif multi-lignes */}
         <div className="meta-cell">
           <div className="meta-label">Motif</div>
           <div className="meta-value">
-            {d.indication.main}
-            {d.indication.soft && <> <span className="soft">{d.indication.soft}</span></>}
+            {d.indication.main.split(',').map((motif, i) => (
+              <div key={i}>{motif.trim()}</div>
+            ))}
+            {d.indication.soft && (
+              <div className="soft">{d.indication.soft}</div>
+            )}
           </div>
         </div>
         <div className="meta-cell">
@@ -178,7 +204,7 @@ const OCTReport: React.FC<{ data: OCTReportData }> = ({ data }) => {
           </div>
           <div className="conclusion-text">
             {d.conclusion.headline}
-            <em>{d.conclusion.caveat}</em>
+            {d.conclusion.caveat && <em>{d.conclusion.caveat}</em>}
           </div>
         </div>
       </section>
@@ -241,35 +267,37 @@ export const sampleReport: OCTReportData = {
   },
   patient:    { surname: "MBOUSSOU", age: 67, sex: "M" },
   prescriber: "Dr. Milebou",
-  indication: { main: "Excavation papillaire", soft: "bilatérale" },
+  indication: { main: "Excavation papillaire, Glaucome suspecté", soft: "bilatérale" },
   history:    "Sans particularité",
   eyes: {
     od: {
       code: "OD", name: "Œil droit", latin: "dexter",
+      acquisitionQuality: "bon",
       morphology: [
-        { label: "Macula", hint: "profil fovéolaire", pill: { variant: "normal", text: "Physiologique" } },
-        { label: "Papille optique", pill: { variant: "alert", text: "Excavation ↑" } },
-        { label: "Rétine périphérique", pill: { variant: "normal", text: "Calme 360°" } },
-        { label: "OCTA", hint: "densité capillaire", pill: { variant: "normal", text: "Préservée" } },
+        { label: "Macula", pills: [{ variant: "normal", text: "Physiologique" }] },
+        { label: "Papille optique", pills: [{ variant: "alert", text: "Excavation ↑" }] },
+        { label: "Périphérie", pills: [{ variant: "normal", text: "Calme 360°" }] },
+        { label: "OCTA", hint: "densité capillaire", pills: [{ variant: "normal", text: "Préservée" }] },
       ],
       biometrics: [
-        { label: "RNFL", hint: "fibres péripapillaires", value: "Dans les normes" },
-        { label: "GCL++", hint: "cell. ganglionnaires", value: "Dans les normes" },
+        { label: "RNFL", hint: "fibres nerveuses péripapillaires", value: "Dans les normes", customColor: "var(--sage)", isBiometricGraded: true },
+        { label: "GCL++", hint: "complexe cell. ganglionnaires", value: "Dans les normes", customColor: "var(--sage)", isBiometricGraded: true },
         { label: "Rapport C/D", hint: "vertical", value: "0.70 ⚠", flag: "alert" },
         { label: "Surface discale", value: "2.0 mm²" },
       ],
     },
     og: {
       code: "OG", name: "Œil gauche", latin: "sinister",
+      acquisitionQuality: "bon",
       morphology: [
-        { label: "Macula", hint: "profil fovéolaire", pill: { variant: "normal", text: "Physiologique" } },
-        { label: "Papille optique", pill: { variant: "normal", text: "Sans particularité" } },
-        { label: "Rétine périphérique", pill: { variant: "normal", text: "Calme 360°" } },
-        { label: "OCTA", hint: "densité capillaire", pill: { variant: "normal", text: "Préservée" } },
+        { label: "Macula", pills: [{ variant: "normal", text: "Physiologique" }] },
+        { label: "Papille optique", pills: [{ variant: "normal", text: "Sans particularité" }] },
+        { label: "Périphérie", pills: [{ variant: "normal", text: "Calme 360°" }] },
+        { label: "OCTA", hint: "densité capillaire", pills: [{ variant: "normal", text: "Préservée" }] },
       ],
       biometrics: [
-        { label: "RNFL", hint: "fibres péripapillaires", value: "Inférieur en temporal inf.", flag: "alert" },
-        { label: "GCL++", hint: "cell. ganglionnaires", value: "Dans les normes" },
+        { label: "RNFL", hint: "fibres nerveuses péripapillaires", value: "Inf. en TI", customColor: "var(--crimson)", isBiometricGraded: true },
+        { label: "GCL++", hint: "complexe cell. ganglionnaires", value: "Dans les normes", customColor: "var(--sage)", isBiometricGraded: true },
         { label: "Rapport C/D", hint: "vertical", value: "0.60" },
         { label: "Surface discale", value: "2.0 mm²" },
       ],
@@ -279,36 +307,30 @@ export const sampleReport: OCTReportData = {
     <>
       L'analyse automatisée des fibres nerveuses péripapillaires (<span className="key">RNFL</span>)
       et du complexe ganglionnaire (<span className="key">GCL++</span>) est strictement normale et{" "}
-      <span className="key">symétrique bilatéralement</span>, sans perte axonale détectable.
-      La rétinographie confirme un aspect maculaire physiologique avec un reflet fovéolaire conservé.
-      On note en revanche une <span className="key">excavation papillaire asymétrique</span>, avec un
-      rapport C/D vertical estimé à{" "}
-      <span className="key">0.70 à droite contre 0.60 à gauche</span> pour des surfaces discales
-      moyennes et symétriques (2 mm²). L'anneau neurorétinien demeure qualitativement préservé et la
-      rétine périphérique est calme à plat sur 360°.
+      <span className="key">symétrique bilatéralement</span>, sans perte axonale détectable à droite.
+      À gauche, le <span className="key">RNFL</span> montre une atteinte en secteur temporal inférieur.
+      On note une <span className="key">excavation papillaire asymétrique</span>, avec un
+      rapport <span className="key">C/D</span> vertical estimé à{" "}
+      <span className="key">0.70 à droite contre 0.60 à gauche</span>. La rétine périphérique est
+      calme à plat sur 360° bilatéralement.
     </>
   ),
   conclusion: {
     headline: (
-      <>Excavation papillaire asymétrique cliniquement suspecte mais isolée, sans traduction structurelle objective sur le RNFL ou le GCL.</>
+      <>Excavation papillaire asymétrique avec atteinte RNFL en TI gauche — profil évocateur de glaucome débutant.</>
     ),
-    caveat: (
-      <>L'ensemble évoque prioritairement une excavation physiologique à surveiller ; un glaucome à angle ouvert pré-périmétrique ne peut toutefois être formellement écarté.</>
-    ),
+    caveat: <>Surveillance recommandée.</>,
   },
   recommendations: {
     hygiene: [
       <><strong>Activité physique</strong> régulière — 30 min de marche quotidienne favorisant la perfusion oculaire.</>,
-      <><strong>Alimentation</strong> riche en oméga-3, légumes verts et antioxydants (lutéine, zéaxanthine).</>,
-      <><strong>Hydratation</strong> — 1.5 à 2 L d'eau/jour ; limiter la caféine et l'alcool en excès.</>,
-      <><strong>Gestion du stress</strong> &amp; <strong>sommeil</strong> de qualité (7–8 h) — facteurs reconnus de régulation de la pression intraoculaire.</>,
-      <><strong>Protection solaire</strong> oculaire (verres UV 400) en extérieur.</>,
+      <><strong>Alimentation</strong> riche en oméga-3, légumes verts et antioxydants.</>,
+      <><strong>Hydratation</strong> — 1.5 à 2 L d'eau/jour ; limiter la caféine en excès.</>,
     ],
     followUp: [
       <>Mesure de la <strong>pression intraoculaire (PIO)</strong> et pachymétrie cornéenne.</>,
-      <><strong>Champ visuel automatisé</strong> type Humphrey 24-2 (SITA-Standard).</>,
-      <><strong>Contrôle OCT annuel</strong> — suivi RNFL/GCL pour confirmer la stabilité structurelle.</>,
-      <>Consultation ophtalmologique clinique avec gonioscopie recommandée.</>,
+      <><strong>Champ visuel automatisé</strong> type Humphrey 24-2.</>,
+      <><strong>Contrôle OCT annuel</strong> — suivi RNFL/GCL pour confirmer la stabilité.</>,
     ],
   },
   signature: {

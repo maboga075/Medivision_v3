@@ -14,15 +14,18 @@ export type PillVariant = 'normal' | 'alert' | 'critical';
 export interface ParamRow {
   label: string;
   hint?: string;
-  pill?: { variant: PillVariant; text: string };
+  pills?: Array<{ variant: PillVariant; text: string }>; // une bulle par anomalie
   value?: string;
-  flag?: 'alert' | 'critical';
+  customColor?: string;        // couleur inline pour RNFL/GCL++ colorés
+  isBiometricGraded?: boolean; // true pour les lignes RNFL/GCL++
+  flag?: 'alert' | 'critical'; // flag legacy (rapport C/D)
 }
 
 export interface EyeData {
   code: 'OD' | 'OG';
   name: string;
   latin: string;
+  acquisitionQuality?: 'bon' | 'faible' | 'impossible';
   morphology: ParamRow[];
   biometrics: ParamRow[];
 }
