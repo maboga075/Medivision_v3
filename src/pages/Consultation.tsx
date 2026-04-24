@@ -12,6 +12,7 @@ import {
   ChevronLeft,
   RefreshCw,
   Pencil,
+  Trash2,
   X,
   Plus,
 } from 'lucide-react';
@@ -22,6 +23,7 @@ import { callNativeAI } from '../services/aiManager';
 import EyeExamSection from '../components/forms/EyeExamSection';
 import { createEyeState } from '../utils/clinicalData';
 import { useConsultationDrafts, type ConsultationDraft } from '../hooks/useConsultationDrafts';
+import { archiveAllWaitingPatients } from '../services/waitingRoomService';
 import { normalizeClinicalData } from '../utils/clinicalPayload';
 import { processHypothesisAddition } from '../utils/hypothesisValidation';
 import { HYPOTHESES_DIAGNOSTIQUES, REPORT_TYPES } from '../utils/constants';
@@ -56,10 +58,14 @@ export default function Consultation() {
 
   const reportRef = useRef<HTMLDivElement>(null);
 
-  const { loadAllDrafts, saveDraft, getDraft, deleteDraft } = useConsultationDrafts();
+  const { loadAllDrafts, saveDraft, getDraft, deleteDraft, clearAllDrafts } = useConsultationDrafts();
 
   // Charger les brouillons session au montage
   useEffect(() => { loadAllDrafts(); }, [loadAllDrafts]);
+
+  const [showNewDayModal, setShowNewDayModal] = useState(false);
+  const [isPurgingDay, setIsPurgingDay] = useState(false);
+  const [purgeToast, setPurgeToast] = useState('');
 
   const [hypothesesDiagnostiques, setHypothesesDiagnostiques] = useState<HypotheseDiagnostique[]>([]);
   const [hypotheseLibre, setHypotheseLibre] = useState('');
@@ -198,6 +204,25 @@ export default function Consultation() {
     }
   };
 
+  const handleNewDay = async () => {
+    setIsPurgingDay(true);
+    try {
+      const result = await archiveAllWaitingPatients();
+      clearAllDrafts();
+      setSelectedPatient(null);
+      setShowNewDayModal(false);
+      const n = result.archived;
+      setPurgeToast(`${n} patient${n > 1 ? 's' : ''} archivé${n > 1 ? 's' : ''} — nouvelle journée démarrée`);
+      setTimeout(() => setPurgeToast(''), 4000);
+    } catch (err) {
+      console.error('[Consultation] Erreur nouvelle journée:', err);
+      setShowNewDayModal(false);
+      alert('Erreur lors de l\'archivage des patients.');
+    } finally {
+      setIsPurgingDay(false);
+    }
+  };
+
   // Auto-save — se déclenche à chaque modification du formulaire
   useEffect(() => {
     if (!selectedPatient) return;
@@ -311,9 +336,20 @@ export default function Consultation() {
             <h2 className="text-xl font-extrabold text-slate-800 flex items-center gap-3">
               <Users className="w-6 h-6 text-teal-600" /> Salle d'attente
             </h2>
-            <span className="bg-teal-100 text-teal-800 text-sm font-bold px-3 py-1 rounded-full">
-              {patients.length}
-            </span>
+            <div className="flex items-center gap-2">
+              {patients.length > 0 && (
+                <button
+                  onClick={() => setShowNewDayModal(true)}
+                  title="Nouvelle journée — archiver tous les patients"
+                  className="p-2 rounded-xl text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              )}
+              <span className="bg-teal-100 text-teal-800 text-sm font-bold px-3 py-1 rounded-full">
+                {patients.length}
+              </span>
+            </div>
           </div>
           <div className="overflow-y-auto flex-1 p-4 space-y-4 bg-slate-50/50">
             {patients.length === 0 ? (
@@ -752,6 +788,48 @@ export default function Consultation() {
         patient={selectedPatient}
         onUpdate={setSelectedPatient}
       />
+
+      {/* Modale confirmation nouvelle journée */}
+      {showNewDayModal && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl p-8 max-w-sm w-full">
+            <h3 className="text-xl font-extrabold text-slate-800 mb-2">Nouvelle journée ?</h3>
+            <p className="text-slate-500 text-sm font-medium mb-1">
+              {patients.length} patient{patients.length > 1 ? 's' : ''} en attente
+              {patients.length > 1 ? ' seront archivés' : ' sera archivé'}.
+            </p>
+            <p className="text-red-500 text-xs font-bold mb-6">Cette action est irréversible.</p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowNewDayModal(false)}
+                disabled={isPurgingDay}
+                className="flex-1 px-4 py-3 rounded-xl border-2 border-slate-200 font-bold text-slate-600 hover:bg-slate-50 transition-colors disabled:opacity-50"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={handleNewDay}
+                disabled={isPurgingDay}
+                className="flex-1 px-4 py-3 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
+              >
+                {isPurgingDay ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    Archivage…
+                  </>
+                ) : 'Confirmer'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toast nouvelle journée */}
+      {purgeToast && (
+        <div className="fixed bottom-6 right-6 z-50 bg-slate-800 text-white text-sm font-bold px-5 py-3 rounded-2xl shadow-xl">
+          {purgeToast}
+        </div>
+      )}
     </>
   );
 }

@@ -61,6 +61,11 @@ export function useConsultationDrafts() {
   }, []);
 
   const deleteDraft = useCallback((patientId: string) => {
+    // Synchroniser avec sessionStorage avant d'écrire (sécurité si loadAllDrafts n'a pas été appelé)
+    try {
+      const stored = sessionStorage.getItem(DRAFT_STORAGE_KEY);
+      if (stored) draftsRef.current = JSON.parse(stored) as Record<string, ConsultationDraft>;
+    } catch { /* ignore */ }
     delete draftsRef.current[patientId];
     tryWrite(draftsRef.current);
   }, []);
