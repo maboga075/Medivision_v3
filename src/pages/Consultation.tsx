@@ -21,6 +21,7 @@ import { sendViaWhatsApp, sendViaEmail } from '../services/communication';
 import { callNativeAI } from '../services/aiManager';
 import EyeExamSection from '../components/forms/EyeExamSection';
 import { createEyeState } from '../utils/clinicalData';
+import { useConsultationDrafts, type ConsultationDraft } from '../hooks/useConsultationDrafts';
 import { normalizeClinicalData } from '../utils/clinicalPayload';
 import { processHypothesisAddition } from '../utils/hypothesisValidation';
 import { HYPOTHESES_DIAGNOSTIQUES, REPORT_TYPES } from '../utils/constants';
@@ -46,7 +47,7 @@ export default function Consultation() {
   const [eyeOD, setEyeOD] = useState<EyeState>(createEyeState());
   const [eyeOG, setEyeOG] = useState<EyeState>(createEyeState());
   const [forceShowAnterior, setForceShowAnterior] = useState(false);
-  const [forceShowPosterior, setForceShowPosterior] = useState(false);
+  const [, setForceShowPosterior] = useState(false);
   const [octaDone, setOctaDone] = useState(false);
 
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -54,6 +55,11 @@ export default function Consultation() {
   const [octReportData, setOctReportData] = useState<OCTReportData | null>(null);
 
   const reportRef = useRef<HTMLDivElement>(null);
+
+  const { loadAllDrafts, saveDraft, getDraft, deleteDraft } = useConsultationDrafts();
+
+  // Charger les brouillons session au montage
+  useEffect(() => { loadAllDrafts(); }, [loadAllDrafts]);
 
   const [hypothesesDiagnostiques, setHypothesesDiagnostiques] = useState<HypotheseDiagnostique[]>([]);
   const [hypotheseLibre, setHypotheseLibre] = useState('');
@@ -110,6 +116,7 @@ export default function Consultation() {
 
   const resetExam = () => {
     setView('form');
+    setReportType('Compte rendu OCT');
     setEyeOD(createEyeState());
     setEyeOG(createEyeState());
     setForceShowAnterior(false);
@@ -126,9 +133,48 @@ export default function Consultation() {
     setHypoWarning('');
   };
 
+  const applyDraft = (draft: ConsultationDraft) => {
+    setView('form');
+    setReportType(draft.reportType);
+    setEyeOD(draft.eyeOD);
+    setEyeOG(draft.eyeOG);
+    setForceShowAnterior(draft.forceShowAnterior);
+    setForceShowPosterior(false);
+    setOctaDone(draft.octaDone);
+    setOctReportData(null);
+    setJsonValidation(null);
+    setHypothesesDiagnostiques(draft.hypothesesDiagnostiques);
+    setHypotheseLibre(draft.hypotheseLibre);
+    setSelectedCat(draft.selectedCat);
+    setSelectedHyp(draft.selectedHyp);
+    setSelectedLat(draft.selectedLat);
+    setHypoError('');
+    setHypoWarning('');
+  };
+
   const handlePatientSelect = (p: PatientFirestore) => {
+    // Sauvegarder le brouillon du patient courant avant de changer
+    if (selectedPatient) {
+      saveDraft(selectedPatient.id, {
+        reportType,
+        eyeOD,
+        eyeOG,
+        forceShowAnterior,
+        octaDone,
+        hypothesesDiagnostiques,
+        hypotheseLibre,
+        selectedCat,
+        selectedHyp,
+        selectedLat,
+      });
+    }
     setSelectedPatient(p);
-    resetExam();
+    const draft = getDraft(p.id);
+    if (draft) {
+      applyDraft(draft);
+    } else {
+      resetExam();
+    }
   };
 
   const handlePrint = () => {
@@ -152,9 +198,30 @@ export default function Consultation() {
     }
   };
 
+  // Auto-save — se déclenche à chaque modification du formulaire
+  useEffect(() => {
+    if (!selectedPatient) return;
+    saveDraft(selectedPatient.id, {
+      reportType,
+      eyeOD,
+      eyeOG,
+      forceShowAnterior,
+      octaDone,
+      hypothesesDiagnostiques,
+      hypotheseLibre,
+      selectedCat,
+      selectedHyp,
+      selectedLat,
+    });
+  }, [
+    selectedPatient,
+    reportType, eyeOD, eyeOG, forceShowAnterior, octaDone,
+    hypothesesDiagnostiques, hypotheseLibre, selectedCat, selectedHyp, selectedLat,
+    saveDraft,
+  ]);
+
   const isAnteriorBase = reportType === 'OCT du Segment Antérieur';
   const showAnterior = isAnteriorBase || forceShowAnterior;
-  const showPosterior = !isAnteriorBase || forceShowPosterior;
 
   const soumettreIA = async () => {
     if (!selectedPatient) return;
@@ -223,6 +290,8 @@ export default function Consultation() {
 
       setJsonValidation(validation);
       setOctReportData(mapped);
+      // Supprimer le brouillon une fois le rapport généré
+      if (selectedPatient) deleteDraft(selectedPatient.id);
       setView('report');
       window.scrollTo(0, 0);
     } catch (e) {
