@@ -121,9 +121,15 @@
   margin-top: 11px; display: grid; grid-template-columns: 1fr 1fr;
   border: 1px solid var(--line); border-radius: 6px; overflow: hidden;
 }
-.eye { display: flex; flex-direction: column; }
-.eye.od { background: var(--od-tint); border-right: 1px solid var(--line); }
-.eye.og { background: var(--og-tint); }
+/* Subgrid : chaque colonne partage les mêmes tracks de lignes que le parent,
+   garantissant un alignement parfait entre OD et OG pour chaque section. */
+.eye {
+  display: grid;
+  grid-template-rows: subgrid;
+  grid-row: 1 / 4; /* header | morphologie | biométriques */
+}
+.eye.od { background: var(--od-tint); border-right: 1px solid var(--line); grid-column: 1; }
+.eye.og { background: var(--og-tint); grid-column: 2; }
 .eye-header {
   display: flex; align-items: center; justify-content: space-between;
   padding: 9px 12px 9px 0; background: var(--paper);
