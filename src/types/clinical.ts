@@ -103,6 +103,7 @@ export interface RawConsultationData {
   oeil_gauche: EyeState;
 
   // Champs optionnels Session 1 — contexte acquisition
+  reportType?: string;
   anteriorSegmentDone?: boolean;
   octaDone?: boolean;
   acquisitionQualityOD?: 'bon' | 'faible' | 'impossible';

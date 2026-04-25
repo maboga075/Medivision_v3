@@ -40,14 +40,30 @@ function formatDateFR(dateStr: string): string {
 
 function generateReportNumber(dateStr: string): string {
   const d = new Date(dateStr + 'T12:00:00');
-  if (isNaN(d.getTime())) {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}-01`;
-  }
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}${day}-01`;
+  const ref = isNaN(d.getTime()) ? new Date() : d;
+  const y = ref.getFullYear();
+  const m = String(ref.getMonth() + 1).padStart(2, '0');
+  const day = String(ref.getDate()).padStart(2, '0');
+  const seq = String(Math.floor(Math.random() * 999) + 1).padStart(3, '0');
+  return `MV-${y}${m}${day}-${seq}`;
+}
+
+/* ─── Label dynamique selon les flags d'examen ──────────────────── */
+
+interface ExamFlags {
+  octaDone: boolean;
+  anteriorSegmentDone: boolean;
+  hasOCTPostData: boolean;
+  hasRetinography: boolean;
+}
+
+function getExamLabel(f: ExamFlags): string {
+  if (f.octaDone && f.anteriorSegmentDone && f.hasOCTPostData) return 'OCT Segment Ant. & Post. + OCTA';
+  if (f.octaDone) return 'OCT + Angiographie (OCTA)';
+  if (f.anteriorSegmentDone && f.hasOCTPostData) return 'OCT Segment Ant. & Post.';
+  if (f.anteriorSegmentDone) return 'OCT Segment Antérieur';
+  if (f.hasRetinography) return 'Rétinographie';
+  return 'OCT Segment Postérieur';
 }
 
 /* ─── Highlight termes OCT clés dans le texte ─────────────────── */
@@ -367,7 +383,8 @@ export interface ContactInfoOverride {
 export function mapAIResultToOCTReportData(
   consultation: RawConsultationData,
   aiResult: AIResult,
-  contactInfo?: ContactInfoOverride
+  contactInfo?: ContactInfoOverride,
+  folderId?: string
 ): OCTReportData {
   const dateExamen = new Date().toISOString().split('T')[0];
   const formattedDate = formatDateFR(dateExamen);
@@ -396,11 +413,19 @@ export function mapAIResultToOCTReportData(
       ? consultation.patient.age
       : parseInt(String(consultation.patient.age), 10) || 0;
 
+  const isAnteriorOnly = consultation.reportType === 'OCT du Segment Antérieur';
+  const examLabel = getExamLabel({
+    octaDone: consultation.octaDone ?? false,
+    anteriorSegmentDone: consultation.anteriorSegmentDone ?? false,
+    hasOCTPostData: !isAnteriorOnly,
+    hasRetinography: consultation.reportType === 'Compte rendu Rétinographie',
+  });
+
   return {
-    reportNumber: generateReportNumber(dateExamen),
+    reportNumber: folderId || generateReportNumber(dateExamen),
 
     examTitle: 'OCT / Rétinographie',
-    examSubtitle: `Examen du ${formattedDate} — Segment postérieur`,
+    examSubtitle: `Examen du ${formattedDate} — ${examLabel}`,
 
     brand: {
       clinic: 'Clinique',

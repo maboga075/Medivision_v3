@@ -271,6 +271,7 @@ export default function Consultation() {
         },
         oeil_droit: eyeOD,
         oeil_gauche: eyeOG,
+        reportType,
         anteriorSegmentDone: showAnterior,
         octaDone: octaDone,
         acquisitionQualityOD: eyeOD.acquisitionQuality ?? 'bon',
@@ -306,12 +307,17 @@ export default function Consultation() {
 
       // Étape 6 — Mapping vers OCTReportData
       console.info('[IA] Étape 6 — Mapping vers OCTReportData');
-      const mapped = mapAIResultToOCTReportData(rawInputJson, result, {
-        title: DEFAULT_PRACTITIONER.title,
-        specialty: DEFAULT_PRACTITIONER.specialty,
-        email: DEFAULT_PRACTITIONER.email,
-        phone: DEFAULT_PRACTITIONER.phone,
-      });
+      const mapped = mapAIResultToOCTReportData(
+        rawInputJson,
+        result,
+        {
+          title: DEFAULT_PRACTITIONER.title,
+          specialty: DEFAULT_PRACTITIONER.specialty,
+          email: DEFAULT_PRACTITIONER.email,
+          phone: DEFAULT_PRACTITIONER.phone,
+        },
+        selectedPatient.folderId
+      );
 
       setJsonValidation(validation);
       setOctReportData(mapped);
