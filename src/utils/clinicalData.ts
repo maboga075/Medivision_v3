@@ -5,6 +5,7 @@ export const createEyeState = (): EyeState => ({
   acquisitionStatus: 'Bon',
   acquisitionMotif: '',
   acquisitionQuality: 'bon',
+  acquisitionQualityReasons: [],
   hasFollowUp: false,
   followUpDate: '',
   rnflEvolution: 'Stable',

@@ -317,6 +317,41 @@
   border-color: rgba(180,50,42,.40);
 }
 
+/* Acquisition impossible — affiché à la place des sections morpho/biométrie */
+.acquisition-impossible {
+  flex: 1;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 14px;
+  background: rgba(180,50,42,.06);
+  border-left: 3px solid var(--crimson);
+  border-radius: 0 4px 4px 0;
+}
+.acquisition-impossible-icon {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--crimson);
+  flex-shrink: 0;
+  line-height: 1;
+  margin-top: 1px;
+}
+.acquisition-impossible-title {
+  font-family: 'Inter Tight', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--crimson);
+}
+.acquisition-impossible-reasons {
+  font-size: 9.5px;
+  color: var(--mute);
+  margin-top: 4px;
+  font-style: italic;
+  line-height: 1.4;
+}
+
 /* Champs éditables inline */
 [contenteditable="true"] {
   cursor: text;

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import BubblePicker from './BubblePicker';
+import ModalAcquisitionQuality from './ModalAcquisitionQuality';
 import {
   BUBBLE_PICKER_SUGGESTIONS,
   RNFL_OPTIONS,
@@ -28,6 +29,9 @@ export default function EyeExamSection({
   octaDone = false,
 }: EyeExamSectionProps) {
   const [showMesures, setShowMesures] = useState(false);
+  const [isQualityModalOpen, setIsQualityModalOpen] = useState(false);
+
+  const isImpossible = eye.acquisitionQuality === 'impossible';
 
   const update = <K extends keyof EyeState>(k: K, v: EyeState[K]) =>
     onUpdate({ ...eye, [k]: v });
@@ -75,6 +79,7 @@ export default function EyeExamSection({
             {(['bon', 'faible', 'impossible'] as const).map((q) => (
               <button
                 key={q}
+                type="button"
                 onClick={() => update('acquisitionQuality', q)}
                 className={`px-4 py-2.5 rounded-xl text-sm font-bold border transition-all active:scale-95 ${
                   (eye.acquisitionQuality ?? 'bon') === q
@@ -90,7 +95,36 @@ export default function EyeExamSection({
               </button>
             ))}
           </div>
+
+          {/* Bouton + causes si qualité dégradée */}
+          {eye.acquisitionQuality && eye.acquisitionQuality !== 'bon' && (
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setIsQualityModalOpen(true)}
+                className="px-3 py-1.5 text-xs font-bold text-teal-600 bg-teal-50 border border-teal-200 rounded-lg hover:bg-teal-100 transition-colors active:scale-95"
+              >
+                + Spécifier causes
+              </button>
+              {(eye.acquisitionQualityReasons ?? []).map(r => (
+                <span
+                  key={r}
+                  className="px-2.5 py-1 bg-slate-100 text-slate-600 text-xs font-medium rounded-full border border-slate-200"
+                >
+                  {r}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
+
+        {/* Bannière acquisition impossible */}
+        {isImpossible && (
+          <div className="rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm font-semibold text-red-700 flex items-center gap-2">
+            <span>✗</span>
+            <span>Acquisition impossible — observations et mesures non disponibles.</span>
+          </div>
+        )}
 
         {/* Observations morphologiques */}
         <div className="space-y-5">
@@ -104,6 +138,7 @@ export default function EyeExamSection({
             suggestions={BUBBLE_PICKER_SUGGESTIONS.macula as unknown as string[]}
             onAdd={(item) => handleAddObs('observationsMacula', item)}
             onRemove={(item) => handleRemoveObs('observationsMacula', item)}
+            disabled={isImpossible}
           />
 
           <BubblePicker
@@ -112,6 +147,7 @@ export default function EyeExamSection({
             suggestions={BUBBLE_PICKER_SUGGESTIONS.papille as unknown as string[]}
             onAdd={(item) => handleAddObs('observationsPapille', item)}
             onRemove={(item) => handleRemoveObs('observationsPapille', item)}
+            disabled={isImpossible}
           />
 
           <BubblePicker
@@ -120,6 +156,7 @@ export default function EyeExamSection({
             suggestions={BUBBLE_PICKER_SUGGESTIONS.peripherie as unknown as string[]}
             onAdd={(item) => handleAddObs('observationsPeripherie', item)}
             onRemove={(item) => handleRemoveObs('observationsPeripherie', item)}
+            disabled={isImpossible}
           />
 
           {/* Segment Antérieur — si activé au niveau consultation */}
@@ -134,7 +171,8 @@ export default function EyeExamSection({
                 </label>
                 <input
                   type="number"
-                  className="w-full p-2.5 border-2 border-indigo-100 rounded-xl text-sm font-bold outline-none focus:border-indigo-400"
+                  disabled={isImpossible}
+                  className="w-full p-2.5 border-2 border-indigo-100 rounded-xl text-sm font-bold outline-none focus:border-indigo-400 disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-slate-100"
                   placeholder="Ex: 540"
                   value={eye.cornealThickness}
                   onChange={(e) => update('cornealThickness', e.target.value)}
@@ -146,6 +184,7 @@ export default function EyeExamSection({
                 suggestions={BUBBLE_PICKER_SUGGESTIONS.anterieur as unknown as string[]}
                 onAdd={(item) => handleAddObs('obsAnterieur', item)}
                 onRemove={(item) => handleRemoveObs('obsAnterieur', item)}
+                disabled={isImpossible}
               />
             </div>
           )}
@@ -162,6 +201,7 @@ export default function EyeExamSection({
                 suggestions={BUBBLE_PICKER_SUGGESTIONS.octa as unknown as string[]}
                 onAdd={(item) => handleAddObs('obsOCTA', item)}
                 onRemove={(item) => handleRemoveObs('obsOCTA', item)}
+                disabled={isImpossible}
               />
             </div>
           )}
@@ -174,8 +214,9 @@ export default function EyeExamSection({
             <textarea
               value={eye.observationsDivers}
               onChange={(e) => update('observationsDivers', e.target.value)}
+              disabled={isImpossible}
               placeholder="Observations libres (détails additionnels, anomalies non listées…)"
-              className="w-full px-4 py-3 rounded-xl border-2 border-slate-200 text-sm focus:outline-none focus:border-teal-400 bg-slate-50 focus:bg-white transition-all resize-none"
+              className="w-full px-4 py-3 rounded-xl border-2 border-slate-200 text-sm focus:outline-none focus:border-teal-400 bg-slate-50 focus:bg-white transition-all resize-none disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-slate-100"
               rows={3}
             />
           </div>
@@ -193,7 +234,7 @@ export default function EyeExamSection({
             </button>
 
             {showMesures && (
-              <div className="p-4 border-t border-slate-100 space-y-4 animate-in slide-in-from-top-2">
+              <div className={`p-4 border-t border-slate-100 space-y-4 animate-in slide-in-from-top-2 ${isImpossible ? 'opacity-50 pointer-events-none select-none' : ''}`}>
                 {/* RNFL */}
                 <div>
                   <label className="block text-xs font-bold text-slate-500 uppercase mb-2">RNFL</label>
@@ -367,6 +408,18 @@ export default function EyeExamSection({
           />
         </div>
       </div>
+
+      {/* Modal causes qualité d'acquisition */}
+      {isQualityModalOpen && eye.acquisitionQuality && eye.acquisitionQuality !== 'bon' && (
+        <ModalAcquisitionQuality
+          isOpen={isQualityModalOpen}
+          side={side}
+          quality={eye.acquisitionQuality}
+          reasons={eye.acquisitionQualityReasons ?? []}
+          onClose={() => setIsQualityModalOpen(false)}
+          onSave={(reasons) => update('acquisitionQualityReasons', reasons)}
+        />
+      )}
     </div>
   );
 }

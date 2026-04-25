@@ -14,6 +14,7 @@ export interface EyeState {
   acquisitionStatus: AcquisitionStatus;
   acquisitionMotif: string;
   acquisitionQuality?: 'bon' | 'faible' | 'impossible';
+  acquisitionQualityReasons?: string[];
 
   hasFollowUp: boolean;
   followUpDate: string;

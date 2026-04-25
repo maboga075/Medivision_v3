@@ -7,6 +7,7 @@ export interface BubblePickerProps {
   suggestions: string[];
   onAdd: (item: string) => void;
   onRemove: (item: string) => void;
+  disabled?: boolean;
 }
 
 export default function BubblePicker({
@@ -15,6 +16,7 @@ export default function BubblePicker({
   suggestions,
   onAdd,
   onRemove,
+  disabled = false,
 }: BubblePickerProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [customInput, setCustomInput] = useState('');
@@ -49,7 +51,7 @@ export default function BubblePicker({
   };
 
   return (
-    <div className="space-y-2" ref={containerRef}>
+    <div className={`space-y-2 ${disabled ? 'opacity-50 pointer-events-none select-none' : ''}`} ref={containerRef}>
       <div className="flex items-center justify-between">
         <h4 className="font-bold text-sm text-slate-700 flex items-center gap-2">
           <span className="text-slate-400">◈</span> {title}
@@ -57,6 +59,7 @@ export default function BubblePicker({
         <button
           type="button"
           onClick={() => setIsOpen(!isOpen)}
+          disabled={disabled}
           aria-label={`${isOpen ? 'Fermer' : 'Ajouter'} — ${title}`}
           aria-expanded={isOpen}
           className={`w-11 h-11 flex items-center justify-center rounded-xl transition-all active:scale-95 ${

@@ -328,6 +328,19 @@ function buildEyeData(
   octaDone?: boolean,
   acquisitionQuality?: 'bon' | 'faible' | 'impossible'
 ): EyeData {
+  // Acquisition impossible : sections morpho/biométrie vides, raisons transmises
+  if (acquisitionQuality === 'impossible') {
+    return {
+      code: side,
+      name: side === 'OD' ? 'Œil droit' : 'Œil gauche',
+      latin: side === 'OD' ? 'dexter' : 'sinister',
+      acquisitionQuality: 'impossible',
+      acquisitionQualityReasons: eye.acquisitionQualityReasons ?? [],
+      morphology: [],
+      biometrics: [],
+    };
+  }
+
   return {
     code: side,
     name: side === 'OD' ? 'Œil droit' : 'Œil gauche',

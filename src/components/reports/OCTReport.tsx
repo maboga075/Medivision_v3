@@ -112,15 +112,31 @@ const EyeColumn: React.FC<{ eye: EyeData; side: "od" | "og" }> = ({ eye, side })
       )}
     </div>
 
-    <div className="section">
-      <div className="section-title">Analyse morphologique</div>
-      {eye.morphology.map((r, i) => <ParamLine key={i} row={r} />)}
-    </div>
+    {eye.acquisitionQuality === 'impossible' ? (
+      <div className="acquisition-impossible">
+        <div className="acquisition-impossible-icon">✗</div>
+        <div>
+          <div className="acquisition-impossible-title">Analyse impossible</div>
+          {eye.acquisitionQualityReasons && eye.acquisitionQualityReasons.length > 0 && (
+            <div className="acquisition-impossible-reasons">
+              {eye.acquisitionQualityReasons.join(' · ')}
+            </div>
+          )}
+        </div>
+      </div>
+    ) : (
+      <>
+        <div className="section">
+          <div className="section-title">Analyse morphologique</div>
+          {eye.morphology.map((r, i) => <ParamLine key={i} row={r} />)}
+        </div>
 
-    <div className="section">
-      <div className="section-title">Paramètres biométriques</div>
-      {eye.biometrics.map((r, i) => <ParamLine key={i} row={r} />)}
-    </div>
+        <div className="section">
+          <div className="section-title">Paramètres biométriques</div>
+          {eye.biometrics.map((r, i) => <ParamLine key={i} row={r} />)}
+        </div>
+      </>
+    )}
   </div>
 );
 

@@ -26,6 +26,7 @@ export interface EyeData {
   name: string;
   latin: string;
   acquisitionQuality?: 'bon' | 'faible' | 'impossible';
+  acquisitionQualityReasons?: string[];
   morphology: ParamRow[];
   biometrics: ParamRow[];
 }
