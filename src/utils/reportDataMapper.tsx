@@ -161,24 +161,55 @@ function buildPills(
   }));
 }
 
-/* ─── A10 — Formater valeur RNFL/GCL++ avec couleur ───────────── */
+/* ─── A10 — Formater valeur RNFL/GCL++ avec couleur et localisation ── */
 
-function formatBiometricValue(value: string): { text: string; color: string } {
+function abbreviateLoc(loc: string): string {
+  if (!loc) return '';
+  const l = loc.toLowerCase();
+  if (l.includes('temporal') && l.includes('sup') && l.includes('inf')) return 'Temp. sup. & inf.';
+  if (l.includes('nasal') && l.includes('sup') && l.includes('inf')) return 'Nasal sup. & inf.';
+  if (l.includes('temporal') && l.includes('sup')) return 'Temp. sup.';
+  if (l.includes('temporal') && l.includes('inf')) return 'Temp. inf.';
+  if (l.includes('temporal')) return 'Temporal';
+  if (l.includes('nasal') && l.includes('sup')) return 'Nasal sup.';
+  if (l.includes('nasal') && l.includes('inf')) return 'Nasal inf.';
+  if (l.includes('nasal')) return 'Nasal';
+  if (l.includes('ensemble') || l.includes('tous')) return 'Global';
+  if (l.includes('sup')) return 'Cadran sup.';
+  if (l.includes('inf')) return 'Cadran inf.';
+  return loc;
+}
+
+function formatBiometricValue(value: string, loc?: string): { text: string; color: string } {
   if (!value) return { text: '—', color: 'var(--ink)' };
   const lower = value.toLowerCase();
 
-  if (lower.includes('inf.') || lower.includes('inférieur')) {
-    const match = value.match(/\b(TI|TS|TSI|Sup|Inf)\b/i);
-    const loc = match ? match[1].toUpperCase() : '';
-    return { text: loc ? `Inf. en ${loc}` : 'Inférieur', color: 'var(--crimson)' };
+  // "Inférieur dans l'ensemble des cadrans" — tous les quadrants touchés
+  if (lower.includes("ensemble") || lower.includes("tous les cadrans")) {
+    return { text: '↓ Global', color: 'var(--crimson)' };
   }
-  if (lower.includes('limite')) {
-    const match = value.match(/\b(TI|TS|TSI|Sup|Inf)\b/i);
-    const loc = match ? match[1].toUpperCase() : '';
-    return { text: loc ? `Limite en ${loc}` : 'Limite', color: 'var(--amber)' };
+
+  const locAbbr = loc ? abbreviateLoc(loc) : '';
+  const locSuffix = locAbbr ? ` en ${locAbbr}` : '';
+
+  if (lower.includes('inférieur') || lower.includes('inf.')) {
+    return { text: `↓${locSuffix}`, color: 'var(--crimson)' };
+  }
+  if (lower.includes('limite') || lower.includes('limites inf')) {
+    return { text: `Limite${locSuffix}`, color: 'var(--amber)' };
+  }
+  if (lower.includes('supérieur')) {
+    return { text: 'Élevé', color: 'var(--sage)' };
   }
   if (lower.includes('normal') || lower.includes('normes')) {
     return { text: 'Dans les normes', color: 'var(--sage)' };
+  }
+  // Évolution
+  if (lower.includes('diminution') || lower.includes('amincissement')) {
+    return { text: '↓ Amincissement', color: 'var(--crimson)' };
+  }
+  if (lower.includes('augmentation') || lower.includes('épaississement')) {
+    return { text: '↑ Épaississement', color: 'var(--amber)' };
   }
   return { text: value, color: 'var(--ink)' };
 }
@@ -233,9 +264,9 @@ function buildMorphologyRows(
 function buildBiometricRows(eye: EyeState): ParamRow[] {
   const rows: ParamRow[] = [];
 
-  // A8 : RNFL avec nouveau hint et couleur
+  // A8 : RNFL avec localisation et couleur
   if (eye.rnfl) {
-    const fmt = formatBiometricValue(eye.rnfl);
+    const fmt = formatBiometricValue(eye.rnfl, eye.rnflLoc || undefined);
     rows.push({
       label: 'RNFL',
       hint: 'fibres nerveuses péripapillaires',
@@ -245,9 +276,9 @@ function buildBiometricRows(eye: EyeState): ParamRow[] {
     });
   }
 
-  // A9 : GCL++ avec nouveau hint et couleur
+  // A9 : GCL++ avec localisation et couleur
   if (eye.gcl) {
-    const fmt = formatBiometricValue(eye.gcl);
+    const fmt = formatBiometricValue(eye.gcl, eye.gclLoc || undefined);
     rows.push({
       label: 'GCL++',
       hint: 'complexe cell. ganglionnaires',
