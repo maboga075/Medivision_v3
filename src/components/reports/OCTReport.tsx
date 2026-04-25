@@ -54,7 +54,11 @@ const ClockIcon: React.FC = () => (
 );
 
 const Pill: React.FC<{ variant: PillVariant; children: React.ReactNode }> = ({ variant, children }) => (
-  <span className={`pill ${variant}`}>{children}</span>
+  <span
+    className={`pill ${variant}`}
+    contentEditable="true"
+    suppressContentEditableWarning={true}
+  >{children}</span>
 );
 
 /* A7 — ParamLine : une bulle par anomalie (pills[]), ou valeur colorée (value + customColor) */
@@ -73,6 +77,8 @@ const ParamLine: React.FC<{ row: ParamRow }> = ({ row }) => (
         </div>
       ) : row.value ? (
         <span
+          contentEditable="true"
+          suppressContentEditableWarning={true}
           style={
             row.customColor ? { color: row.customColor }
             : row.flag === 'alert' ? { color: 'var(--amber)' }
@@ -127,7 +133,7 @@ const OCTReport: React.FC<{ data: OCTReportData }> = ({ data }) => {
       {/* ══ HEADER ══ */}
       <header className="masthead">
         <div className="masthead-top">
-          <div className="kicker">Compte rendu · N° {d.reportNumber}</div>
+          <div className="kicker">Compte rendu · N°&nbsp;<span contentEditable="true" suppressContentEditableWarning={true}>{d.reportNumber}</span></div>
         </div>
         <div className="masthead-main">
           <div className="brand-row">
@@ -145,8 +151,8 @@ const OCTReport: React.FC<{ data: OCTReportData }> = ({ data }) => {
             </div>
           </div>
           <div className="doc-title">
-            <div className="main">{d.examTitle}</div>
-            <div className="sub">{d.examSubtitle}</div>
+            <div className="main" contentEditable="true" suppressContentEditableWarning={true}>{d.examTitle}</div>
+            <div className="sub" contentEditable="true" suppressContentEditableWarning={true}>{d.examSubtitle}</div>
           </div>
         </div>
       </header>
@@ -156,28 +162,29 @@ const OCTReport: React.FC<{ data: OCTReportData }> = ({ data }) => {
         <div className="meta-cell">
           <div className="meta-label">Patient</div>
           <div className="meta-value">
-            {d.patient.surname}&nbsp;<span className="soft">· {d.patient.age} ans · {d.patient.sex}</span>
+            <span contentEditable="true" suppressContentEditableWarning={true}>{d.patient.surname}</span>
+            &nbsp;<span className="soft">· <span contentEditable="true" suppressContentEditableWarning={true}>{d.patient.age}</span> ans · <span contentEditable="true" suppressContentEditableWarning={true}>{d.patient.sex}</span></span>
           </div>
         </div>
         <div className="meta-cell">
           <div className="meta-label">Prescripteur</div>
-          <div className="meta-value">{d.prescriber}</div>
+          <div className="meta-value" contentEditable="true" suppressContentEditableWarning={true}>{d.prescriber}</div>
         </div>
         {/* A1 — Motif multi-lignes */}
         <div className="meta-cell">
           <div className="meta-label">Motif</div>
           <div className="meta-value">
             {d.indication.main.split(',').map((motif, i) => (
-              <div key={i}>{motif.trim()}</div>
+              <div key={i} contentEditable="true" suppressContentEditableWarning={true}>{motif.trim()}</div>
             ))}
             {d.indication.soft && (
-              <div className="soft">{d.indication.soft}</div>
+              <div className="soft" contentEditable="true" suppressContentEditableWarning={true}>{d.indication.soft}</div>
             )}
           </div>
         </div>
         <div className="meta-cell">
           <div className="meta-label">Antécédents</div>
-          <div className="meta-value">{d.history}</div>
+          <div className="meta-value" contentEditable="true" suppressContentEditableWarning={true}>{d.history}</div>
         </div>
       </section>
 
@@ -192,7 +199,7 @@ const OCTReport: React.FC<{ data: OCTReportData }> = ({ data }) => {
         <div className="interp-header">
           <span className="title">Analyse clinique</span>
         </div>
-        <p className="interp-body">{d.interpretation}</p>
+        <p className="interp-body" contentEditable="true" suppressContentEditableWarning={true}>{d.interpretation}</p>
       </section>
 
       {/* ══ CONCLUSION ══ */}
@@ -202,7 +209,7 @@ const OCTReport: React.FC<{ data: OCTReportData }> = ({ data }) => {
             <span className="mark">· Synthèse</span>
             <span className="label">Conclusion</span>
           </div>
-          <div className="conclusion-text">
+          <div className="conclusion-text" contentEditable="true" suppressContentEditableWarning={true}>
             {d.conclusion.headline}
             {d.conclusion.caveat && <em>{d.conclusion.caveat}</em>}
           </div>
@@ -217,7 +224,7 @@ const OCTReport: React.FC<{ data: OCTReportData }> = ({ data }) => {
             <HeartIcon />
           </div>
           <ul className="rec-list">
-            {d.recommendations.hygiene.map((li, i) => <li key={i}>{li}</li>)}
+            {d.recommendations.hygiene.map((li, i) => <li key={i} contentEditable="true" suppressContentEditableWarning={true}>{li}</li>)}
           </ul>
         </div>
         <div className="rec-card follow">
@@ -226,7 +233,7 @@ const OCTReport: React.FC<{ data: OCTReportData }> = ({ data }) => {
             <ClockIcon />
           </div>
           <ul className="rec-list">
-            {d.recommendations.followUp.map((li, i) => <li key={i}>{li}</li>)}
+            {d.recommendations.followUp.map((li, i) => <li key={i} contentEditable="true" suppressContentEditableWarning={true}>{li}</li>)}
           </ul>
         </div>
       </section>
@@ -234,17 +241,18 @@ const OCTReport: React.FC<{ data: OCTReportData }> = ({ data }) => {
       {/* ══ SIGNATURE ══ */}
       <footer className="sign-block">
         <div className="sign-left">
-          <div className="city">{d.signature.dateLabel}</div>
-          <div className="contact">
+          <div className="city" contentEditable="true" suppressContentEditableWarning={true}>{d.signature.dateLabel}</div>
+          <div className="contact" contentEditable="true" suppressContentEditableWarning={true}>
             {d.signature.clinicLine}<br />
             {d.signature.email} · {d.signature.phone}
           </div>
         </div>
         <div className="sign-right">
           <div className="sign-doctor">
-            <span className="dr">{d.signature.doctorTitle}</span> {d.signature.doctorName}
+            <span className="dr">{d.signature.doctorTitle}</span>{' '}
+            <span contentEditable="true" suppressContentEditableWarning={true}>{d.signature.doctorName}</span>
           </div>
-          <div className="sign-spec">{d.signature.specialty}</div>
+          <div className="sign-spec" contentEditable="true" suppressContentEditableWarning={true}>{d.signature.specialty}</div>
           <div className="sign-line" />
         </div>
       </footer>

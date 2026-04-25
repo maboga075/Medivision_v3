@@ -317,9 +317,56 @@
   border-color: rgba(180,50,42,.40);
 }
 
-/* Print */
+/* Champs éditables inline */
+[contenteditable="true"] {
+  cursor: text;
+  outline: none;
+  border-radius: 2px;
+  transition: background 0.15s, outline 0.15s;
+}
+[contenteditable="true"]:hover {
+  background: rgba(10, 110, 107, 0.07);
+}
+[contenteditable="true"]:focus {
+  background: rgba(10, 110, 107, 0.12);
+  outline: 1px dashed var(--teal);
+  outline-offset: 2px;
+}
+
+/* Print — utilisé par l'iframe de printService (les @page sont dans printService) */
 @media print {
   body { background: #fff; }
-  .page { margin: 0; box-shadow: none; width: 210mm; height: 297mm; }
-  @page { size: A4; margin: 0; }
+  .page {
+    margin: 0 auto;
+    box-shadow: none;
+    width: 210mm;
+    /* height auto : le rapport peut déborder sur 2 pages si nécessaire */
+    height: auto;
+    overflow: visible;
+  }
+  /* Forcer la reproduction exacte des couleurs */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  /* Décoration de fond inutile à l'impression */
+  .page::before { display: none !important; }
+  /* Éviter les coupures dans les blocs sémantiques */
+  .section,
+  .interpretation,
+  .conclusion,
+  .recommendations,
+  .sign-block,
+  .eye,
+  .eye-header {
+    page-break-inside: avoid;
+  }
+  /* Masquer les éléments UI non liés au rapport */
+  .no-print { display: none !important; }
+  /* Aucun feedback visuel pour les champs éditables */
+  [contenteditable="true"] {
+    outline: none !important;
+    background: transparent !important;
+    cursor: default;
+  }
 }

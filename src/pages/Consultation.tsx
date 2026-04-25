@@ -32,6 +32,7 @@ import { buildAIPayload } from '../utils/aiPayload';
 import OCTReport, { type OCTReportData } from '../components/reports/OCTReport';
 import ValidationBadge from '../components/shared/ValidationBadge';
 import { mapAIResultToOCTReportData, DEFAULT_PRACTITIONER } from '../utils/reportDataMapper';
+import { printReport } from '../services/printService';
 
 import type { PatientFirestore } from '../types/patient';
 import type { EyeState, HypotheseDiagnostique, RawConsultationData } from '../types/clinical';
@@ -185,11 +186,14 @@ export default function Consultation() {
 
   const handlePrint = () => {
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
-    try {
-      window.print();
-    } catch {
-      alert('Appuyez sur Ctrl+P ou Cmd+P.');
-    }
+    printReport(reportRef.current, {
+      title: octReportData
+        ? `Compte rendu OCT — ${octReportData.reportNumber}`
+        : 'Compte rendu OCT',
+      paperSize: 'A4',
+      orientation: 'portrait',
+      margins: { top: 10, right: 10, bottom: 10, left: 10 },
+    });
   };
 
   const handleWhatsApp = () => {
