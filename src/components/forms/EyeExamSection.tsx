@@ -3,13 +3,12 @@ import BubblePicker from './BubblePicker';
 import ModalAcquisitionQuality from './ModalAcquisitionQuality';
 import {
   BUBBLE_PICKER_SUGGESTIONS,
-  RNFL_OPTIONS,
-  LOC_PAPILLAIRE,
-  LOC_MACULAIRE,
+  RNFL_STATUSES,
+  RNFL_LOCATIONS,
   EVOLUTION_OPTIONS,
 } from '../../utils/constants';
 import { needsLocalisation } from '../../utils/clinicalData';
-import type { EyeState } from '../../types/clinical';
+import type { EyeState, RNFLGCLStatus } from '../../types/clinical';
 
 interface EyeExamSectionProps {
   side: 'OD' | 'OG';
@@ -240,32 +239,37 @@ export default function EyeExamSection({
                   <label className="block text-xs font-bold text-slate-500 uppercase mb-2">RNFL</label>
                   <select
                     className="w-full p-2.5 border-2 border-slate-200 rounded-xl text-sm font-bold outline-none focus:border-teal-500 bg-white"
-                    value={eye.rnfl}
+                    value={eye.rnfl?.status ?? 'normal'}
                     onChange={(e) =>
                       onUpdate({
                         ...eye,
-                        rnfl: e.target.value,
-                        rnflLoc: needsLocalisation(e.target.value) ? eye.rnflLoc : '',
+                        rnfl: {
+                          status: e.target.value as RNFLGCLStatus,
+                          location: needsLocalisation(e.target.value as RNFLGCLStatus)
+                            ? (eye.rnfl?.location ?? '')
+                            : undefined,
+                        },
                       })
                     }
                   >
-                    {RNFL_OPTIONS.map((o) => (
-                      <option key={o} value={o}>
-                        {o}
-                      </option>
+                    {RNFL_STATUSES.map((o) => (
+                      <option key={o.value} value={o.value}>{o.label}</option>
                     ))}
                   </select>
-                  {needsLocalisation(eye.rnfl) && (
+                  {needsLocalisation(eye.rnfl?.status) && (
                     <select
                       className="w-full p-2.5 mt-2 border-2 border-slate-200 rounded-xl text-sm font-bold bg-white"
-                      value={eye.rnflLoc}
-                      onChange={(e) => update('rnflLoc', e.target.value)}
+                      value={eye.rnfl?.location ?? ''}
+                      onChange={(e) =>
+                        onUpdate({
+                          ...eye,
+                          rnfl: { status: eye.rnfl!.status, location: e.target.value },
+                        })
+                      }
                     >
                       <option value="">— Localisation RNFL —</option>
-                      {LOC_PAPILLAIRE.map((o) => (
-                        <option key={o} value={o}>
-                          {o}
-                        </option>
+                      {RNFL_LOCATIONS.map((o) => (
+                        <option key={o.value} value={o.value}>{o.label}</option>
                       ))}
                     </select>
                   )}
@@ -276,32 +280,37 @@ export default function EyeExamSection({
                   <label className="block text-xs font-bold text-slate-500 uppercase mb-2">GCL++</label>
                   <select
                     className="w-full p-2.5 border-2 border-slate-200 rounded-xl text-sm font-bold outline-none focus:border-teal-500 bg-white"
-                    value={eye.gcl}
+                    value={eye.gcl?.status ?? 'normal'}
                     onChange={(e) =>
                       onUpdate({
                         ...eye,
-                        gcl: e.target.value,
-                        gclLoc: needsLocalisation(e.target.value) ? eye.gclLoc : '',
+                        gcl: {
+                          status: e.target.value as RNFLGCLStatus,
+                          location: needsLocalisation(e.target.value as RNFLGCLStatus)
+                            ? (eye.gcl?.location ?? '')
+                            : undefined,
+                        },
                       })
                     }
                   >
-                    {RNFL_OPTIONS.map((o) => (
-                      <option key={o} value={o}>
-                        {o}
-                      </option>
+                    {RNFL_STATUSES.map((o) => (
+                      <option key={o.value} value={o.value}>{o.label}</option>
                     ))}
                   </select>
-                  {needsLocalisation(eye.gcl) && (
+                  {needsLocalisation(eye.gcl?.status) && (
                     <select
                       className="w-full p-2.5 mt-2 border-2 border-slate-200 rounded-xl text-sm font-bold bg-white"
-                      value={eye.gclLoc}
-                      onChange={(e) => update('gclLoc', e.target.value)}
+                      value={eye.gcl?.location ?? ''}
+                      onChange={(e) =>
+                        onUpdate({
+                          ...eye,
+                          gcl: { status: eye.gcl!.status, location: e.target.value },
+                        })
+                      }
                     >
                       <option value="">— Localisation GCL —</option>
-                      {LOC_MACULAIRE.map((o) => (
-                        <option key={o} value={o}>
-                          {o}
-                        </option>
+                      {RNFL_LOCATIONS.map((o) => (
+                        <option key={o.value} value={o.value}>{o.label}</option>
                       ))}
                     </select>
                   )}

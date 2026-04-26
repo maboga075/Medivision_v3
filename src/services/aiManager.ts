@@ -1,55 +1,43 @@
 import type { AIResult, AIProviderKey, AIPayload, ValidationResult } from '../types/ai';
 
 export const SYSTEM_PROMPT = `Tu es un ophtalmologue senior spécialisé en imagerie oculaire (OCT, rétinographie, OCTA).
-Tu reçois des données cliniques structurées et dois générer une analyse complète en JSON.
+Tu reçois des données cliniques structurées et dois générer un compte rendu en JSON.
 
 RÈGLES OBLIGATOIRES :
 1. Ne génère une section que si des données pertinentes t'ont été transmises.
 2. N'invente JAMAIS de données — utilise seulement ce qui est fourni.
 3. Répondre UNIQUEMENT en JSON strict, AUCUN texte autour.
-
-**ÉLÉMENTS CONDITIONNELS :**
-- Si anteriorSegmentDone = false : N'INCLUS PAS la clé "segment_anterieur"
-- Si octaDone = false : N'INCLUS PAS la clé "octa"
+4. Les champs "prevention" et "suivi" sont des TABLEAUX de chaînes (chaque élément = 1 item de liste).
 
 **FORMAT DE RÉPONSE (JSON strict) :**
 {
-  "interpretation": {
-    "segment_anterieur": "Texte du segment antérieur...",
-    "macula_od": "Analyse OD macula...",
-    "macula_og": "Analyse OG macula...",
-    "papille_od": "Analyse OD papille...",
-    "papille_og": "Analyse OG papille...",
-    "rnfl_od": "normal | inf. en TI | inf. en TS | inf. en TSI | limite en TI | limite en TS | limite en TSI | dans les normes",
-    "rnfl_og": "normal | inf. en TI | inf. en TS | inf. en TSI | limite en TI | limite en TS | limite en TSI | dans les normes",
-    "gcl_od": "normal | inf. en TI | inf. en TS | inf. en TSI | limite en TI | limite en TS | limite en TSI | dans les normes",
-    "gcl_og": "normal | inf. en TI | inf. en TS | inf. en TSI | limite en TI | limite en TS | limite en TSI | dans les normes",
-    "peripherie": "Analyse périphérie...",
-    "octa": "Analyse OCTA..."
-  },
-  "conclusion": "Bilan diagnostique UNIQUEMENT (2-3 phrases). PAS de suivi, PAS de surveillance, PAS d'examens complémentaires ici.",
-  "recommandations": {
-    "hygiene": "Conseils d'hygiène et prévention au patient.",
-    "suivi": "Délai de contrôle, examens complémentaires recommandés. C'est ICI que va toute info de surveillance/follow-up."
-  },
+  "analyse_clinique": "Texte narratif médical complet. Décrire les résultats par structure : macula (OD puis OG), papille (OD puis OG), RNFL, GCL++, périphérie. Mentionner le segment antérieur seulement si anteriorSegmentDone = true. Mentionner l'OCTA seulement si octaDone = true. Si une structure manque de données, l'indiquer explicitement.",
+  "conclusion": "Synthèse diagnostique pure (2-3 phrases). AUCUN suivi, AUCUNE surveillance, AUCUN examen complémentaire ici.",
+  "prevention": [
+    "Conseil hygiène/prévention 1",
+    "Conseil hygiène/prévention 2"
+  ],
+  "suivi": [
+    "Examen ou contrôle recommandé 1",
+    "Examen ou contrôle recommandé 2"
+  ],
   "severite": "normal | surveillance | alerte"
 }
 
-**CONVENTIONS D'ABRÉVIATION POUR RNFL/GCL :**
-TI = temporal inférieur · TS = temporal supérieur · TSI = temporal sup. et inf.
+**DIRECTIVES ANALYSE_CLINIQUE :**
+- Prose médicale professionnelle, structure narrative (pas de liste)
+- Décrire OD puis OG pour chaque structure anatomique
+- Ne jamais inclure de suivi ou de recommandations dans ce champ
 
-Exemples :
-- "inf. en TI" = inférieur en temporal inférieur
-- "limite en TS" = limite en temporal supérieur
-- "dans les normes" = valeur normale (texte littéral)
+**DIRECTIVES PREVENTION (2 à 4 items maximum) :**
+- Conseils de mode de vie et d'hygiène oculaire
+- Adapter au profil du patient (âge, antécédents, sévérité)
 
-N'INCLUS les patterns "inf. en ..." / "limite en ..." QUE si confirmés dans les données.
+**DIRECTIVES SUIVI (2 à 4 items maximum) :**
+- Examens complémentaires, contrôles, délais de révision
+- Toute information de surveillance/follow-up va UNIQUEMENT ici
 
-**POINTS CLÉS :**
-- PAS de clé "vascularisation" — cette clé est supprimée du schéma
-- Chaque anomalie = sa propre phrase (ex : "OMC" et "Hémorragies" se décrivent séparément)
-- Conclusion = diagnostic pur. Suivi/surveillance → recommandations.suivi uniquement.
-- N'invente jamais d'anatomie. Si les données sont insuffisantes, dis-le explicitement.`;
+N'invente jamais d'anatomie. Si les données sont insuffisantes, le dire explicitement.`;
 
 const parseAndValidateAIResponse = (rawContent: string): { result: AIResult | null; validation: ValidationResult } => {
   let parsed: unknown;
@@ -79,9 +67,10 @@ const parseAndValidateAIResponse = (rawContent: string): { result: AIResult | nu
   const obj = parsed as Record<string, unknown>;
   const issues: string[] = [];
 
+  if (typeof obj['analyse_clinique'] !== 'string') issues.push('Champ analyse_clinique manquant');
   if (typeof obj['conclusion'] !== 'string') issues.push('Champ conclusion manquant');
-  if (typeof obj['interpretation'] !== 'object' || obj['interpretation'] === null) issues.push('Champ interpretation manquant');
-  if (typeof obj['recommandations'] !== 'object' || obj['recommandations'] === null) issues.push('Champ recommandations manquant');
+  if (!Array.isArray(obj['prevention'])) issues.push('Champ prevention manquant ou non-tableau');
+  if (!Array.isArray(obj['suivi'])) issues.push('Champ suivi manquant ou non-tableau');
 
   const severite = obj['severite'];
   if (!['normal', 'surveillance', 'alerte'].includes(String(severite))) {
@@ -90,13 +79,18 @@ const parseAndValidateAIResponse = (rawContent: string): { result: AIResult | nu
 
   if (issues.length > 0) {
     const fallbackResult: AIResult = {
-      interpretation: (typeof obj['interpretation'] === 'object' && obj['interpretation'] !== null
-        ? obj['interpretation']
-        : {}) as AIResult['interpretation'],
-      conclusion: typeof obj['conclusion'] === 'string' ? obj['conclusion'] : 'Résultat non exploitable — vérifier les données cliniques.',
-      recommandations: (typeof obj['recommandations'] === 'object' && obj['recommandations'] !== null
-        ? obj['recommandations']
-        : { hygiene: '—', suivi: '—' }) as AIResult['recommandations'],
+      analyse_clinique: typeof obj['analyse_clinique'] === 'string'
+        ? obj['analyse_clinique']
+        : 'Analyse non disponible — vérifier les données cliniques.',
+      conclusion: typeof obj['conclusion'] === 'string'
+        ? obj['conclusion']
+        : 'Résultat non exploitable — vérifier les données cliniques.',
+      prevention: Array.isArray(obj['prevention'])
+        ? (obj['prevention'] as string[])
+        : [],
+      suivi: Array.isArray(obj['suivi'])
+        ? (obj['suivi'] as string[])
+        : [],
       severite: (['normal', 'surveillance', 'alerte'].includes(String(severite))
         ? severite
         : 'normal') as AIResult['severite'],

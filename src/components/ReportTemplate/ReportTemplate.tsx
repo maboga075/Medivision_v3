@@ -137,8 +137,8 @@ const ReportPage = forwardRef<HTMLDivElement, ReportTemplateProps>(
               edits={edits}
               onEdit={onEdit}
               rows={[
-                { label: 'RNFL', od: oeilDroit.rnfl, og: oeilGauche.rnfl, fieldOD: 'oct_rnfl_od', fieldOG: 'oct_rnfl_og' },
-                { label: 'GCL++', od: oeilDroit.gcl, og: oeilGauche.gcl, fieldOD: 'oct_gcl_od', fieldOG: 'oct_gcl_og' },
+                { label: 'RNFL', od: oeilDroit.rnfl?.status ?? '—', og: oeilGauche.rnfl?.status ?? '—', fieldOD: 'oct_rnfl_od', fieldOG: 'oct_rnfl_og' },
+                { label: 'GCL++', od: oeilDroit.gcl?.status ?? '—', og: oeilGauche.gcl?.status ?? '—', fieldOD: 'oct_gcl_od', fieldOG: 'oct_gcl_og' },
                 { label: 'Cup/Disc (V)', od: oeilDroit.cupDisc || '—', og: oeilGauche.cupDisc || '—', fieldOD: 'oct_cd_od', fieldOG: 'oct_cd_og', isCupDisc: true },
                 { label: 'Surface Disque', od: oeilDroit.discSurface ? oeilDroit.discSurface + ' mm²' : '—', og: oeilGauche.discSurface ? oeilGauche.discSurface + ' mm²' : '—', fieldOD: 'oct_surf_od', fieldOG: 'oct_surf_og', isSurface: true },
               ]}

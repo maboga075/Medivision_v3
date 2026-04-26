@@ -15,32 +15,45 @@ export interface AIConfig {
   deepseek: ProviderConfig;
 }
 
-// Structure de sortie JSON du moteur IA (schéma strict imposé au LLM)
+// ─── Types legacy (ReportTemplate / ancienne pipeline) ──────────────────────
+
 export interface AIInterpretation {
-  segment_anterieur?: string;  // conditionnel : seulement si OCT antérieur réalisé
+  segment_anterieur?: string;
   macula_od?: string;
   macula_og?: string;
   papille_od?: string;
   papille_og?: string;
-  rnfl_od?: string;            // format : "normal" | "inf. en X" | "limite en X" | "dans les normes"
+  rnfl_od?: string;
   rnfl_og?: string;
   gcl_od?: string;
   gcl_og?: string;
   peripherie?: string;
-  octa?: string;               // conditionnel : seulement si OCTA réalisé
+  octa?: string;
 }
 
 export type AISeverite = 'normal' | 'surveillance' | 'alerte';
 
 export interface AIRecommandations {
   hygiene: string;
-  suivi: string;               // contrôle, examens complémentaires, surveillance
+  suivi: string;
 }
 
-export interface AIResult {
+// Format legacy utilisé par ReportTemplate (ancienne pipeline)
+export interface AIResultLegacy {
   interpretation: AIInterpretation;
-  conclusion: string;          // diagnostic uniquement, pas de suivi
+  conclusion: string;
   recommandations: AIRecommandations;
+  severite: AISeverite;
+}
+
+// ─── Format actif V2 (pipeline OCT active) ──────────────────────────────────
+
+// Structure de sortie JSON v2 (schéma actif — 4 sections cliniques structurées)
+export interface AIResult {
+  analyse_clinique: string;  // narrative complète par structure anatomique
+  conclusion: string;        // diagnostic pur, sans suivi
+  prevention: string[];      // items hygiène & prévention (tableau)
+  suivi: string[];           // items suivi & examens complémentaires (tableau)
   severite: AISeverite;
 }
 

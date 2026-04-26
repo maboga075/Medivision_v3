@@ -8,6 +8,7 @@ import type {
   DonneesCliniquesNormalisees,
   HypotheseDiagnostique,
   ObservationsNormalisees,
+  RNFLGCLData,
 } from '../types/clinical';
 import type { RawConsultationData } from '../types/clinical';
 
@@ -30,16 +31,17 @@ const toNumberIfPossible = (val: unknown): number | string => {
   return typeof val === 'string' ? val : '';
 };
 
-const normalizeStatut = (statut: unknown): string => {
-  const s = cleanString(statut).toLowerCase();
-  if (s.includes('inférieur') || s.includes('inferieur')) {
-    if (s.includes('ensemble')) return 'inferieur_norme_globale';
-    if (s.includes('limites')) return 'limite_inferieure';
-    return 'inferieur_norme';
+const normalizeStatut = (data: RNFLGCLData | undefined): string => {
+  if (!data) return 'dans_normes';
+  switch (data.status) {
+    case 'inferior_global':    return 'inferieur_norme_globale';
+    case 'inferior_localized': return 'inferieur_norme';
+    case 'limite_global':      return 'limite_inferieure_globale';
+    case 'limite_localized':   return 'limite_inferieure';
+    case 'superior':           return 'superieur_norme';
+    case 'normal':
+    default:                   return 'dans_normes';
   }
-  if (s.includes('supérieur') || s.includes('superieur')) return 'superieur_norme';
-  if (s.includes('dans les normes') || s.includes('sans particularité')) return 'dans_normes';
-  return cleanString(statut);
 };
 
 // Supprime récursivement les champs vides/nuls d'un objet
@@ -102,6 +104,8 @@ const normalizeEyeData = (eye: EyeState): EyeDataNormalisee => {
     ...(eye.gclEvolution ? { gclEvolution: eye.gclEvolution } : {}),
     rnfl_statut: normalizeStatut(eye.rnfl),
     gcl_statut: normalizeStatut(eye.gcl),
+    ...(eye.rnfl?.location ? { rnfl_localisation: eye.rnfl.location } : {}),
+    ...(eye.gcl?.location ? { gcl_localisation: eye.gcl.location } : {}),
     ...(eye.cupDisc ? { cup_disc_vertical: toNumberIfPossible(eye.cupDisc) } : {}),
     ...(eye.cornealThickness ? { pachymetrie: toNumberIfPossible(eye.cornealThickness) } : {}),
     ...(eye.discSurface ? { discSurface: eye.discSurface } : {}),

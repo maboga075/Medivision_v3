@@ -1,7 +1,6 @@
 // Types pour le compte rendu structuré complet (MedivisionReport)
 
-import type { ReactNode } from 'react';
-import type { AIProviderKey, AIResult } from './ai';
+import type { AIProviderKey, AIResultLegacy, AISeverite } from './ai';
 import type { EyeState } from './clinical';
 
 export type ExamenType = 'OCT' | 'Retinographie' | 'OCTA' | 'Pachymetrie' | 'Segment_Anterieur';
@@ -49,9 +48,12 @@ export interface OCTReportData {
   indication: { main: string; soft?: string };
   history: string;
   eyes: { od: EyeData; og: EyeData };
-  interpretation: ReactNode;
-  conclusion: { headline: ReactNode; caveat: ReactNode };
-  recommendations: { hygiene: ReactNode[]; followUp: ReactNode[] };
+  // 4 sections cliniques structurées (remplacent interpretation + conclusion + recommendations)
+  analyseClinic: string;
+  conclusion: string;
+  prevention: string[];
+  suivi: string[];
+  severite: AISeverite;
   signature: {
     city: string;
     dateLabel: string;
@@ -88,7 +90,7 @@ export interface ReportEyeData {
 export interface ReportData {
   context: ReportContext;
   eyes: ReportEyeData;
-  aiResult: AIResult;
+  aiResult: AIResultLegacy;
   meta: {
     generePar: AIProviderKey;
     dateGeneration: string;

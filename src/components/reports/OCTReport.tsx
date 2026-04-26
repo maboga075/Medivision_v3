@@ -39,19 +39,22 @@ const EyePictogram: React.FC = () => (
   </svg>
 );
 
-const HeartIcon: React.FC = () => (
-  <svg className="rec-icon" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden>
-    <path d="M12 21s-7.7-4.7-9.6-10.2A5.6 5.6 0 0 1 12 6.2a5.6 5.6 0 0 1 9.6 4.6C19.7 16.3 12 21 12 21Z" />
-  </svg>
-);
+const KEY_TERM_RE = /\b(RNFL|GCL\+\+|GCL|C\/D|OCT[A]?|PIO|DMLA|OVCR|OBVR|OACR|DR[NP]?)\b/g;
 
-const ClockIcon: React.FC = () => (
-  <svg className="rec-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-       strokeWidth={1.6} aria-hidden>
-    <circle cx={12} cy={12} r={9} />
-    <polyline points="12 7 12 12 15 14" />
-  </svg>
-);
+function highlightText(text: string): React.ReactNode {
+  const chunks: React.ReactNode[] = [];
+  let last = 0;
+  const re = new RegExp(KEY_TERM_RE.source, 'g');
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > last) chunks.push(text.slice(last, m.index));
+    chunks.push(<span key={m.index} className="key">{m[0]}</span>);
+    last = m.index + m[0].length;
+  }
+  if (last < text.length) chunks.push(text.slice(last));
+  if (chunks.length === 0) return text;
+  return <>{chunks}</>;
+}
 
 const Pill: React.FC<{ variant: PillVariant; children: React.ReactNode }> = ({ variant, children }) => (
   <span
@@ -237,48 +240,66 @@ const OCTReport: React.FC<{ data: OCTReportData }> = ({ data }) => {
         <EyeColumn eye={d.eyes.og} side="og" />
       </section>
 
-      {/* ══ INTERPRETATION ══ */}
-      <section className="interpretation">
-        <div className="interp-header">
-          <span className="title">Analyse clinique</span>
-        </div>
-        <p className="interp-body" contentEditable="true" suppressContentEditableWarning={true}>{d.interpretation}</p>
-      </section>
+      {/* ══ 4 BLOCS CLINIQUES ══ */}
+      <section className="clin-sections">
 
-      {/* ══ CONCLUSION ══ */}
-      <section className="conclusion">
-        <div className="conclusion-row">
-          <div className="conclusion-badge">
-            <span className="mark">· Synthèse</span>
-            <span className="label">Conclusion</span>
+        {/* 1 — Analyse clinique */}
+        <div className="clin-block analyse">
+          <div className="clin-block-head">
+            <span className="clin-block-tag">Analyse clinique</span>
           </div>
-          <div className="conclusion-text" contentEditable="true" suppressContentEditableWarning={true}>
-            {d.conclusion.headline}
-            {d.conclusion.caveat && <em>{d.conclusion.caveat}</em>}
-          </div>
+          <p
+            className="clin-block-body"
+            contentEditable="true"
+            suppressContentEditableWarning={true}
+          >
+            {highlightText(d.analyseClinic)}
+          </p>
         </div>
-      </section>
 
-      {/* ══ RECOMMENDATIONS ══ */}
-      <section className="recommendations">
-        <div className="rec-card">
-          <div className="rec-head">
-            <span className="rec-title">Hygiène &amp; prévention</span>
-            <HeartIcon />
+        {/* 2 — Conclusion */}
+        <div className={`clin-block conclusion sev-${d.severite}`}>
+          <div className="clin-block-head">
+            <span className="clin-block-tag">Conclusion</span>
+            <span className={`sev-badge sev-${d.severite}`}>
+              {d.severite === 'normal' ? 'Dans les normes'
+               : d.severite === 'surveillance' ? 'Surveillance recommandée'
+               : 'Anomalie significative'}
+            </span>
           </div>
-          <ul className="rec-list">
-            {d.recommendations.hygiene.map((li, i) => <li key={i} contentEditable="true" suppressContentEditableWarning={true}>{li}</li>)}
-          </ul>
+          <p
+            className="clin-block-body"
+            contentEditable="true"
+            suppressContentEditableWarning={true}
+          >
+            {highlightText(d.conclusion)}
+          </p>
         </div>
-        <div className="rec-card follow">
-          <div className="rec-head">
-            <span className="rec-title">Suivi &amp; examens complémentaires</span>
-            <ClockIcon />
+
+        {/* 3 et 4 — Prévention + Suivi côte à côte */}
+        <div className="clin-duo">
+          <div className="clin-block prevention">
+            <div className="clin-block-head">
+              <span className="clin-block-tag">Hygiène &amp; prévention</span>
+            </div>
+            <ul className="clin-list">
+              {d.prevention.map((item, i) => (
+                <li key={i} contentEditable="true" suppressContentEditableWarning={true}>{item}</li>
+              ))}
+            </ul>
           </div>
-          <ul className="rec-list">
-            {d.recommendations.followUp.map((li, i) => <li key={i} contentEditable="true" suppressContentEditableWarning={true}>{li}</li>)}
-          </ul>
+          <div className="clin-block suivi">
+            <div className="clin-block-head">
+              <span className="clin-block-tag">Suivi &amp; examens complémentaires</span>
+            </div>
+            <ul className="clin-list">
+              {d.suivi.map((item, i) => (
+                <li key={i} contentEditable="true" suppressContentEditableWarning={true}>{item}</li>
+              ))}
+            </ul>
+          </div>
         </div>
+
       </section>
 
       {/* ══ SIGNATURE ══ */}
@@ -354,36 +375,19 @@ export const sampleReport: OCTReportData = {
       ],
     },
   },
-  interpretation: (
-    <>
-      L'analyse automatisée des fibres nerveuses péripapillaires (<span className="key">RNFL</span>)
-      et du complexe ganglionnaire (<span className="key">GCL++</span>) est strictement normale et{" "}
-      <span className="key">symétrique bilatéralement</span>, sans perte axonale détectable à droite.
-      À gauche, le <span className="key">RNFL</span> montre une atteinte en secteur temporal inférieur.
-      On note une <span className="key">excavation papillaire asymétrique</span>, avec un
-      rapport <span className="key">C/D</span> vertical estimé à{" "}
-      <span className="key">0.70 à droite contre 0.60 à gauche</span>. La rétine périphérique est
-      calme à plat sur 360° bilatéralement.
-    </>
-  ),
-  conclusion: {
-    headline: (
-      <>Excavation papillaire asymétrique avec atteinte RNFL en TI gauche — profil évocateur de glaucome débutant.</>
-    ),
-    caveat: <>Surveillance recommandée.</>,
-  },
-  recommendations: {
-    hygiene: [
-      <><strong>Activité physique</strong> régulière — 30 min de marche quotidienne favorisant la perfusion oculaire.</>,
-      <><strong>Alimentation</strong> riche en oméga-3, légumes verts et antioxydants.</>,
-      <><strong>Hydratation</strong> — 1.5 à 2 L d'eau/jour ; limiter la caféine en excès.</>,
-    ],
-    followUp: [
-      <>Mesure de la <strong>pression intraoculaire (PIO)</strong> et pachymétrie cornéenne.</>,
-      <><strong>Champ visuel automatisé</strong> type Humphrey 24-2.</>,
-      <><strong>Contrôle OCT annuel</strong> — suivi RNFL/GCL pour confirmer la stabilité.</>,
-    ],
-  },
+  analyseClinic: "L'analyse des fibres nerveuses péripapillaires (RNFL) est normale à droite, sans perte axonale détectable. À gauche, le RNFL montre une atteinte en secteur temporal inférieur. Le complexe ganglionnaire (GCL++) est symétrique et dans les normes bilatéralement. La papille optique présente une excavation asymétrique, avec un rapport C/D vertical estimé à 0.70 à droite (limite) contre 0.60 à gauche. La macula est physiologique des deux côtés. La rétine périphérique est calme à plat sur 360° bilatéralement.",
+  conclusion: "Excavation papillaire asymétrique avec atteinte RNFL en secteur temporal inférieur gauche — profil évocateur de glaucome débutant. Rapport C/D droit à la limite de la normale. Bilan complémentaire recommandé.",
+  prevention: [
+    "Activité physique régulière — 30 min de marche quotidienne favorisant la perfusion oculaire.",
+    "Alimentation riche en oméga-3, légumes verts et antioxydants.",
+    "Hydratation — 1,5 à 2 L d'eau par jour ; limiter la caféine en excès.",
+  ],
+  suivi: [
+    "Mesure de la pression intraoculaire (PIO) et pachymétrie cornéenne.",
+    "Champ visuel automatisé type Humphrey 24-2.",
+    "Contrôle OCT annuel — suivi RNFL/GCL pour confirmer la stabilité.",
+  ],
+  severite: "surveillance",
   signature: {
     city: "Libreville",
     dateLabel: "Fait à Libreville, le 22 avril 2026",

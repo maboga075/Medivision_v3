@@ -1,7 +1,7 @@
-import type { ReactNode } from 'react';
 import type { RawConsultationData, EyeState } from '../types/clinical';
-import type { AIResult, AIInterpretation } from '../types/ai';
+import type { AIResult } from '../types/ai';
 import type { OCTReportData, EyeData, ParamRow, PillVariant } from '../types/report';
+import { formatRNFLGCL } from './biometricFormatter';
 
 /* ─── Praticien par défaut ─────────────────────────────────────── */
 
@@ -64,38 +64,6 @@ function getExamLabel(f: ExamFlags): string {
   if (f.anteriorSegmentDone) return 'OCT Segment Antérieur';
   if (f.hasRetinography) return 'Rétinographie';
   return 'OCT Segment Postérieur';
-}
-
-/* ─── Highlight termes OCT clés dans le texte ─────────────────── */
-
-const KEY_TERM_REGEX =
-  /\b(RNFL|GCL\+\+|GCL|C\/D|OCT[A]?|PIO|DMLA|OVCR|OBVR|OACR|DR[NP]?)\b/g;
-
-function highlightText(text: string): ReactNode {
-  const chunks: ReactNode[] = [];
-  let lastIndex = 0;
-  const regex = new RegExp(KEY_TERM_REGEX.source, 'g');
-  let match: RegExpExecArray | null;
-
-  while ((match = regex.exec(text)) !== null) {
-    if (match.index > lastIndex) {
-      chunks.push(text.slice(lastIndex, match.index));
-    }
-    chunks.push(
-      <span key={match.index} className="key">
-        {match[0]}
-      </span>
-    );
-    lastIndex = match.index + match[0].length;
-  }
-
-  if (lastIndex < text.length) {
-    chunks.push(text.slice(lastIndex));
-  }
-
-  if (chunks.length === 0) return text;
-  if (chunks.length === 1 && typeof chunks[0] === 'string') return chunks[0];
-  return <>{chunks}</>;
 }
 
 /* ─── Pill variant depuis les observations ─────────────────────── */
@@ -259,36 +227,40 @@ function buildMorphologyRows(
   return rows;
 }
 
-/* ─── Biométrie (valeurs numériques) ──────────────────────────── */
+/* ─── Biométrie (valeurs catégoriques) ────────────────────────── */
 
 function buildBiometricRows(eye: EyeState): ParamRow[] {
   const rows: ParamRow[] = [];
 
-  // A8 : RNFL avec localisation et couleur
+  // RNFL avec statut catégorique
   if (eye.rnfl) {
-    const fmt = formatBiometricValue(eye.rnfl, eye.rnflLoc || undefined);
-    rows.push({
-      label: 'RNFL',
-      hint: 'fibres nerveuses péripapillaires',
-      value: fmt.text,
-      customColor: fmt.color,
-      isBiometricGraded: true,
-    });
+    const fmt = formatRNFLGCL(eye.rnfl);
+    if (fmt) {
+      rows.push({
+        label: 'RNFL',
+        hint: 'fibres nerveuses péripapillaires',
+        value: fmt.text,
+        customColor: fmt.color,
+        isBiometricGraded: true,
+      });
+    }
   }
 
-  // A9 : GCL++ avec localisation et couleur
+  // GCL++ avec statut catégorique
   if (eye.gcl) {
-    const fmt = formatBiometricValue(eye.gcl, eye.gclLoc || undefined);
-    rows.push({
-      label: 'GCL++',
-      hint: 'complexe cell. ganglionnaires',
-      value: fmt.text,
-      customColor: fmt.color,
-      isBiometricGraded: true,
-    });
+    const fmt = formatRNFLGCL(eye.gcl);
+    if (fmt) {
+      rows.push({
+        label: 'GCL++',
+        hint: 'complexe cell. ganglionnaires',
+        value: fmt.text,
+        customColor: fmt.color,
+        isBiometricGraded: true,
+      });
+    }
   }
 
-  // Surface discale et C/D sont affichés en boîtes de résumé dans EyeColumn — pas dans la liste
+  // Surface discale et C/D affichés en boîtes de résumé dans EyeColumn
   if (eye.cornealThickness) {
     rows.push({ label: 'Pachymétrie', hint: 'cornée centrale', value: `${eye.cornealThickness} µm` });
   }
@@ -354,68 +326,6 @@ function buildEyeData(
   };
 }
 
-/* ─── Interprétation (ReactNode avec highlights) ─────────────── */
-
-function buildInterpretation(interp: AIInterpretation): ReactNode {
-  const sections: Array<string | undefined> = [
-    interp.segment_anterieur,
-    interp.macula_od,
-    interp.macula_og,
-    interp.papille_od,
-    interp.papille_og,
-    interp.rnfl_od,
-    interp.rnfl_og,
-    interp.gcl_od,
-    interp.gcl_og,
-    interp.peripherie,
-    interp.octa,
-  ];
-
-  const filled = sections.filter((s): s is string => Boolean(s));
-  if (filled.length === 0) {
-    return "Données d'interprétation insuffisantes.";
-  }
-
-  return (
-    <>
-      {filled.map((text, i) => (
-        <span key={i}>
-          {i > 0 && ' '}
-          {highlightText(text)}
-        </span>
-      ))}
-    </>
-  );
-}
-
-/* ─── Conclusion (A11 : diagnostic pur, suivi → recommandations) ─ */
-
-const SEVERITY_LABEL: Record<string, string> = {
-  normal: 'Examen dans les normes',
-  surveillance: 'Surveillance recommandée',
-  alerte: 'Anomalie significative détectée',
-};
-
-function buildConclusion(aiResult: AIResult): OCTReportData['conclusion'] {
-  const sevLabel = SEVERITY_LABEL[aiResult.severite] ?? '';
-  return {
-    headline: highlightText(aiResult.conclusion),
-    caveat: sevLabel || '',  // diagnostic uniquement, suivi dans recommandations
-  };
-}
-
-/* ─── Recommandations : parse texte → items liste ─────────────── */
-
-function splitToItems(text: string): ReactNode[] {
-  if (!text || text === '—') return [];
-
-  const items = text
-    .split(/\.\s+(?=[A-ZÀÂÉÈÊÙÛÔÎ\d])|(?<=\.)\s*$|\n+/)
-    .map((s) => s.trim().replace(/\.$/, '').trim())
-    .filter((s) => s.length > 4);
-
-  return items.length > 0 ? items : [text];
-}
 
 /* ─── Point d'entrée principal ────────────────────────────────── */
 
@@ -512,14 +422,11 @@ export function mapAIResultToOCTReportData(
       ),
     },
 
-    interpretation: buildInterpretation(aiResult.interpretation),
-
-    conclusion: buildConclusion(aiResult),
-
-    recommendations: {
-      hygiene: splitToItems(aiResult.recommandations.hygiene),
-      followUp: splitToItems(aiResult.recommandations.suivi),
-    },
+    analyseClinic: aiResult.analyse_clinique || "Données d'analyse insuffisantes.",
+    conclusion: aiResult.conclusion || 'Résultat non exploitable — vérifier les données cliniques.',
+    prevention: Array.isArray(aiResult.prevention) ? aiResult.prevention : [],
+    suivi: Array.isArray(aiResult.suivi) ? aiResult.suivi : [],
+    severite: aiResult.severite ?? 'normal',
 
     signature: {
       city: practitioner.city,

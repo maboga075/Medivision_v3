@@ -4,6 +4,20 @@ export type AcquisitionStatus = 'Bon' | 'Faible' | 'Impossible';
 export type Eye = 'OD' | 'OG';
 export type Lateralite = 'OD' | 'OG' | 'OD et OG';
 
+// Statuts catégoriques RNFL / GCL++
+export type RNFLGCLStatus =
+  | 'normal'              // Dans les normes
+  | 'superior'            // Supérieur aux normes
+  | 'inferior_global'     // Inférieur — ensemble des cadrans
+  | 'inferior_localized'  // Inférieur — localisé
+  | 'limite_global'       // Limite — ensemble des cadrans
+  | 'limite_localized';   // Limite — localisé
+
+export interface RNFLGCLData {
+  status: RNFLGCLStatus;
+  location?: string;  // code localisation : 'temp_inf' | 'temp_sup' | 'nasal_inf' | 'nasal_sup'
+}
+
 export interface ImageData {
   name: string;
   type: string;
@@ -21,10 +35,8 @@ export interface EyeState {
   rnflEvolution: string;
   gclEvolution: string;
 
-  rnfl: string;
-  rnflLoc: string;
-  gcl: string;
-  gclLoc: string;
+  rnfl?: RNFLGCLData;
+  gcl?: RNFLGCLData;
 
   cornealThickness: string;
   obsAnterieur: string[];

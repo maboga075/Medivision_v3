@@ -14,12 +14,22 @@ export const DEFAULT_PREFS: UserPrefs = {
   obsPeriph: ["Sans particularité", "Déchirure rétinienne", "Décollement rétinien", "Dégénérescence palissadique", "Givre rétinien", "Trou rond atrophique"],
 };
 
-export const RNFL_OPTIONS = [
-  "Dans les normes",
-  "Inférieur aux normes",
-  "Dans les limites inférieures de la norme",
-  "Supérieur aux normes",
-  "Inférieur aux normes dans l'ensemble des cadrans",
+import type { RNFLGCLStatus } from '../types/clinical';
+
+export const RNFL_STATUSES: ReadonlyArray<{ value: RNFLGCLStatus; label: string }> = [
+  { value: 'normal',             label: 'Dans les normes' },
+  { value: 'superior',           label: 'Supérieur aux normes' },
+  { value: 'inferior_global',    label: 'Inférieur aux normes (ensemble des cadrans)' },
+  { value: 'inferior_localized', label: 'Inférieur aux normes (localisé)' },
+  { value: 'limite_global',      label: 'Limite (ensemble des cadrans)' },
+  { value: 'limite_localized',   label: 'Limite (localisé)' },
+] as const;
+
+export const RNFL_LOCATIONS: ReadonlyArray<{ value: string; label: string }> = [
+  { value: 'temp_sup',  label: 'Temporal supérieur' },
+  { value: 'temp_inf',  label: 'Temporal inférieur' },
+  { value: 'nasal_sup', label: 'Nasal supérieur' },
+  { value: 'nasal_inf', label: 'Nasal inférieur' },
 ] as const;
 
 export const EVOLUTION_OPTIONS = [
@@ -28,29 +38,6 @@ export const EVOLUTION_OPTIONS = [
   "Augmentation (épaississement)",
   "Fluctuant",
   "Non évaluable",
-] as const;
-
-export const LOC_PAPILLAIRE = [
-  "cadran papillaire supérieur",
-  "cadran papillaire inférieur",
-  "cadran papillaire temporal inférieur",
-  "cadran papillaire temporal supérieur",
-  "cadrans papillaires temporal (sup. et inf.)",
-  "cadran papillaire nasal inférieur",
-  "cadran papillaire nasal supérieur",
-  "Cadran papillaire nasal (sup. et inf.)",
-] as const;
-
-export const LOC_MACULAIRE = [
-  "ensemble des cadrans maculaires",
-  "cadran maculaire supérieur",
-  "cadran maculaire inférieur",
-  "cadran maculaire temporal inférieur",
-  "cadran maculaire temporal supérieur",
-  "cadrans maculaires temporal (sup. et inf.)",
-  "cadran maculaire nasal inférieur",
-  "cadran maculaire nasal supérieur",
-  "cadrans maculaires nasal (sup. et inf.)",
 ] as const;
 
 export const REPORT_TYPES = [

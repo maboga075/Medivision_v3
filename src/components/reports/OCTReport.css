@@ -192,75 +192,93 @@
 .pill.critical { background: rgba(180,50,42,.14); color: #8A241E; border-color: rgba(180,50,42,.40); font-weight: 700; }
 .pill.critical::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--crimson); box-shadow: 0 0 0 2px rgba(180,50,42,.20); }
 
-/* Interpretation */
-.interpretation {
-  margin-top: 10px; padding: 11px 14px 12px;
-  background: linear-gradient(180deg, #FCFCFB, #F7F7F4);
-  border-left: 3px solid var(--teal); border-radius: 0 5px 5px 0;
-}
-.interp-header { display: flex; align-items: baseline; gap: 10px; margin-bottom: 6px; }
-.interp-header .title {
-  font-family: 'Inter Tight', sans-serif; font-size: 12px; font-weight: 700;
-  letter-spacing: .18em; text-transform: uppercase; color: var(--teal-deep);
-}
-.interp-header .title::before {
-  content: ''; display: inline-block; width: 18px; height: 1.5px; background: var(--teal);
-  vertical-align: middle; margin-right: 8px; margin-bottom: 3px;
-}
-.interp-body { font-size: 10.5px; line-height: 1.55; color: var(--ink-soft); text-align: justify; hyphens: auto; }
-.interp-body .key { font-weight: 600; color: var(--ink); }
+/* ─── 4 blocs cliniques structurés ─────────────────────────────── */
 
-/* Conclusion */
-.conclusion {
-  margin-top: 10px; padding: 13px 16px 14px;
-  background: transparent; color: var(--ink);
-  border-radius: 5px; border: 1px solid var(--line-strong);
-  border-left: 3px solid var(--teal); position: relative; overflow: hidden;
+/* Tokens couleur des 4 blocs */
+:root {
+  --bloc-analyse-accent:    #1B6FA8;
+  --bloc-analyse-bg:        rgba(27,111,168,.06);
+  --bloc-analyse-border:    rgba(27,111,168,.35);
+  --bloc-conclusion-accent: #2E7D52;
+  --bloc-conclusion-bg:     rgba(46,125,82,.06);
+  --bloc-conclusion-border: rgba(46,125,82,.35);
+  --bloc-prevention-accent: #B8600E;
+  --bloc-prevention-bg:     rgba(184,96,14,.06);
+  --bloc-prevention-border: rgba(184,96,14,.35);
+  --bloc-suivi-accent:      #6B4FA8;
+  --bloc-suivi-bg:          rgba(107,79,168,.06);
+  --bloc-suivi-border:      rgba(107,79,168,.35);
 }
-.conclusion-row { display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: center; }
-.conclusion-badge {
-  display: flex; flex-direction: column; align-items: flex-start; gap: 3px;
-  border-right: 1px solid var(--line-strong); padding-right: 14px;
-}
-.conclusion-badge .mark {
-  font-family: 'JetBrains Mono', monospace; font-size: 8px; letter-spacing: .2em;
-  text-transform: uppercase; color: var(--gold); font-weight: 600;
-}
-.conclusion-badge .label {
-  font-family: 'Inter Tight', sans-serif; font-size: 13px; font-weight: 700;
-  letter-spacing: .18em; text-transform: uppercase; color: var(--teal-deep); line-height: 1.1;
-}
-.conclusion-text { font-family: 'Inter Tight', sans-serif; font-size: 11px; line-height: 1.55; color: var(--ink); }
-.conclusion-text strong {
-  font-weight: 700; color: var(--teal-deep);
-  background-image: linear-gradient(180deg, transparent 0, transparent 72%, rgba(184,137,58,.35) 72%, rgba(184,137,58,.35) 94%, transparent 94%);
-  padding: 0 2px;
-}
-.conclusion-text em { font-style: normal; color: var(--ink-soft); font-size: 11px; display: block; margin-top: 4px; }
 
-/* Recommendations */
-.recommendations { margin-top: 10px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.rec-card { padding: 10px 12px 11px; border: 1px solid var(--line); border-radius: 5px; background: var(--paper); }
-.rec-card.follow { background: var(--teal-wash); border-color: rgba(10,110,107,.25); }
-.rec-head {
-  display: flex; align-items: center; gap: 8px;
-  margin-bottom: 7px; padding-bottom: 6px; border-bottom: 1px solid var(--line);
+.clin-sections { margin-top: 10px; display: flex; flex-direction: column; gap: 7px; }
+
+.clin-duo { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+
+/* Bloc générique */
+.clin-block {
+  padding: 9px 12px 10px;
+  border-radius: 4px;
+  border: 1px solid var(--line);
+  border-left-width: 3px;
 }
-.rec-card.follow .rec-head { border-bottom-color: rgba(10,110,107,.2); }
-.rec-title {
-  font-family: 'Inter Tight', sans-serif; font-size: 11px; font-weight: 700;
-  letter-spacing: .16em; text-transform: uppercase; color: var(--teal-deep);
+.clin-block.analyse    { border-left-color: var(--bloc-analyse-accent);    background: var(--bloc-analyse-bg); }
+.clin-block.conclusion { border-left-color: var(--bloc-conclusion-accent);  background: var(--bloc-conclusion-bg); }
+.clin-block.prevention { border-left-color: var(--bloc-prevention-accent); background: var(--bloc-prevention-bg); }
+.clin-block.suivi      { border-left-color: var(--bloc-suivi-accent);      background: var(--bloc-suivi-bg); }
+
+/* En-tête du bloc */
+.clin-block-head {
   display: flex; align-items: center; gap: 8px;
+  margin-bottom: 6px; padding-bottom: 5px; border-bottom: 1px solid var(--line);
 }
-.rec-title::before { content: ''; display: inline-block; width: 14px; height: 1.5px; background: var(--teal); }
-.rec-icon { margin-left: auto; width: 18px; height: 18px; color: var(--teal-deep); opacity: .75; }
-.rec-list { list-style: none; font-size: 9.5px; line-height: 1.5; color: var(--ink-soft); padding: 0; margin: 0; }
-.rec-list li { padding: 2px 0 2px 14px; position: relative; }
-.rec-list li::before {
+.clin-block.analyse    .clin-block-head { border-bottom-color: var(--bloc-analyse-border); }
+.clin-block.conclusion .clin-block-head { border-bottom-color: var(--bloc-conclusion-border); }
+.clin-block.prevention .clin-block-head { border-bottom-color: var(--bloc-prevention-border); }
+.clin-block.suivi      .clin-block-head { border-bottom-color: var(--bloc-suivi-border); }
+
+/* Étiquette du bloc */
+.clin-block-tag {
+  font-family: 'Inter Tight', sans-serif;
+  font-size: 10px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase;
+}
+.clin-block.analyse    .clin-block-tag { color: var(--bloc-analyse-accent); }
+.clin-block.conclusion .clin-block-tag { color: var(--bloc-conclusion-accent); }
+.clin-block.prevention .clin-block-tag { color: var(--bloc-prevention-accent); }
+.clin-block.suivi      .clin-block-tag { color: var(--bloc-suivi-accent); }
+
+/* Badge sévérité (bloc conclusion uniquement) */
+.sev-badge {
+  margin-left: auto;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 8px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase;
+  padding: 2px 7px; border-radius: 99px; border: 1px solid transparent;
+}
+.sev-badge.sev-normal     { background: rgba(92,138,110,.14);  color: #2F5A40;  border-color: rgba(92,138,110,.35); }
+.sev-badge.sev-surveillance { background: rgba(200,106,28,.14); color: #8F4A13; border-color: rgba(200,106,28,.35); }
+.sev-badge.sev-alerte     { background: rgba(180,50,42,.12);   color: #8A241E;  border-color: rgba(180,50,42,.35); }
+
+/* Corps du bloc — texte narratif */
+.clin-block-body {
+  font-family: 'Inter Tight', sans-serif;
+  font-size: 10px; line-height: 1.58; color: var(--ink-soft);
+  text-align: justify; hyphens: auto; margin: 0;
+}
+.clin-block-body .key { font-weight: 600; color: var(--ink); }
+
+/* Corps du bloc — liste */
+.clin-list {
+  list-style: none; padding: 0; margin: 0;
+  font-size: 9.5px; line-height: 1.5; color: var(--ink-soft);
+}
+.clin-list li { padding: 2px 0 2px 13px; position: relative; }
+.clin-block.prevention .clin-list li::before {
   content: ''; position: absolute; left: 0; top: 7px;
-  width: 5px; height: 1.5px; background: var(--teal);
+  width: 5px; height: 1.5px; background: var(--bloc-prevention-accent);
 }
-.rec-list li strong { font-weight: 600; color: var(--ink); }
+.clin-block.suivi .clin-list li::before {
+  content: ''; position: absolute; left: 0; top: 7px;
+  width: 5px; height: 1.5px; background: var(--bloc-suivi-accent);
+}
 
 /* Signature */
 .sign-block {
@@ -421,9 +439,8 @@
   .page::before { display: none !important; }
   /* Éviter les coupures dans les blocs sémantiques */
   .section,
-  .interpretation,
-  .conclusion,
-  .recommendations,
+  .clin-block,
+  .clin-sections,
   .sign-block,
   .eye,
   .eye-header {

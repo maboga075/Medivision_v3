@@ -79,8 +79,8 @@ export const processHypothesisAddition = (
   if (!isAbsenceSign && eyesToCheck.length > 0) {
     if (catLow.includes('glaucome')) {
       const isSupported = eyesToCheck.some((eye) => {
-        if (eye.rnfl?.toLowerCase().includes('inférieur')) return true;
-        if (eye.gcl?.toLowerCase().includes('inférieur')) return true;
+        if (eye.rnfl?.status === 'inferior_global' || eye.rnfl?.status === 'inferior_localized') return true;
+        if (eye.gcl?.status === 'inferior_global' || eye.gcl?.status === 'inferior_localized') return true;
         if (eye.cupDisc && parseFloat(eye.cupDisc.replace(',', '.')) >= 0.7) return true;
         return hasSignInRawEye(eye, ['excavation', 'encoche', 'pâleur', 'paleur']);
       });

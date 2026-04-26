@@ -1,4 +1,4 @@
-import type { EyeState, ImageData } from '../types/clinical';
+import type { EyeState, ImageData, RNFLGCLStatus } from '../types/clinical';
 import { NORMAL_VALUES } from './constants';
 
 export const createEyeState = (): EyeState => ({
@@ -10,10 +10,8 @@ export const createEyeState = (): EyeState => ({
   followUpDate: '',
   rnflEvolution: 'Stable',
   gclEvolution: 'Stable',
-  rnfl: 'Dans les normes',
-  rnflLoc: '',
-  gcl: 'Dans les normes',
-  gclLoc: '',
+  rnfl: { status: 'normal' },
+  gcl: { status: 'normal' },
   cornealThickness: '',
   obsAnterieur: [],
   discSurface: '',
@@ -28,12 +26,8 @@ export const createEyeState = (): EyeState => ({
   images: [],
 });
 
-export const needsLocalisation = (val: string): boolean =>
-  !!val &&
-  val !== 'Dans les normes' &&
-  val !== 'Supérieur aux normes' &&
-  val !== 'Impossible' &&
-  !val.includes('ensemble');
+export const needsLocalisation = (status: RNFLGCLStatus | undefined): boolean =>
+  status === 'inferior_localized' || status === 'limite_localized';
 
 export const isAnomaly = (value: string | undefined): boolean => {
   if (!value || value === '—') return false;
