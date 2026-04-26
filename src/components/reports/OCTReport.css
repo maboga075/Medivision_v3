@@ -317,6 +317,39 @@
   border-color: rgba(180,50,42,.40);
 }
 
+/* Boîtes Surface discale + C/D en haut des biométriques */
+.biometrics-summary {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.biometrics-summary-box {
+  padding: 7px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  text-align: center;
+  background: var(--paper);
+}
+.eye.od .biometrics-summary-box { border-top: 2px solid var(--od-bar); }
+.eye.og .biometrics-summary-box { border-top: 2px solid var(--og-bar); }
+.biometrics-summary-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 7.5px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--mute);
+  margin-bottom: 3px;
+}
+.biometrics-summary-value {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.biometrics-summary-value.alert   { color: var(--amber); }
+.biometrics-summary-value.critical { color: var(--crimson); }
+
 /* Acquisition impossible — affiché à la place des sections morpho/biométrie */
 .acquisition-impossible {
   flex: 1;

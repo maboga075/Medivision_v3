@@ -288,20 +288,7 @@ function buildBiometricRows(eye: EyeState): ParamRow[] {
     });
   }
 
-  if (eye.cupDisc) {
-    const cdVal = parseFloat(eye.cupDisc.replace(',', '.'));
-    const flag: ParamRow['flag'] = !isNaN(cdVal)
-      ? cdVal >= 0.80 ? 'critical'
-      : cdVal >= 0.65 ? 'alert'
-      : undefined
-      : undefined;
-    rows.push({ label: 'Rapport C/D', hint: 'vertical', value: eye.cupDisc, flag });
-  }
-
-  if (eye.discSurface) {
-    rows.push({ label: 'Surface discale', value: `${eye.discSurface} mm²` });
-  }
-
+  // Surface discale et C/D sont affichés en boîtes de résumé dans EyeColumn — pas dans la liste
   if (eye.cornealThickness) {
     rows.push({ label: 'Pachymétrie', hint: 'cornée centrale', value: `${eye.cornealThickness} µm` });
   }
@@ -328,6 +315,16 @@ function buildEyeData(
   octaDone?: boolean,
   acquisitionQuality?: 'bon' | 'faible' | 'impossible'
 ): EyeData {
+  // Calcul du flag C/D
+  const cupDiscFlag = (() => {
+    if (!eye.cupDisc) return undefined;
+    const v = parseFloat(eye.cupDisc.replace(',', '.'));
+    if (isNaN(v)) return undefined;
+    if (v >= 0.80) return 'critical' as const;
+    if (v >= 0.65) return 'alert' as const;
+    return undefined;
+  })();
+
   // Acquisition impossible : sections morpho/biométrie vides, raisons transmises
   if (acquisitionQuality === 'impossible') {
     return {
@@ -336,6 +333,9 @@ function buildEyeData(
       latin: side === 'OD' ? 'dexter' : 'sinister',
       acquisitionQuality: 'impossible',
       acquisitionQualityReasons: eye.acquisitionQualityReasons ?? [],
+      discSurface: eye.discSurface || undefined,
+      cupDisc: eye.cupDisc || undefined,
+      cupDiscFlag,
       morphology: [],
       biometrics: [],
     };
@@ -346,6 +346,9 @@ function buildEyeData(
     name: side === 'OD' ? 'Œil droit' : 'Œil gauche',
     latin: side === 'OD' ? 'dexter' : 'sinister',
     acquisitionQuality,
+    discSurface: eye.discSurface || undefined,
+    cupDisc: eye.cupDisc || undefined,
+    cupDiscFlag,
     morphology: buildMorphologyRows(eye, anteriorSegmentDone, octaDone),
     biometrics: buildBiometricRows(eye),
   };

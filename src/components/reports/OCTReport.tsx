@@ -133,6 +133,33 @@ const EyeColumn: React.FC<{ eye: EyeData; side: "od" | "og" }> = ({ eye, side })
 
         <div className="section">
           <div className="section-title">Paramètres biométriques</div>
+
+          {/* Boîtes Surface discale + C/D */}
+          {(eye.discSurface || eye.cupDisc) && (
+            <div className="biometrics-summary">
+              <div className="biometrics-summary-box">
+                <div className="biometrics-summary-label">Surface discale</div>
+                <div
+                  className="biometrics-summary-value"
+                  contentEditable="true"
+                  suppressContentEditableWarning={true}
+                >
+                  {eye.discSurface ? `${eye.discSurface} mm²` : '—'}
+                </div>
+              </div>
+              <div className="biometrics-summary-box">
+                <div className="biometrics-summary-label">Rapport C/D</div>
+                <div
+                  className={`biometrics-summary-value${eye.cupDiscFlag ? ` ${eye.cupDiscFlag}` : ''}`}
+                  contentEditable="true"
+                  suppressContentEditableWarning={true}
+                >
+                  {eye.cupDisc || '—'}
+                </div>
+              </div>
+            </div>
+          )}
+
           {eye.biometrics.map((r, i) => <ParamLine key={i} row={r} />)}
         </div>
       </>

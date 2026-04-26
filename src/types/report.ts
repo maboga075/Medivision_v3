@@ -27,6 +27,10 @@ export interface EyeData {
   latin: string;
   acquisitionQuality?: 'bon' | 'faible' | 'impossible';
   acquisitionQualityReasons?: string[];
+  // Boîtes de résumé en haut de la section biométriques
+  discSurface?: string;
+  cupDisc?: string;
+  cupDiscFlag?: 'alert' | 'critical';
   morphology: ParamRow[];
   biometrics: ParamRow[];
 }
