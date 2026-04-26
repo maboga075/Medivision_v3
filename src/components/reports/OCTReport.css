@@ -187,8 +187,8 @@
 }
 .pill.normal { background: rgba(92,138,110,.14); color: #2F5A40; border-color: rgba(92,138,110,.35); }
 .pill.normal::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--sage); box-shadow: 0 0 0 2px rgba(92,138,110,.18); }
-.pill.alert { background: rgba(200,106,28,.16); color: #8F4A13; border-color: rgba(200,106,28,.40); font-weight: 700; }
-.pill.alert::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--amber); box-shadow: 0 0 0 2px rgba(200,106,28,.22); }
+.pill.alert  { background: rgba(180,50,42,.14); color: #8A241E; border-color: rgba(180,50,42,.40); font-weight: 700; }
+.pill.alert::before  { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--crimson); box-shadow: 0 0 0 2px rgba(180,50,42,.20); }
 .pill.critical { background: rgba(180,50,42,.14); color: #8A241E; border-color: rgba(180,50,42,.40); font-weight: 700; }
 .pill.critical::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--crimson); box-shadow: 0 0 0 2px rgba(180,50,42,.20); }
 

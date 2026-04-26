@@ -66,65 +66,25 @@ function getExamLabel(f: ExamFlags): string {
   return 'OCT Segment Postérieur';
 }
 
-/* ─── Pill variant depuis les observations ─────────────────────── */
+/* ─── Pills : binaire — normal (vert) ou alert (rouge) ─────────── */
 
-const CRITICAL_KEYWORDS = [
-  'décollement rétinien',
-  'néovaisseaux choroïdiens',
-  'trou maculaire',
-  'déchirure rétinienne',
-  'proliférante',
-  'ovcr',
-  'oacr',
-];
-
-const ALERT_KEYWORDS = [
-  'excavation',
-  'pâleur papillaire',
-  'papille pâle',
-  'encoche',
-  'drusen',
-  'membrane épirétinienne',
-  'remaniement',
-  'hémorragie',
-  'ischémie',
-  'exsudat',
-  'œdème',
-  'traction',
-  'amincissement focal',
-  'kératocône',
-  'bombement cornéen',
-  'dégénérescence',
-  'atrophie',
-  'décollement séreux',
-  'micro-anévrisme',
-  'nodule coton',
-  'engainement',
-  'tortuosité',
-  'cicatrice',
-  'stries de vogt',
-  'trou lamellaire',
-  'reflet maculaire suspect',
-  'contours flous',
-];
-
-function determinePillVariant(observations: string[]): PillVariant {
-  const text = observations.join(' ').toLowerCase();
-  if (CRITICAL_KEYWORDS.some((t) => text.includes(t))) return 'critical';
-  if (ALERT_KEYWORDS.some((t) => text.includes(t))) return 'alert';
-  return 'normal';
-}
-
-/* A7 — Une bulle par anomalie */
+/* "sans particularité" → 'normal' (vert), toute anomalie → 'alert' (rouge) */
 function buildPills(
   observations: string[]
 ): Array<{ variant: PillVariant; text: string }> {
   const anomalies = observations.filter(
     (o) => o.toLowerCase() !== 'sans particularité'
   );
-  const relevant = anomalies.length > 0 ? anomalies : observations;
-  return relevant.map((obs) => ({
-    variant: determinePillVariant([obs]),
+
+  if (anomalies.length === 0) {
+    return observations.map((obs) => ({
+      variant: 'normal' as PillVariant,
+      text: obs.slice(0, 38).trim(),
+    }));
+  }
+
+  return anomalies.map((obs) => ({
+    variant: 'alert' as PillVariant,
     text: obs.slice(0, 38).trim(),
   }));
 }
