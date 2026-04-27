@@ -32,6 +32,7 @@ export interface FormulaireSettings {
 export interface ExportSettings {
   templateNomFichier: string;
   formatParDefaut: 'pdf' | 'docx';
+  exportFolderPath?: string;
 }
 
 export interface AppSettings {

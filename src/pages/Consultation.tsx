@@ -10,11 +10,13 @@ import {
   Mail,
   RotateCcw,
   ChevronLeft,
+  ChevronDown,
   RefreshCw,
   Pencil,
   Trash2,
   X,
   Plus,
+  Download,
 } from 'lucide-react';
 import { db, collection, onSnapshot, query, orderBy, where } from '../services/firebase';
 import PatientEditModal from '../components/modals/PatientEditModal';
@@ -205,6 +207,57 @@ export default function Consultation() {
       orientation: 'portrait',
       margins: { top: 10, right: 10, bottom: 10, left: 10 },
     });
+  };
+
+  const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!exportMenuOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (!exportMenuRef.current?.contains(e.target as Node)) setExportMenuOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [exportMenuOpen]);
+
+  const resolveFilename = (ext: string) => {
+    const template = settings?.export?.templateNomFichier ?? 'CR_{{nom}}_{{date}}';
+    const nom = selectedPatient?.nom?.replace(/\s+/g, '_') ?? 'Patient';
+    const date = new Date().toISOString().split('T')[0];
+    return template.replace('{{nom}}', nom).replace('{{date}}', date).replace('{{medecin}}', octReportData?.signature?.doctorName ?? '') + '.' + ext;
+  };
+
+  const handleExportPDF = () => {
+    setExportMenuOpen(false);
+    handlePrint();
+  };
+
+  const handleExportWord = () => {
+    setExportMenuOpen(false);
+    if (!reportRef.current) return;
+    const styles = Array.from(document.querySelectorAll('link[rel="stylesheet"], style'))
+      .map((n) => n.outerHTML).join('\n');
+    const html = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset='utf-8'>${styles}</head><body>${reportRef.current.innerHTML}</body></html>`;
+    const blob = new Blob([html], { type: 'application/vnd.ms-word;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = resolveFilename('doc');
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportJSON = () => {
+    setExportMenuOpen(false);
+    if (!octReportData) return;
+    const blob = new Blob([JSON.stringify(octReportData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = resolveFilename('json').replace(/\.json$/, '') + '_data.json';
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   const handleWhatsApp = () => {
@@ -490,6 +543,45 @@ export default function Consultation() {
                   >
                     <FileDown className="w-5 h-5" /> Imprimer PDF
                   </button>
+
+                  {/* Dropdown Export */}
+                  <div className="relative" ref={exportMenuRef}>
+                    <button
+                      onClick={() => setExportMenuOpen((o) => !o)}
+                      className={`px-5 py-2.5 font-bold rounded-xl flex items-center gap-2 shadow-sm transition-all active:scale-95 border-2 ${
+                        exportMenuOpen
+                          ? 'bg-amber-50 border-amber-400 text-amber-700'
+                          : 'bg-white border-slate-200 hover:border-amber-300 text-slate-700'
+                      }`}
+                    >
+                      <Download className="w-5 h-5" /> Export
+                      <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${exportMenuOpen ? 'rotate-180' : ''}`} />
+                    </button>
+
+                    {exportMenuOpen && (
+                      <div className="absolute top-full right-0 mt-2 w-44 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 overflow-hidden animate-in slide-in-from-top-2">
+                        <button
+                          onClick={handleExportPDF}
+                          className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 transition-colors"
+                        >
+                          <FileDown className="w-4 h-4 text-red-500" /> PDF
+                        </button>
+                        <button
+                          onClick={handleExportWord}
+                          className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 transition-colors border-t border-slate-100"
+                        >
+                          <FileDown className="w-4 h-4 text-blue-500" /> Word (.doc)
+                        </button>
+                        <button
+                          onClick={handleExportJSON}
+                          disabled={!octReportData}
+                          className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 transition-colors border-t border-slate-100 disabled:opacity-40"
+                        >
+                          <Download className="w-4 h-4 text-teal-500" /> JSON
+                        </button>
+                      </div>
+                    )}
+                  </div>
 
                   <button
                     onClick={handleWhatsApp}
