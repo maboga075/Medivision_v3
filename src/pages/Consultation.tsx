@@ -33,6 +33,7 @@ import OCTReport, { type OCTReportData } from '../components/reports/OCTReport';
 import ValidationBadge from '../components/shared/ValidationBadge';
 import { mapAIResultToOCTReportData, DEFAULT_PRACTITIONER } from '../utils/reportDataMapper';
 import { printReport } from '../services/printService';
+import { useSettings } from '../hooks/useSettings';
 
 import type { PatientFirestore } from '../types/patient';
 import type { EyeState, HypotheseDiagnostique, RawConsultationData } from '../types/clinical';
@@ -42,6 +43,16 @@ import type { ReportType } from '../utils/constants';
 type ConsultationView = 'form' | 'report';
 
 export default function Consultation() {
+  const { settings } = useSettings();
+  const [selectedDoctorId, setSelectedDoctorId] = useState<string>('');
+
+  // Pré-sélectionner le médecin par défaut dès que les settings sont chargés
+  useEffect(() => {
+    if (settings?.medecinPrescripteurParDefaut && !selectedDoctorId) {
+      setSelectedDoctorId(settings.medecinPrescripteurParDefaut);
+    }
+  }, [settings, selectedDoctorId]);
+
   const [patients, setPatients] = useState<PatientFirestore[]>([]);
   const [selectedPatient, setSelectedPatient] = useState<PatientFirestore | null>(null);
   const [view, setView] = useState<ConsultationView>('form');
@@ -311,12 +322,16 @@ export default function Consultation() {
 
       // Étape 6 — Mapping vers OCTReportData
       console.info('[IA] Étape 6 — Mapping vers OCTReportData');
+      const selectedDoctor = settings?.doctors.find((d) => d.id === selectedDoctorId);
       const mapped = mapAIResultToOCTReportData(
         rawInputJson,
         result,
         {
+          name: selectedDoctor
+            ? `${selectedDoctor.prenom} ${selectedDoctor.nom}`.toUpperCase()
+            : undefined,
           title: DEFAULT_PRACTITIONER.title,
-          specialty: DEFAULT_PRACTITIONER.specialty,
+          specialty: selectedDoctor?.specialite || DEFAULT_PRACTITIONER.specialty,
           email: DEFAULT_PRACTITIONER.email,
           phone: DEFAULT_PRACTITIONER.phone,
         },
@@ -592,6 +607,27 @@ export default function Consultation() {
                           ))}
                         </select>
                       </div>
+
+                      {/* Sélecteur médecin examinateur */}
+                      {settings?.doctors && settings.doctors.length > 0 && (
+                        <div className="flex flex-wrap items-center gap-4 w-full md:w-auto">
+                          <label className="text-sm font-black uppercase text-slate-500 tracking-wider">
+                            Médecin examinateur
+                          </label>
+                          <select
+                            className="p-3 border-2 border-slate-200 rounded-xl text-sm font-bold outline-none bg-slate-50 w-full sm:w-64"
+                            value={selectedDoctorId}
+                            onChange={(e) => setSelectedDoctorId(e.target.value)}
+                          >
+                            <option value="">— Sélectionner —</option>
+                            {settings.doctors.map((d) => (
+                              <option key={d.id} value={d.id}>
+                                Dr. {d.prenom} {d.nom}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
                     </div>
 
                     {/* Checkboxes options d'acquisition */}

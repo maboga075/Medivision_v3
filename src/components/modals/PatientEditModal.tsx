@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { UserPlus, FileText, Activity, Plus, X, Pill, CheckCircle, Save } from 'lucide-react';
 import { db, doc, updateDoc } from '../../services/firebase';
+import { useSettings } from '../../hooks/useSettings';
 import type { PatientFirestore, PatientFormData } from '../../types/patient';
 
-const COMMON_MOTIFS = ["Bilan visuel", "Suspicion de glaucome", "Baisse d'acuité visuelle", "Suivi diabétique", "DMLA", "Œil rouge"];
-const COMMON_ANTECEDENTS = ["Sans particularité", "Diabète", "HTA", "Myopie forte", "Glaucome familial", "Chirurgie cataracte"];
-const INITIAL_DOCTORS = ["Dr. Milebou", "Dr. Kougou Ntoutoume", "Dr. Bongo", "Dr. Nyinko Aboughe", "Dr. Gabin", "Dr. Mekyna", "Dr. Matsanga", "Dr. Njilekissa", "Dr. Apedo", "Dr. Souleyman", "Pr. Mba Aki", "Dr. Baye", "Dr. Mboussou"];
+const DEFAULT_MOTIFS = ["Bilan visuel", "Suspicion de glaucome", "Baisse d'acuité visuelle", "Suivi diabétique", "DMLA", "Œil rouge"];
+const DEFAULT_ANTECEDENTS = ["Sans particularité", "Diabète", "HTA", "Myopie forte", "Glaucome familial", "Chirurgie cataracte"];
+const DEFAULT_DOCTORS = ["Dr. Milebou", "Dr. Kougou Ntoutoume", "Dr. Bongo", "Dr. Nyinko Aboughe", "Dr. Gabin", "Dr. Mekyna", "Dr. Matsanga", "Dr. Njilekissa", "Dr. Apedo", "Dr. Souleyman", "Pr. Mba Aki", "Dr. Baye", "Dr. Mboussou"];
 
 interface PatientEditModalProps {
   isOpen: boolean;
@@ -27,6 +28,25 @@ const INITIAL_FORM: PatientFormData = {
 };
 
 export default function PatientEditModal({ isOpen, onClose, patient, onUpdate }: PatientEditModalProps) {
+  const { settings } = useSettings();
+
+  const availableMotifs = (() => {
+    const custom = settings?.formulario?.frequentDiagnoses ?? [];
+    return [...custom, ...DEFAULT_MOTIFS.filter((m) => !custom.includes(m))];
+  })();
+
+  const availableAntecedents = (() => {
+    const custom = settings?.formulario?.frequentAntecedents ?? [];
+    return [...custom, ...DEFAULT_ANTECEDENTS.filter((a) => !custom.includes(a))];
+  })();
+
+  const availableDoctors = (() => {
+    const fromSettings = (settings?.doctors ?? []).map((d) => `Dr. ${d.prenom} ${d.nom}`);
+    return fromSettings.length > 0
+      ? fromSettings
+      : DEFAULT_DOCTORS;
+  })();
+
   const [formData, setFormData] = useState<PatientFormData>(INITIAL_FORM);
   const [isSuccess, setIsSuccess] = useState(false);
   const [customMotifs, setCustomMotifs] = useState<string[]>([]);
@@ -155,7 +175,7 @@ export default function PatientEditModal({ isOpen, onClose, patient, onUpdate }:
                 <Activity className="w-5 h-5 text-indigo-600" /> Motif(s) *
               </label>
               <div className="flex flex-wrap gap-4 items-center">
-                {[...COMMON_MOTIFS, ...customMotifs].map((m) => (
+                {[...availableMotifs, ...customMotifs.filter((m) => !availableMotifs.includes(m))].map((m) => (
                   <button key={m} onClick={() => toggleArrayItem('motifs', m)}
                     className={`px-5 py-4 rounded-2xl text-[15px] font-bold transition-all active:scale-95 border-2 ${formData.motifs.includes(m) ? 'bg-indigo-500 text-white shadow-md border-indigo-500' : 'bg-white border-slate-200 text-slate-600 hover:border-indigo-300'}`}>
                     {m}
@@ -183,7 +203,7 @@ export default function PatientEditModal({ isOpen, onClose, patient, onUpdate }:
                 <FileText className="w-5 h-5 text-orange-600" /> Antécédents *
               </label>
               <div className="flex flex-wrap gap-4 items-center">
-                {[...COMMON_ANTECEDENTS, ...customAtcd].map((a) => (
+                {[...availableAntecedents, ...customAtcd.filter((a) => !availableAntecedents.includes(a))].map((a) => (
                   <button key={a} onClick={() => toggleArrayItem('antecedents', a)}
                     className={`px-5 py-4 rounded-2xl text-[15px] font-bold transition-all active:scale-95 border-2 ${formData.antecedents.includes(a) ? 'bg-orange-500 text-white shadow-md border-orange-500' : 'bg-white border-slate-200 text-slate-600 hover:border-orange-300'}`}>
                     {a}
@@ -241,7 +261,7 @@ export default function PatientEditModal({ isOpen, onClose, patient, onUpdate }:
                 <div className="flex gap-2">
                   <select value={formData.medecinPrescripteur} onChange={(e) => setFormData({ ...formData, medecinPrescripteur: e.target.value })} className="w-full px-5 py-4 rounded-2xl border-2 border-slate-200 text-lg bg-white">
                     <option value="">— Non spécifié —</option>
-                    {[...INITIAL_DOCTORS, ...customDoctors].map((d) => <option key={d} value={d}>{d}</option>)}
+                    {[...availableDoctors, ...customDoctors.filter((d) => !availableDoctors.includes(d))].map((d) => <option key={d} value={d}>{d}</option>)}
                   </select>
                   <button onClick={() => setShowAddDoc(true)} className="px-5 py-4 rounded-2xl border-2 border-dashed border-slate-300 text-slate-500"><Plus className="w-6 h-6" /></button>
                 </div>

@@ -8,6 +8,7 @@ import {
   EVOLUTION_OPTIONS,
 } from '../../utils/constants';
 import { needsLocalisation } from '../../utils/clinicalData';
+import { useSettings } from '../../hooks/useSettings';
 import type { EyeState, RNFLGCLStatus } from '../../types/clinical';
 
 interface EyeExamSectionProps {
@@ -27,8 +28,18 @@ export default function EyeExamSection({
   showAnterior = false,
   octaDone = false,
 }: EyeExamSectionProps) {
+  const { settings } = useSettings();
   const [showMesures, setShowMesures] = useState(false);
   const [isQualityModalOpen, setIsQualityModalOpen] = useState(false);
+
+  const mergeSuggestions = (
+    category: 'macula' | 'papille' | 'peripherie',
+    defaults: readonly string[]
+  ): string[] => {
+    const custom = (settings?.formulario?.bulles?.[category] ?? []).map((b) => b.label);
+    const extra = (defaults as string[]).filter((d) => !custom.includes(d));
+    return [...custom, ...extra];
+  };
 
   const isImpossible = eye.acquisitionQuality === 'impossible';
 
@@ -134,7 +145,7 @@ export default function EyeExamSection({
           <BubblePicker
             title="Macula"
             selectedItems={eye.observationsMacula}
-            suggestions={BUBBLE_PICKER_SUGGESTIONS.macula as unknown as string[]}
+            suggestions={mergeSuggestions('macula', BUBBLE_PICKER_SUGGESTIONS.macula)}
             onAdd={(item) => handleAddObs('observationsMacula', item)}
             onRemove={(item) => handleRemoveObs('observationsMacula', item)}
             disabled={isImpossible}
@@ -143,7 +154,7 @@ export default function EyeExamSection({
           <BubblePicker
             title="Papille"
             selectedItems={eye.observationsPapille}
-            suggestions={BUBBLE_PICKER_SUGGESTIONS.papille as unknown as string[]}
+            suggestions={mergeSuggestions('papille', BUBBLE_PICKER_SUGGESTIONS.papille)}
             onAdd={(item) => handleAddObs('observationsPapille', item)}
             onRemove={(item) => handleRemoveObs('observationsPapille', item)}
             disabled={isImpossible}
@@ -152,7 +163,7 @@ export default function EyeExamSection({
           <BubblePicker
             title="Périphérie"
             selectedItems={eye.observationsPeripherie}
-            suggestions={BUBBLE_PICKER_SUGGESTIONS.peripherie as unknown as string[]}
+            suggestions={mergeSuggestions('peripherie', BUBBLE_PICKER_SUGGESTIONS.peripherie)}
             onAdd={(item) => handleAddObs('observationsPeripherie', item)}
             onRemove={(item) => handleRemoveObs('observationsPeripherie', item)}
             disabled={isImpossible}

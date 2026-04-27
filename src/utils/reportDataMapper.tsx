@@ -308,11 +308,11 @@ export function mapAIResultToOCTReportData(
 
   const practitioner: PractitionerData = {
     ...DEFAULT_PRACTITIONER,
+    ...(contactInfo?.name      && { name:      contactInfo.name      }),
     ...(contactInfo?.title     && { title:     contactInfo.title     }),
     ...(contactInfo?.specialty && { specialty: contactInfo.specialty }),
     ...(contactInfo?.email     && { email:     contactInfo.email     }),
     ...(contactInfo?.phone     && { phone:     contactInfo.phone     }),
-    // name est toujours DEFAULT_PRACTITIONER.name — contactInfo.name est le patient
   };
 
   // A1 : tous les motifs en indication.main (séparés par virgule → multi-lignes dans OCTReport)

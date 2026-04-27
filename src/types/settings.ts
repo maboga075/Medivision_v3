@@ -11,6 +11,7 @@ export interface BubbleSuggestion {
   id: string;
   label: string;
   category: 'macula' | 'papille' | 'peripherie';
+  isCustom?: boolean;
 }
 
 export interface ClinicSettings {
@@ -24,6 +25,8 @@ export interface ClinicSettings {
 
 export interface FormulaireSettings {
   bulles: Record<string, BubbleSuggestion[]>;
+  frequentDiagnoses?: string[];
+  frequentAntecedents?: string[];
 }
 
 export interface ExportSettings {

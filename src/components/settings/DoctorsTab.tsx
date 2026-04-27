@@ -1,14 +1,12 @@
 import { useState, type ChangeEvent } from 'react';
 import { UserPlus, Trash2, Star, StarOff, Stethoscope } from 'lucide-react';
 import { useSettings } from '../../hooks/useSettings';
-import type { AppSettings, Doctor } from '../../types/settings';
-
-interface Props { settings: AppSettings }
+import type { Doctor } from '../../types/settings';
 
 const EMPTY_FORM = { nom: '', prenom: '', specialite: 'Ophtalmologiste', numeroOrdre: '' };
 
-export default function DoctorsTab({ settings }: Props) {
-  const { addDoctor, deleteDoctor, setDefaultPrescriber } = useSettings();
+export default function DoctorsTab() {
+  const { settings, addDoctor, deleteDoctor, setDefaultPrescriber } = useSettings();
   const [form, setForm] = useState(EMPTY_FORM);
   const [adding, setAdding] = useState(false);
   const [toast, setToast] = useState('');
@@ -52,7 +50,7 @@ export default function DoctorsTab({ settings }: Props) {
 
   const handleToggleDefault = async (d: Doctor) => {
     const next =
-      settings.medecinPrescripteurParDefaut === d.id ? undefined : d.id;
+      settings?.medecinPrescripteurParDefaut === d.id ? undefined : d.id;
     await setDefaultPrescriber(next);
     showToast(next ? `Dr. ${d.prenom} ${d.nom} défini comme prescripteur par défaut` : 'Prescripteur par défaut retiré');
   };
@@ -122,19 +120,19 @@ export default function DoctorsTab({ settings }: Props) {
         <div className="flex items-center gap-2 mb-4">
           <Stethoscope className="w-5 h-5 text-slate-500" />
           <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wider">
-            Équipe médicale ({settings.doctors.length})
+            Équipe médicale ({settings?.doctors.length ?? 0})
           </h3>
         </div>
 
-        {settings.doctors.length === 0 ? (
+        {(settings?.doctors.length ?? 0) === 0 ? (
           <div className="text-center py-10 text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
             <Stethoscope className="w-10 h-10 mx-auto mb-3 opacity-30" />
             <p className="font-medium">Aucun médecin enregistré.</p>
           </div>
         ) : (
           <div className="space-y-3">
-            {settings.doctors.map((d) => {
-              const isDefault = settings.medecinPrescripteurParDefaut === d.id;
+            {(settings?.doctors ?? []).map((d) => {
+              const isDefault = settings?.medecinPrescripteurParDefaut === d.id;
               return (
                 <div
                   key={d.id}

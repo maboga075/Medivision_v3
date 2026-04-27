@@ -18,6 +18,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   medecinPrescripteurParDefaut: undefined,
   formulario: {
     bulles: { macula: [], papille: [], peripherie: [] },
+    frequentDiagnoses: [],
+    frequentAntecedents: [],
   },
   export: {
     templateNomFichier: 'CR_{{nom}}_{{date}}',
@@ -161,6 +163,14 @@ export function useSettings() {
     [settings, persist]
   );
 
+  const updateFormulaire = useCallback(
+    async (updates: Partial<AppSettings['formulario']>) => {
+      if (!settings) return;
+      await persist({ ...settings, formulario: { ...settings.formulario, ...updates } });
+    },
+    [settings, persist]
+  );
+
   const updateExport = useCallback(
     async (updates: Partial<AppSettings['export']>) => {
       if (!settings) return;
@@ -179,6 +189,7 @@ export function useSettings() {
     deleteDoctor,
     setDefaultPrescriber,
     updateBulles,
+    updateFormulaire,
     updateExport,
   };
 }

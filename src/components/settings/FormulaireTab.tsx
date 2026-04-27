@@ -2,9 +2,8 @@ import { useState } from 'react';
 import { Plus, X, Layers } from 'lucide-react';
 import { useSettings } from '../../hooks/useSettings';
 import { BUBBLE_PICKER_SUGGESTIONS } from '../../utils/constants';
-import type { AppSettings, BubbleSuggestion } from '../../types/settings';
-
-interface Props { settings: AppSettings }
+import type { BubbleSuggestion } from '../../types/settings';
+import ListEditor from './ListEditor';
 
 const CATEGORIES = ['macula', 'papille', 'peripherie'] as const;
 type Category = typeof CATEGORIES[number];
@@ -15,8 +14,8 @@ const CAT_LABELS: Record<Category, string> = {
   peripherie: 'Périphérie',
 };
 
-export default function FormulaireTab({ settings }: Props) {
-  const { updateBulles } = useSettings();
+export default function FormulaireTab() {
+  const { settings, updateBulles, updateFormulaire } = useSettings();
   const [activeCategory, setActiveCategory] = useState<Category>('macula');
   const [newLabel, setNewLabel] = useState('');
   const [adding, setAdding] = useState(false);
@@ -27,7 +26,7 @@ export default function FormulaireTab({ settings }: Props) {
     setTimeout(() => setToast(''), 3000);
   };
 
-  const customBulles = settings.formulario.bulles[activeCategory] ?? [];
+  const customBulles = settings?.formulario?.bulles?.[activeCategory] ?? [];
 
   // Suggestions par défaut de la constante (sans celles déjà en custom)
   const defaults = (BUBBLE_PICKER_SUGGESTIONS[activeCategory] as readonly string[]) ?? [];
@@ -45,6 +44,7 @@ export default function FormulaireTab({ settings }: Props) {
         id: `bulle_${Date.now()}`,
         label,
         category: activeCategory,
+        isCustom: true,
       };
       await updateBulles(activeCategory, [...customBulles, newBulle]);
       setNewLabel('');
@@ -71,6 +71,7 @@ export default function FormulaireTab({ settings }: Props) {
       id: `bulle_${Date.now()}`,
       label,
       category: activeCategory,
+      isCustom: false,
     };
     await updateBulles(activeCategory, [...customBulles, newBulle]);
     showToast(`"${label}" ajouté aux suggestions personnalisées`);
@@ -186,6 +187,66 @@ export default function FormulaireTab({ settings }: Props) {
             );
           })}
         </div>
+      </div>
+
+      {/* ─── Motifs fréquents ───────────────────────────────────── */}
+      <div className="pt-4 border-t border-slate-100 space-y-4">
+        <div className="flex items-center gap-2">
+          <div className="p-2 bg-indigo-50 rounded-xl">
+            <Layers className="w-5 h-5 text-indigo-600" />
+          </div>
+          <div>
+            <h2 className="text-lg font-bold text-slate-800">Motifs d'examen fréquents</h2>
+            <p className="text-sm text-slate-500">
+              Ces motifs seront proposés lors de la création ou modification d'un dossier patient.
+            </p>
+          </div>
+        </div>
+        <ListEditor
+          title="Motifs fréquents"
+          placeholder="ex : Suivi glaucome, BAV, DMLA…"
+          items={settings?.formulario?.frequentDiagnoses ?? []}
+          onAdd={async (item) => {
+            const current = settings?.formulario?.frequentDiagnoses ?? [];
+            await updateFormulaire({ frequentDiagnoses: [...current, item] });
+            showToast(`"${item}" ajouté`);
+          }}
+          onRemove={async (idx) => {
+            const current = settings?.formulario?.frequentDiagnoses ?? [];
+            await updateFormulaire({ frequentDiagnoses: current.filter((_, i) => i !== idx) });
+            showToast('Motif supprimé');
+          }}
+        />
+      </div>
+
+      {/* ─── Antécédents fréquents ──────────────────────────────── */}
+      <div className="pt-4 border-t border-slate-100 space-y-4">
+        <div className="flex items-center gap-2">
+          <div className="p-2 bg-orange-50 rounded-xl">
+            <Layers className="w-5 h-5 text-orange-600" />
+          </div>
+          <div>
+            <h2 className="text-lg font-bold text-slate-800">Antécédents fréquents</h2>
+            <p className="text-sm text-slate-500">
+              Ces antécédents seront proposés lors de la création ou modification d'un dossier patient.
+            </p>
+          </div>
+        </div>
+        <ListEditor
+          title="Antécédents fréquents"
+          placeholder="ex : Diabète, HTA, Myopie forte…"
+          items={settings?.formulario?.frequentAntecedents ?? []}
+          onAdd={async (item) => {
+            const current = settings?.formulario?.frequentAntecedents ?? [];
+            await updateFormulaire({ frequentAntecedents: [...current, item] });
+            showToast(`"${item}" ajouté`);
+          }}
+          onRemove={async (idx) => {
+            const current = settings?.formulario?.frequentAntecedents ?? [];
+            await updateFormulaire({ frequentAntecedents: current.filter((_, i) => i !== idx) });
+            showToast('Antécédent supprimé');
+          }}
+        />
       </div>
     </div>
   );

@@ -213,8 +213,8 @@ export default function Parametres() {
           {activeTab !== 'ia' && !loading && !error && settings && (
             <>
               {activeTab === 'clinic'     && <ClinicTab     settings={settings} />}
-              {activeTab === 'doctors'    && <DoctorsTab    settings={settings} />}
-              {activeTab === 'formulaire' && <FormulaireTab settings={settings} />}
+              {activeTab === 'doctors'    && <DoctorsTab />}
+              {activeTab === 'formulaire' && <FormulaireTab />}
               {activeTab === 'export'     && <ExportTab     settings={settings} />}
             </>
           )}
