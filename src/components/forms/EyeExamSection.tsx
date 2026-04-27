@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import BubblePicker from './BubblePicker';
-import ModalAcquisitionQuality from './ModalAcquisitionQuality';
 import {
   BUBBLE_PICKER_SUGGESTIONS,
   RNFL_STATUSES,
@@ -10,6 +9,18 @@ import {
 import { needsLocalisation } from '../../utils/clinicalData';
 import { useSettings } from '../../hooks/useSettings';
 import type { EyeState, RNFLGCLStatus } from '../../types/clinical';
+
+const PREDEFINED_CAUSES = [
+  'Cataracte',
+  'Nystagmus',
+  'Opacité cornéenne',
+  'Ptôse',
+  'Miose',
+  'Mydriase',
+  'Mouvements du patient',
+  'Pupille mal réactive',
+  'Trouble vitréen',
+] as const;
 
 interface EyeExamSectionProps {
   side: 'OD' | 'OG';
@@ -30,7 +41,8 @@ export default function EyeExamSection({
 }: EyeExamSectionProps) {
   const { settings } = useSettings();
   const [showMesures, setShowMesures] = useState(false);
-  const [isQualityModalOpen, setIsQualityModalOpen] = useState(false);
+  const [customCause, setCustomCause] = useState('');
+  const [showCustomInput, setShowCustomInput] = useState(false);
 
   const mergeSuggestions = (
     category: 'macula' | 'papille' | 'peripherie',
@@ -106,24 +118,114 @@ export default function EyeExamSection({
             ))}
           </div>
 
-          {/* Bouton + causes si qualité dégradée */}
+          {/* Box inline causes — visible dès que qualité est dégradée */}
           {eye.acquisitionQuality && eye.acquisitionQuality !== 'bon' && (
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setIsQualityModalOpen(true)}
-                className="px-3 py-1.5 text-xs font-bold text-teal-600 bg-teal-50 border border-teal-200 rounded-lg hover:bg-teal-100 transition-colors active:scale-95"
-              >
-                + Spécifier causes
-              </button>
-              {(eye.acquisitionQualityReasons ?? []).map(r => (
-                <span
-                  key={r}
-                  className="px-2.5 py-1 bg-slate-100 text-slate-600 text-xs font-medium rounded-full border border-slate-200"
+            <div className="mt-2 bg-orange-50 border border-orange-300 rounded-xl p-3 space-y-3 animate-in slide-in-from-top-2">
+              <div className="text-xs font-black text-orange-600 uppercase tracking-wider">
+                Cause(s) — qualité {eye.acquisitionQuality}
+              </div>
+
+              {/* Tags des causes sélectionnées */}
+              {(eye.acquisitionQualityReasons ?? []).length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {(eye.acquisitionQualityReasons ?? []).map((r) => (
+                    <span
+                      key={r}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-orange-500 text-white text-xs font-bold"
+                    >
+                      {r}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          update(
+                            'acquisitionQualityReasons',
+                            (eye.acquisitionQualityReasons ?? []).filter((c) => c !== r)
+                          )
+                        }
+                        className="opacity-70 hover:opacity-100 transition-opacity leading-none"
+                        aria-label={`Supprimer ${r}`}
+                      >
+                        ✕
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {/* Ligne d'ajout : select prédéfini + bouton + custom */}
+              <div className="flex gap-2 items-center">
+                <select
+                  className="flex-1 p-2 border border-orange-200 rounded-lg text-sm font-medium bg-white outline-none focus:border-orange-400"
+                  value=""
+                  onChange={(e) => {
+                    const cause = e.target.value;
+                    if (!cause) return;
+                    const current = eye.acquisitionQualityReasons ?? [];
+                    if (!current.includes(cause)) {
+                      update('acquisitionQualityReasons', [...current, cause]);
+                    }
+                  }}
                 >
-                  {r}
-                </span>
-              ))}
+                  <option value="">Sélectionner une cause…</option>
+                  {PREDEFINED_CAUSES.filter(
+                    (c) => !(eye.acquisitionQualityReasons ?? []).includes(c)
+                  ).map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => setShowCustomInput((v) => !v)}
+                  title="Cause personnalisée"
+                  className={`w-9 h-9 flex items-center justify-center rounded-full font-bold text-lg transition-all active:scale-95 flex-shrink-0 ${
+                    showCustomInput
+                      ? 'bg-orange-200 text-orange-700'
+                      : 'bg-orange-500 hover:bg-orange-600 text-white'
+                  }`}
+                >
+                  {showCustomInput ? '×' : '+'}
+                </button>
+              </div>
+
+              {/* Input cause personnalisée */}
+              {showCustomInput && (
+                <div className="flex gap-2 animate-in slide-in-from-top-1">
+                  <input
+                    type="text"
+                    value={customCause}
+                    onChange={(e) => setCustomCause(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        const v = customCause.trim();
+                        if (v && !(eye.acquisitionQualityReasons ?? []).includes(v)) {
+                          update('acquisitionQualityReasons', [...(eye.acquisitionQualityReasons ?? []), v]);
+                        }
+                        setCustomCause('');
+                        setShowCustomInput(false);
+                      }
+                      if (e.key === 'Escape') { setShowCustomInput(false); setCustomCause(''); }
+                    }}
+                    placeholder="Cause personnalisée…"
+                    autoFocus
+                    className="flex-1 p-2 border border-orange-300 rounded-lg text-sm outline-none focus:border-orange-500"
+                  />
+                  <button
+                    type="button"
+                    disabled={!customCause.trim()}
+                    onClick={() => {
+                      const v = customCause.trim();
+                      if (v && !(eye.acquisitionQualityReasons ?? []).includes(v)) {
+                        update('acquisitionQualityReasons', [...(eye.acquisitionQualityReasons ?? []), v]);
+                      }
+                      setCustomCause('');
+                      setShowCustomInput(false);
+                    }}
+                    className="px-3 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg text-sm font-bold disabled:opacity-40 transition-colors"
+                  >
+                    OK
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -429,17 +531,6 @@ export default function EyeExamSection({
         </div>
       </div>
 
-      {/* Modal causes qualité d'acquisition */}
-      {isQualityModalOpen && eye.acquisitionQuality && eye.acquisitionQuality !== 'bon' && (
-        <ModalAcquisitionQuality
-          isOpen={isQualityModalOpen}
-          side={side}
-          quality={eye.acquisitionQuality}
-          reasons={eye.acquisitionQualityReasons ?? []}
-          onClose={() => setIsQualityModalOpen(false)}
-          onSave={(reasons) => update('acquisitionQualityReasons', reasons)}
-        />
-      )}
     </div>
   );
 }
