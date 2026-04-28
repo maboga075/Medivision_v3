@@ -45,8 +45,11 @@ export const buildAIPayload = (
     hypotheses_medecin: clinicalSummary?.hypotheses_medecin ?? [],
     instructions_generation: {
       style: 'medical_professionnel',
-      niveau_detail: 'standard',
+      niveau_detail: 'synthetique',
       ne_pas_inventer: true,
+      analyse_clinique_max_phrases: 4,
+      analyse_clinique_focus: 'anomalies_significatives_uniquement',
+      interdire_mentions: ['acquisition', 'non_realise', 'aucune_donnee', 'non_transmis', 'non_renseigne'],
     },
   };
 };

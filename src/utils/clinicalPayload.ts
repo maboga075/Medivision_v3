@@ -95,21 +95,26 @@ const buildObservations = (eye: EyeState): ObservationsNormalisees => {
 const normalizeEyeData = (eye: EyeState): EyeDataNormalisee => {
   const observations = buildObservations(eye);
 
+  // acquisitionStatus : n'inclure que si anormal (Faible/Impossible) — 'Bon' est implicite
+  // octaPerformed     : n'inclure que si true — false est implicite (absence = non réalisé, à ne pas mentionner)
+  const rnflStatut = normalizeStatut(eye.rnfl);
+  const gclStatut = normalizeStatut(eye.gcl);
+
   return {
-    acquisitionStatus: eye.acquisitionStatus,
+    ...(eye.acquisitionStatus !== 'Bon' ? { acquisitionStatus: eye.acquisitionStatus } : {}),
     ...(eye.acquisitionMotif ? { acquisitionMotif: eye.acquisitionMotif } : {}),
-    hasFollowUp: eye.hasFollowUp,
+    ...(eye.hasFollowUp ? { hasFollowUp: eye.hasFollowUp } : {}),
     ...(eye.followUpDate ? { followUpDate: eye.followUpDate } : {}),
-    ...(eye.rnflEvolution ? { rnflEvolution: eye.rnflEvolution } : {}),
-    ...(eye.gclEvolution ? { gclEvolution: eye.gclEvolution } : {}),
-    rnfl_statut: normalizeStatut(eye.rnfl),
-    gcl_statut: normalizeStatut(eye.gcl),
+    ...(eye.hasFollowUp && eye.rnflEvolution ? { rnflEvolution: eye.rnflEvolution } : {}),
+    ...(eye.hasFollowUp && eye.gclEvolution  ? { gclEvolution: eye.gclEvolution }  : {}),
+    ...(rnflStatut !== 'dans_normes' ? { rnfl_statut: rnflStatut } : {}),
+    ...(gclStatut !== 'dans_normes' ? { gcl_statut: gclStatut } : {}),
     ...(eye.rnfl?.location ? { rnfl_localisation: eye.rnfl.location } : {}),
     ...(eye.gcl?.location ? { gcl_localisation: eye.gcl.location } : {}),
     ...(eye.cupDisc ? { cup_disc_vertical: toNumberIfPossible(eye.cupDisc) } : {}),
     ...(eye.cornealThickness ? { pachymetrie: toNumberIfPossible(eye.cornealThickness) } : {}),
     ...(eye.discSurface ? { discSurface: eye.discSurface } : {}),
-    octaPerformed: eye.octaPerformed,
+    ...(eye.octaPerformed ? { octaPerformed: true } : {}),
     ...(eye.obsFree ? { obsFree: eye.obsFree } : {}),
     observations,
     images: eye.images,
