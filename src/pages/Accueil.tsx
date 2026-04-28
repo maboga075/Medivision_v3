@@ -1,6 +1,7 @@
 import { useState, type Dispatch, type SetStateAction } from 'react';
 import { UserPlus, FileText, Activity, Plus, X, Pill, CheckCircle } from 'lucide-react';
 import { db, collection, addDoc, serverTimestamp } from '../services/firebase';
+import { useSettings } from '../hooks/useSettings';
 import type { PatientFormData } from '../types/patient';
 
 const COMMON_MOTIFS = [
@@ -45,7 +46,7 @@ const EMPTY_FORM: PatientFormData = {
   nom: '',
   dateNaissance: '',
   motifs: [],
-  antecedents: [],
+  antecedents: ['Sans particularité'],
   tel: '',
   email: '',
   hasTraitement: false,
@@ -55,6 +56,11 @@ const EMPTY_FORM: PatientFormData = {
 };
 
 export default function Accueil() {
+  const { settings, updatePrescripteurs, updateBulles } = useSettings();
+  const availableDoctors = settings?.prescripteurs ?? INITIAL_DOCTORS;
+  const availableMotifs = settings?.formulario?.motifs ?? COMMON_MOTIFS;
+  const availableAntecedents = settings?.formulario?.antecedents ?? COMMON_ANTECEDENTS;
+
   const [formData, setFormData] = useState<PatientFormData>(EMPTY_FORM);
   const [isSuccess, setIsSuccess] = useState(false);
 
@@ -91,11 +97,19 @@ export default function Accueil() {
     setCustomList((prev) => [...new Set([...prev, trimmed])]);
     if (field === 'medecinPrescripteur') {
       setFormData((prev) => ({ ...prev, medecinPrescripteur: trimmed }));
+      if (!availableDoctors.some((p) => p.toLowerCase() === trimmed.toLowerCase())) {
+        updatePrescripteurs([...availableDoctors, trimmed]).catch(console.error);
+      }
     } else {
       setFormData((prev) => ({
         ...prev,
         [field]: [...new Set([...prev[field as 'motifs' | 'antecedents'], trimmed])],
       }));
+      if (field === 'motifs' && !availableMotifs.some((m) => m.toLowerCase() === trimmed.toLowerCase())) {
+        updateBulles('motifs', [...availableMotifs, trimmed]).catch(console.error);
+      } else if (field === 'antecedents' && !availableAntecedents.some((a) => a.toLowerCase() === trimmed.toLowerCase())) {
+        updateBulles('antecedents', [...availableAntecedents, trimmed]).catch(console.error);
+      }
     }
     setVal('');
     setShow(false);
@@ -201,7 +215,7 @@ export default function Accueil() {
                 <span className="text-red-500">*</span>
               </label>
               <div className="flex flex-wrap gap-4 items-center">
-                {[...COMMON_MOTIFS, ...customMotifs].map((m) => (
+                {[...availableMotifs, ...customMotifs.filter((m) => !availableMotifs.includes(m))].map((m) => (
                   <button
                     key={m}
                     onClick={() => toggleArrayItem('motifs', m)}
@@ -261,7 +275,7 @@ export default function Accueil() {
                 <span className="text-red-500">*</span>
               </label>
               <div className="flex flex-wrap gap-4 items-center">
-                {[...COMMON_ANTECEDENTS, ...customAtcd].map((a) => (
+                {[...availableAntecedents, ...customAtcd.filter((a) => !availableAntecedents.includes(a))].map((a) => (
                   <button
                     key={a}
                     onClick={() => toggleArrayItem('antecedents', a)}
@@ -422,7 +436,7 @@ export default function Accueil() {
                     className="w-full px-5 py-4 rounded-2xl border-2 border-slate-200 focus:ring-0 focus:border-teal-500 outline-none transition-all text-lg bg-white appearance-none cursor-pointer"
                   >
                     <option value="">— Non spécifié —</option>
-                    {[...INITIAL_DOCTORS, ...customDoctors].map((d) => (
+                    {[...availableDoctors, ...customDoctors.filter((d) => !availableDoctors.includes(d))].map((d) => (
                       <option key={d} value={d}>
                         {d}
                       </option>

@@ -7,13 +7,6 @@ export interface Doctor {
   signature?: string;
 }
 
-export interface BubbleSuggestion {
-  id: string;
-  label: string;
-  category: 'macula' | 'papille' | 'peripherie';
-  isCustom?: boolean;
-}
-
 export interface ClinicSettings {
   nom: string;
   adresse: string;
@@ -24,21 +17,28 @@ export interface ClinicSettings {
 }
 
 export interface FormulaireSettings {
-  bulles: Record<string, BubbleSuggestion[]>;
-  frequentDiagnoses?: string[];
-  frequentAntecedents?: string[];
+  macula?: string[];
+  papille?: string[];
+  peripherie?: string[];
+  motifs?: string[];
+  antecedents?: string[];
+  diagnostics?: string[];
 }
 
 export interface ExportSettings {
-  templateNomFichier: string;
-  formatParDefaut: 'pdf' | 'docx';
+  templateNomFichier?: string;
+  formatParDefaut?: 'pdf' | 'docx';
   exportFolderPath?: string;
+  exportFolderName?: string;
+  useFilePicker?: boolean;
 }
 
 export interface AppSettings {
   clinic: ClinicSettings;
   doctors: Doctor[];
+  prescripteurs?: string[];
   medecinPrescripteurParDefaut?: string;
   formulario: FormulaireSettings;
   export: ExportSettings;
+  updatedAt?: unknown;
 }

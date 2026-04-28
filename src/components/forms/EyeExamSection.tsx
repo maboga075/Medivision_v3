@@ -7,7 +7,7 @@ import {
   EVOLUTION_OPTIONS,
 } from '../../utils/constants';
 import { needsLocalisation } from '../../utils/clinicalData';
-import { useSettings } from '../../hooks/useSettings';
+import { useSuggestions } from '../../hooks/useSuggestions';
 import type { EyeState, RNFLGCLStatus } from '../../types/clinical';
 
 const PREDEFINED_CAUSES = [
@@ -29,6 +29,7 @@ interface EyeExamSectionProps {
   isOCT?: boolean;
   showAnterior?: boolean;
   octaDone?: boolean;
+  onNewSuggestion?: (category: 'macula' | 'papille' | 'peripherie', item: string) => void;
 }
 
 export default function EyeExamSection({
@@ -38,20 +39,12 @@ export default function EyeExamSection({
   isOCT = true,
   showAnterior = false,
   octaDone = false,
+  onNewSuggestion,
 }: EyeExamSectionProps) {
-  const { settings } = useSettings();
+  const suggestions = useSuggestions();
   const [showMesures, setShowMesures] = useState(false);
   const [customCause, setCustomCause] = useState('');
   const [showCustomInput, setShowCustomInput] = useState(false);
-
-  const mergeSuggestions = (
-    category: 'macula' | 'papille' | 'peripherie',
-    defaults: readonly string[]
-  ): string[] => {
-    const custom = (settings?.formulario?.bulles?.[category] ?? []).map((b) => b.label);
-    const extra = (defaults as string[]).filter((d) => !custom.includes(d));
-    return [...custom, ...extra];
-  };
 
   const isImpossible = eye.acquisitionQuality === 'impossible';
 
@@ -247,8 +240,11 @@ export default function EyeExamSection({
           <BubblePicker
             title="Macula"
             selectedItems={eye.observationsMacula}
-            suggestions={mergeSuggestions('macula', BUBBLE_PICKER_SUGGESTIONS.macula)}
-            onAdd={(item) => handleAddObs('observationsMacula', item)}
+            suggestions={suggestions.macula}
+            onAdd={(item) => {
+              handleAddObs('observationsMacula', item);
+              if (!suggestions.macula.includes(item)) onNewSuggestion?.('macula', item);
+            }}
             onRemove={(item) => handleRemoveObs('observationsMacula', item)}
             disabled={isImpossible}
           />
@@ -256,8 +252,11 @@ export default function EyeExamSection({
           <BubblePicker
             title="Papille"
             selectedItems={eye.observationsPapille}
-            suggestions={mergeSuggestions('papille', BUBBLE_PICKER_SUGGESTIONS.papille)}
-            onAdd={(item) => handleAddObs('observationsPapille', item)}
+            suggestions={suggestions.papille}
+            onAdd={(item) => {
+              handleAddObs('observationsPapille', item);
+              if (!suggestions.papille.includes(item)) onNewSuggestion?.('papille', item);
+            }}
             onRemove={(item) => handleRemoveObs('observationsPapille', item)}
             disabled={isImpossible}
           />
@@ -265,8 +264,11 @@ export default function EyeExamSection({
           <BubblePicker
             title="Périphérie"
             selectedItems={eye.observationsPeripherie}
-            suggestions={mergeSuggestions('peripherie', BUBBLE_PICKER_SUGGESTIONS.peripherie)}
-            onAdd={(item) => handleAddObs('observationsPeripherie', item)}
+            suggestions={suggestions.peripherie}
+            onAdd={(item) => {
+              handleAddObs('observationsPeripherie', item);
+              if (!suggestions.peripherie.includes(item)) onNewSuggestion?.('peripherie', item);
+            }}
             onRemove={(item) => handleRemoveObs('observationsPeripherie', item)}
             disabled={isImpossible}
           />

@@ -41,6 +41,10 @@ const EyePictogram: React.FC = () => (
 
 const KEY_TERM_RE = /\b(RNFL|GCL\+\+|GCL|C\/D|OCT[A]?|PIO|DMLA|OVCR|OBVR|OACR|DR[NP]?)\b/g;
 
+// Supprime les tirets/puces de début et le markdown **gras** générés par certains modèles IA
+const stripItem = (s: string) =>
+  s.replace(/^\s*[\-–—•*]\s*/, '').replace(/\*\*([^*]+)\*\*/g, '$1').trim();
+
 function highlightText(text: string): React.ReactNode {
   const chunks: React.ReactNode[] = [];
   let last = 0;
@@ -258,14 +262,12 @@ const OCTReport: React.FC<{ data: OCTReportData }> = ({ data }) => {
         </div>
 
         {/* 2 — Conclusion */}
-        <div className={`clin-block conclusion sev-${d.severite}`}>
+        <div className="clin-block conclusion">
           <div className="clin-block-head">
             <span className="clin-block-tag">Conclusion</span>
-            <span className={`sev-badge sev-${d.severite}`}>
-              {d.severite === 'normal' ? 'Dans les normes'
-               : d.severite === 'surveillance' ? 'Surveillance recommandée'
-               : 'Anomalie significative'}
-            </span>
+            {d.badge && (
+              <span className={`sev-badge sev-${d.badge.variant}`}>{d.badge.label}</span>
+            )}
           </div>
           <p
             className="clin-block-body"
@@ -284,7 +286,10 @@ const OCTReport: React.FC<{ data: OCTReportData }> = ({ data }) => {
             </div>
             <ul className="clin-list">
               {d.prevention.map((item, i) => (
-                <li key={i} contentEditable="true" suppressContentEditableWarning={true}>{item}</li>
+                <li key={i} contentEditable="true" suppressContentEditableWarning={true}>
+                  <span className="clin-bullet" contentEditable="false">–</span>
+                  {stripItem(item)}
+                </li>
               ))}
             </ul>
           </div>
@@ -294,7 +299,10 @@ const OCTReport: React.FC<{ data: OCTReportData }> = ({ data }) => {
             </div>
             <ul className="clin-list">
               {d.suivi.map((item, i) => (
-                <li key={i} contentEditable="true" suppressContentEditableWarning={true}>{item}</li>
+                <li key={i} contentEditable="true" suppressContentEditableWarning={true}>
+                  <span className="clin-bullet" contentEditable="false">–</span>
+                  {stripItem(item)}
+                </li>
               ))}
             </ul>
           </div>

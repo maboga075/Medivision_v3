@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { db, doc, getDoc, setDoc, serverTimestamp } from '../services/firebase';
-import type { AppSettings, Doctor, BubbleSuggestion } from '../types/settings';
+import type { AppSettings, Doctor } from '../types/settings';
 
 const SETTINGS_DOC_ID = 'clinic';
 const LOCAL_CACHE_KEY = 'medivision_settings_cache';
@@ -16,11 +16,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   },
   doctors: [],
   medecinPrescripteurParDefaut: undefined,
-  formulario: {
-    bulles: { macula: [], papille: [], peripherie: [] },
-    frequentDiagnoses: [],
-    frequentAntecedents: [],
-  },
+  formulario: {},
   export: {
     templateNomFichier: 'CR_{{nom}}_{{date}}',
     formatParDefaut: 'pdf',
@@ -149,24 +145,31 @@ export function useSettings() {
     [settings, persist]
   );
 
+  const updateFormulaire = useCallback(
+    async (updates: Partial<AppSettings['formulario']>) => {
+      if (!settings) return;
+      await persist({ ...settings, formulario: { ...settings.formulario, ...updates } });
+    },
+    [settings, persist]
+  );
+
   const updateBulles = useCallback(
-    async (category: string, bulles: BubbleSuggestion[]) => {
+    async (category: string, items: string[]) => {
       if (!settings) return;
       await persist({
         ...settings,
-        formulario: {
-          ...settings.formulario,
-          bulles: { ...settings.formulario.bulles, [category]: bulles },
-        },
+        formulario: { ...settings.formulario, [category]: items },
       });
     },
     [settings, persist]
   );
 
-  const updateFormulaire = useCallback(
-    async (updates: Partial<AppSettings['formulario']>) => {
+  const updateFormulaireSettings = updateFormulaire;
+
+  const updatePrescripteurs = useCallback(
+    async (list: string[]) => {
       if (!settings) return;
-      await persist({ ...settings, formulario: { ...settings.formulario, ...updates } });
+      await persist({ ...settings, prescripteurs: list });
     },
     [settings, persist]
   );
@@ -188,8 +191,10 @@ export function useSettings() {
     updateDoctor,
     deleteDoctor,
     setDefaultPrescriber,
-    updateBulles,
     updateFormulaire,
+    updateFormulaireSettings,
+    updateBulles,
+    updatePrescripteurs,
     updateExport,
   };
 }

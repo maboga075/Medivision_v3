@@ -54,6 +54,7 @@ export interface OCTReportData {
   prevention: string[];
   suivi: string[];
   severite: AISeverite;
+  badge?: { label: string; variant: 'surveillance' | 'alerte' };
   signature: {
     city: string;
     dateLabel: string;

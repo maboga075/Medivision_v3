@@ -17,6 +17,7 @@ import {
   X,
   Plus,
   Download,
+  AlertTriangle,
 } from 'lucide-react';
 import { db, collection, onSnapshot, query, orderBy, where } from '../services/firebase';
 import PatientEditModal from '../components/modals/PatientEditModal';
@@ -35,7 +36,9 @@ import OCTReport, { type OCTReportData } from '../components/reports/OCTReport';
 import ValidationBadge from '../components/shared/ValidationBadge';
 import { mapAIResultToOCTReportData, DEFAULT_PRACTITIONER } from '../utils/reportDataMapper';
 import { printReport } from '../services/printService';
+import { exportReportToPDF } from '../services/pdfExportService';
 import { useSettings } from '../hooks/useSettings';
+import { DEFAULT_SUGGESTIONS } from '../constants/defaultSuggestions';
 
 import type { PatientFirestore } from '../types/patient';
 import type { EyeState, HypotheseDiagnostique, RawConsultationData } from '../types/clinical';
@@ -45,7 +48,7 @@ import type { ReportType } from '../utils/constants';
 type ConsultationView = 'form' | 'report';
 
 export default function Consultation() {
-  const { settings } = useSettings();
+  const { settings, updateBulles } = useSettings();
   const [selectedDoctorId, setSelectedDoctorId] = useState<string>('');
 
   // Pré-sélectionner le médecin par défaut dès que les settings sont chargés
@@ -90,6 +93,14 @@ export default function Consultation() {
   const [selectedLat, setSelectedLat] = useState<'OD et OG' | 'OD' | 'OG'>('OD et OG');
   const [hypoError, setHypoError] = useState('');
   const [hypoWarning, setHypoWarning] = useState('');
+
+  // Paramètres compte rendu — badge + délai
+  const [showBadge, setShowBadge] = useState(false);
+  const [badgeVariant, setBadgeVariant] = useState<'surveillance' | 'alerte'>('surveillance');
+  const [badgeCustomLabel, setBadgeCustomLabel] = useState('');
+  const [showBadgeCustom, setShowBadgeCustom] = useState(false);
+  const [nextControlDelay, setNextControlDelay] = useState('');
+  const [customDelayText, setCustomDelayText] = useState('');
 
   const handleAddHypothese = () => {
     setHypoError('');
@@ -200,9 +211,7 @@ export default function Consultation() {
   const handlePrint = () => {
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
     printReport(reportRef.current, {
-      title: octReportData
-        ? `Compte rendu OCT — ${octReportData.reportNumber}`
-        : 'Compte rendu OCT',
+      title: buildFilename('pdf').replace(/\.pdf$/, ''),
       paperSize: 'A4',
       orientation: 'portrait',
       margins: { top: 10, right: 10, bottom: 10, left: 10 },
@@ -221,16 +230,25 @@ export default function Consultation() {
     return () => document.removeEventListener('mousedown', handler);
   }, [exportMenuOpen]);
 
-  const resolveFilename = (ext: string) => {
-    const template = settings?.export?.templateNomFichier ?? 'CR_{{nom}}_{{date}}';
-    const nom = selectedPatient?.nom?.replace(/\s+/g, '_') ?? 'Patient';
-    const date = new Date().toISOString().split('T')[0];
-    return template.replace('{{nom}}', nom).replace('{{date}}', date).replace('{{medecin}}', octReportData?.signature?.doctorName ?? '') + '.' + ext;
+  const buildFilename = (ext: string) => {
+    const sanitize = (s: string) => s.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_\-]/g, '');
+    const dossier = sanitize(selectedPatient?.folderId ?? '');
+    const nom = sanitize(selectedPatient?.nom ?? 'Patient');
+    const date = selectedPatient?.dateExamen ?? new Date().toISOString().split('T')[0];
+    const parts = [dossier, nom, date].filter(Boolean);
+    return parts.join('_') + '.' + ext;
   };
 
-  const handleExportPDF = () => {
+  const handleExportPDF = async () => {
     setExportMenuOpen(false);
-    handlePrint();
+    if (!octReportData) return;
+    try {
+      await exportReportToPDF(reportRef.current, octReportData, {
+        filename: buildFilename('pdf'),
+      });
+    } catch (err) {
+      console.error('[handleExportPDF]', err);
+    }
   };
 
   const handleExportWord = () => {
@@ -243,7 +261,7 @@ export default function Consultation() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = resolveFilename('doc');
+    a.download = buildFilename('doc');
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -255,7 +273,7 @@ export default function Consultation() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = resolveFilename('json').replace(/\.json$/, '') + '_data.json';
+    a.download = buildFilename('json').replace(/\.json$/, '') + '_data.json';
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -390,6 +408,20 @@ export default function Consultation() {
         },
         selectedPatient.folderId
       );
+
+      // Injecter le badge de sévérité si activé
+      if (showBadge) {
+        const label = showBadgeCustom && badgeCustomLabel.trim()
+          ? badgeCustomLabel.trim()
+          : badgeVariant === 'surveillance' ? 'Surveillance recommandée' : 'Urgence thérapeutique';
+        mapped.badge = { label, variant: badgeVariant };
+      }
+
+      // Injecter le délai de contrôle comme premier item de suivi
+      const resolvedDelay = nextControlDelay === '__custom__' ? customDelayText.trim() : nextControlDelay;
+      if (resolvedDelay) {
+        mapped.suivi = [`Contrôle OCT : ${resolvedDelay}`, ...mapped.suivi];
+      }
 
       setJsonValidation(validation);
       setOctReportData(mapped);
@@ -761,6 +793,11 @@ export default function Consultation() {
                       isOCT={reportType.includes('OCT')}
                       showAnterior={showAnterior}
                       octaDone={octaDone}
+                      onNewSuggestion={(category, item) => {
+                        const stored = settings?.formulario?.[category];
+                        const effective = stored ?? DEFAULT_SUGGESTIONS[category] ?? [];
+                        if (!effective.includes(item)) updateBulles(category, [...effective, item]);
+                      }}
                     />
                     <EyeExamSection
                       side="OG"
@@ -769,6 +806,11 @@ export default function Consultation() {
                       isOCT={reportType.includes('OCT')}
                       showAnterior={showAnterior}
                       octaDone={octaDone}
+                      onNewSuggestion={(category, item) => {
+                        const stored = settings?.formulario?.[category];
+                        const effective = stored ?? DEFAULT_SUGGESTIONS[category] ?? [];
+                        if (!effective.includes(item)) updateBulles(category, [...effective, item]);
+                      }}
                     />
                   </div>
 
@@ -887,6 +929,117 @@ export default function Consultation() {
                         placeholder="Saisissez une nuance, réserve ou commentaire clinique additionnel..."
                         className="w-full p-4 border-2 border-slate-200 rounded-2xl text-sm font-medium bg-slate-50 outline-none focus:border-teal-400 focus:bg-white transition-colors min-h-[80px]"
                       />
+                    </div>
+                  </div>
+
+                  {/* ── Paramètres du compte rendu ── */}
+                  <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm mb-10 w-full">
+                    <div className="flex items-center gap-2 mb-5">
+                      <AlertTriangle className="w-5 h-5 text-slate-400" />
+                      <h3 className="text-xl font-extrabold text-slate-800 tracking-tight">Paramètres du compte rendu</h3>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+                      {/* Badge de sévérité */}
+                      <div className="space-y-3">
+                        <p className="text-xs font-black text-slate-500 uppercase tracking-wider">Badge de sévérité</p>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => { setShowBadge(false); setShowBadgeCustom(false); }}
+                            className={`px-4 py-2 rounded-xl text-sm font-bold border-2 transition-colors ${!showBadge ? 'bg-slate-700 text-white border-slate-700' : 'bg-white text-slate-400 border-slate-200 hover:border-slate-300'}`}
+                          >Non</button>
+                          <button
+                            onClick={() => setShowBadge(true)}
+                            className={`px-4 py-2 rounded-xl text-sm font-bold border-2 transition-colors ${showBadge ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-slate-400 border-slate-200 hover:border-slate-300'}`}
+                          >Oui</button>
+                        </div>
+
+                        {showBadge && (
+                          <div className="space-y-2 animate-in slide-in-from-top-2 p-3 bg-slate-50 rounded-2xl border border-slate-100">
+                            {/* Surveillance */}
+                            <button
+                              onClick={() => { setBadgeVariant('surveillance'); setShowBadgeCustom(false); }}
+                              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border-2 transition-all text-left ${badgeVariant === 'surveillance' && !showBadgeCustom ? 'border-orange-300 bg-orange-50' : 'border-transparent bg-white hover:bg-slate-50'}`}
+                            >
+                              <span className="inline-block text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-100 text-orange-800 border border-orange-300 uppercase tracking-wider whitespace-nowrap">Surveillance recommandée</span>
+                            </button>
+                            {/* Urgence */}
+                            <button
+                              onClick={() => { setBadgeVariant('alerte'); setShowBadgeCustom(false); }}
+                              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border-2 transition-all text-left ${badgeVariant === 'alerte' && !showBadgeCustom ? 'border-red-300 bg-red-50' : 'border-transparent bg-white hover:bg-slate-50'}`}
+                            >
+                              <span className="inline-block text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-800 border border-red-300 uppercase tracking-wider whitespace-nowrap">Urgence thérapeutique</span>
+                            </button>
+                            {/* Personnalisé */}
+                            {showBadgeCustom ? (
+                              <div className="flex gap-2 items-center">
+                                <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${badgeVariant === 'alerte' ? 'bg-red-400' : 'bg-orange-400'}`} />
+                                <input
+                                  autoFocus
+                                  value={badgeCustomLabel}
+                                  onChange={(e) => setBadgeCustomLabel(e.target.value)}
+                                  placeholder="Libellé personnalisé…"
+                                  className="flex-1 p-2 border-2 border-slate-200 rounded-xl text-sm font-bold outline-none focus:border-teal-400 bg-white"
+                                />
+                                <div className="flex gap-1">
+                                  <button onClick={() => setBadgeVariant('surveillance')} className={`w-5 h-5 rounded-full bg-orange-300 border-2 transition-colors ${badgeVariant === 'surveillance' ? 'border-orange-600' : 'border-transparent'}`} title="Orange" />
+                                  <button onClick={() => setBadgeVariant('alerte')} className={`w-5 h-5 rounded-full bg-red-400 border-2 transition-colors ${badgeVariant === 'alerte' ? 'border-red-700' : 'border-transparent'}`} title="Rouge" />
+                                </div>
+                                <button onClick={() => setShowBadgeCustom(false)} className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100">
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => setShowBadgeCustom(true)}
+                                className="w-full flex items-center gap-2 px-3 py-2 rounded-xl border-2 border-dashed border-slate-300 text-slate-500 hover:bg-white text-sm font-bold transition-all"
+                              >
+                                <Plus className="w-3.5 h-3.5" /> Indication personnalisée
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Délai prochain contrôle OCT */}
+                      <div className="space-y-3">
+                        <p className="text-xs font-black text-slate-500 uppercase tracking-wider">Délai prochain contrôle OCT</p>
+                        <select
+                          value={nextControlDelay}
+                          onChange={(e) => { setNextControlDelay(e.target.value); setCustomDelayText(''); }}
+                          className="w-full p-3 border-2 border-slate-200 rounded-xl text-sm font-bold bg-white outline-none focus:border-teal-400 transition-colors"
+                        >
+                          <option value="">— Aucun délai précisé —</option>
+                          <option value="dans 1 an">Dans 1 an</option>
+                          <option value="dans 6 mois">Dans 6 mois</option>
+                          <option value="dans 3 mois">Dans 3 mois</option>
+                          <option value="dans 1 à 2 mois">Dans 1 à 2 mois</option>
+                          <option value="dans 1 mois">Dans 1 mois</option>
+                          <option value="suivi clinique simple">Suivi clinique simple</option>
+                          <option value="__custom__">Personnalisé…</option>
+                        </select>
+                        {nextControlDelay === '__custom__' && (
+                          <input
+                            autoFocus
+                            value={customDelayText}
+                            onChange={(e) => setCustomDelayText(e.target.value)}
+                            placeholder="Ex : dans 3 semaines…"
+                            className="w-full p-3 border-2 border-slate-200 rounded-xl text-sm font-bold outline-none focus:border-teal-400 bg-white animate-in slide-in-from-top-2"
+                          />
+                        )}
+                        {nextControlDelay && nextControlDelay !== '__custom__' && (
+                          <p className="text-xs text-slate-400 font-medium">
+                            → Ajouté en premier item de <span className="font-bold text-indigo-600">Suivi &amp; examens complémentaires</span>
+                          </p>
+                        )}
+                        {nextControlDelay === '__custom__' && customDelayText.trim() && (
+                          <p className="text-xs text-slate-400 font-medium">
+                            → Ajouté en premier item de <span className="font-bold text-indigo-600">Suivi &amp; examens complémentaires</span>
+                          </p>
+                        )}
+                      </div>
+
                     </div>
                   </div>
 

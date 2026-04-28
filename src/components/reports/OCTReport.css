@@ -210,26 +210,26 @@
   --bloc-suivi-border:      rgba(107,79,168,.35);
 }
 
-.clin-sections { margin-top: 10px; display: flex; flex-direction: column; gap: 7px; }
+.clin-sections { margin-top: 8px; display: flex; flex-direction: column; gap: 5px; }
 
-.clin-duo { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+.clin-duo { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
 
 /* Bloc générique */
 .clin-block {
-  padding: 9px 12px 10px;
+  padding: 7px 11px 8px;
   border-radius: 4px;
   border: 1px solid var(--line);
   border-left-width: 3px;
 }
-.clin-block.analyse    { border-left-color: var(--bloc-analyse-accent);    background: var(--bloc-analyse-bg); }
+.clin-block.analyse    { border-left-color: var(--bloc-analyse-accent);    background: transparent; }
 .clin-block.conclusion { border-left-color: var(--bloc-conclusion-accent);  background: var(--bloc-conclusion-bg); }
-.clin-block.prevention { border-left-color: var(--bloc-prevention-accent); background: var(--bloc-prevention-bg); }
-.clin-block.suivi      { border-left-color: var(--bloc-suivi-accent);      background: var(--bloc-suivi-bg); }
+.clin-block.prevention { border-left-color: var(--bloc-prevention-accent); background: transparent; }
+.clin-block.suivi      { border-left-color: var(--bloc-suivi-accent);      background: transparent; }
 
 /* En-tête du bloc */
 .clin-block-head {
   display: flex; align-items: center; gap: 8px;
-  margin-bottom: 6px; padding-bottom: 5px; border-bottom: 1px solid var(--line);
+  margin-bottom: 4px; padding-bottom: 4px; border-bottom: 1px solid var(--line);
 }
 .clin-block.analyse    .clin-block-head { border-bottom-color: var(--bloc-analyse-border); }
 .clin-block.conclusion .clin-block-head { border-bottom-color: var(--bloc-conclusion-border); }
@@ -260,7 +260,7 @@
 /* Corps du bloc — texte narratif */
 .clin-block-body {
   font-family: 'Inter Tight', sans-serif;
-  font-size: 10px; line-height: 1.58; color: var(--ink-soft);
+  font-size: 11px; line-height: 1.50; color: var(--ink-soft);
   text-align: justify; hyphens: auto; margin: 0;
 }
 .clin-block-body .key { font-weight: 600; color: var(--ink); }
@@ -268,17 +268,15 @@
 /* Corps du bloc — liste */
 .clin-list {
   list-style: none; padding: 0; margin: 0;
-  font-size: 9.5px; line-height: 1.5; color: var(--ink-soft);
+  font-size: 10.5px; line-height: 1.42; color: var(--ink-soft);
 }
-.clin-list li { padding: 2px 0 2px 13px; position: relative; }
-.clin-block.prevention .clin-list li::before {
-  content: ''; position: absolute; left: 0; top: 7px;
-  width: 5px; height: 1.5px; background: var(--bloc-prevention-accent);
+.clin-list li { padding: 1.5px 0; position: relative; font-weight: 400; }
+.clin-bullet {
+  display: inline-block; font-weight: 600; margin-right: 4px;
+  user-select: text; -webkit-user-select: text;
 }
-.clin-block.suivi .clin-list li::before {
-  content: ''; position: absolute; left: 0; top: 7px;
-  width: 5px; height: 1.5px; background: var(--bloc-suivi-accent);
-}
+.clin-block.prevention .clin-bullet { color: var(--bloc-prevention-accent); }
+.clin-block.suivi      .clin-bullet { color: var(--bloc-suivi-accent); }
 
 /* Signature */
 .sign-block {
@@ -440,10 +438,16 @@
   /* Éviter les coupures dans les blocs sémantiques */
   .section,
   .clin-block,
+  .clin-duo,
   .clin-sections,
   .sign-block,
   .eye,
-  .eye-header {
+  .eye-header,
+  .biometrics-summary,
+  .biometrics-summary-box,
+  .param-row,
+  .header-band {
+    break-inside: avoid;
     page-break-inside: avoid;
   }
   /* Masquer les éléments UI non liés au rapport */

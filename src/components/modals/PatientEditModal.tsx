@@ -28,24 +28,19 @@ const INITIAL_FORM: PatientFormData = {
 };
 
 export default function PatientEditModal({ isOpen, onClose, patient, onUpdate }: PatientEditModalProps) {
-  const { settings } = useSettings();
+  const { settings, updatePrescripteurs, updateBulles } = useSettings();
 
   const availableMotifs = (() => {
-    const custom = settings?.formulario?.frequentDiagnoses ?? [];
-    return [...custom, ...DEFAULT_MOTIFS.filter((m) => !custom.includes(m))];
+    const custom = settings?.formulario?.motifs ?? [];
+    return custom.length > 0 ? custom : DEFAULT_MOTIFS;
   })();
 
   const availableAntecedents = (() => {
-    const custom = settings?.formulario?.frequentAntecedents ?? [];
-    return [...custom, ...DEFAULT_ANTECEDENTS.filter((a) => !custom.includes(a))];
+    const custom = settings?.formulario?.antecedents ?? [];
+    return custom.length > 0 ? custom : DEFAULT_ANTECEDENTS;
   })();
 
-  const availableDoctors = (() => {
-    const fromSettings = (settings?.doctors ?? []).map((d) => `Dr. ${d.prenom} ${d.nom}`);
-    return fromSettings.length > 0
-      ? fromSettings
-      : DEFAULT_DOCTORS;
-  })();
+  const availableDoctors = settings?.prescripteurs ?? DEFAULT_DOCTORS;
 
   const [formData, setFormData] = useState<PatientFormData>(INITIAL_FORM);
   const [isSuccess, setIsSuccess] = useState(false);
@@ -100,14 +95,23 @@ export default function PatientEditModal({ isOpen, onClose, patient, onUpdate }:
     setVal: React.Dispatch<React.SetStateAction<string>>
   ) => {
     if (!value.trim()) return;
-    setCustomList((prev) => [...new Set([...prev, value.trim()])]);
+    const trimmed = value.trim();
+    setCustomList((prev) => [...new Set([...prev, trimmed])]);
     if (field === 'medecinPrescripteur') {
-      setFormData((prev) => ({ ...prev, medecinPrescripteur: value.trim() }));
+      setFormData((prev) => ({ ...prev, medecinPrescripteur: trimmed }));
+      if (!availableDoctors.some((p) => p.toLowerCase() === trimmed.toLowerCase())) {
+        updatePrescripteurs([...availableDoctors, trimmed]).catch(console.error);
+      }
     } else {
       setFormData((prev) => ({
         ...prev,
-        [field]: [...new Set([...(prev[field] as string[]), value.trim()])],
+        [field]: [...new Set([...(prev[field] as string[]), trimmed])],
       }));
+      if (field === 'motifs' && !availableMotifs.some((m) => m.toLowerCase() === trimmed.toLowerCase())) {
+        updateBulles('motifs', [...availableMotifs, trimmed]).catch(console.error);
+      } else if (field === 'antecedents' && !availableAntecedents.some((a) => a.toLowerCase() === trimmed.toLowerCase())) {
+        updateBulles('antecedents', [...availableAntecedents, trimmed]).catch(console.error);
+      }
     }
     setVal('');
     setShow(false);
