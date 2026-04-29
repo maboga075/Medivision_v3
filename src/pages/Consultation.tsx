@@ -39,6 +39,7 @@ import { printReport } from '../services/printService';
 import { exportReportToPDF } from '../services/pdfExportService';
 import { useSettings } from '../hooks/useSettings';
 import { DEFAULT_SUGGESTIONS } from '../constants/defaultSuggestions';
+import { useReports } from '../features/reports/hooks/useReports';
 
 import type { PatientFirestore } from '../types/patient';
 import type { EyeState, HypotheseDiagnostique, RawConsultationData } from '../types/clinical';
@@ -49,6 +50,7 @@ type ConsultationView = 'form' | 'report';
 
 export default function Consultation() {
   const { settings, updateBulles } = useSettings();
+  const { saveReport } = useReports();
   const [selectedDoctorId, setSelectedDoctorId] = useState<string>('');
 
   // Pré-sélectionner le médecin par défaut dès que les settings sont chargés
@@ -425,6 +427,17 @@ export default function Consultation() {
 
       setJsonValidation(validation);
       setOctReportData(mapped);
+
+      // Persister le rapport généré dans l'historique
+      saveReport({
+        patientId: selectedPatient.id,
+        patientNom: selectedPatient.nom,
+        folderId: selectedPatient.folderId,
+        reportType,
+        data: mapped,
+        status: 'final',
+      });
+
       // Supprimer le brouillon une fois le rapport généré
       if (selectedPatient) deleteDraft(selectedPatient.id);
       setView('report');

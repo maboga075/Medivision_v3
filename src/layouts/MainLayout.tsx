@@ -1,6 +1,6 @@
 import React from 'react';
 import { Outlet, NavLink } from 'react-router-dom';
-import { Activity, Stethoscope, Users, Settings } from 'lucide-react';
+import { Activity, Stethoscope, Users, Settings, FileText } from 'lucide-react';
 
 interface NavItemProps {
   to: string;
@@ -44,6 +44,7 @@ export default function MainLayout() {
               <div className="hidden sm:flex sm:space-x-2">
                 <NavItem to="/accueil" icon={<Activity className="w-5 h-5" />} label="Accueil (Infirmière)" />
                 <NavItem to="/consultation" icon={<Stethoscope className="w-5 h-5" />} label="Consultation" />
+                <NavItem to="/comptes-rendus" icon={<FileText className="w-5 h-5" />} label="Comptes rendus" />
                 <NavItem to="/patients" icon={<Users className="w-5 h-5" />} label="Patients" />
                 <NavItem to="/parametres" icon={<Settings className="w-5 h-5" />} label="Paramètres" />
               </div>
@@ -51,6 +52,7 @@ export default function MainLayout() {
             <div className="sm:hidden flex items-center space-x-2">
               <NavItem to="/accueil" icon={<Activity className="w-6 h-6" />} />
               <NavItem to="/consultation" icon={<Stethoscope className="w-6 h-6" />} />
+              <NavItem to="/comptes-rendus" icon={<FileText className="w-6 h-6" />} />
               <NavItem to="/patients" icon={<Users className="w-6 h-6" />} />
               <NavItem to="/parametres" icon={<Settings className="w-6 h-6" />} />
             </div>
