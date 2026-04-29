@@ -30,6 +30,10 @@ export const RNFL_LOCATIONS: ReadonlyArray<{ value: string; label: string }> = [
   { value: 'temp_inf',  label: 'Temporal inférieur' },
   { value: 'nasal_sup', label: 'Nasal supérieur' },
   { value: 'nasal_inf', label: 'Nasal inférieur' },
+  { value: 'sup',       label: 'Supérieur' },
+  { value: 'inf',       label: 'Inférieur' },
+  { value: 'temp',      label: 'Temporal' },
+  { value: 'nasal',     label: 'Nasal' },
 ] as const;
 
 export const EVOLUTION_OPTIONS = [

@@ -27,6 +27,7 @@ interface EyeExamSectionProps {
   eye: EyeState;
   onUpdate: (eye: EyeState) => void;
   isOCT?: boolean;
+  showOpticNerve?: boolean;
   showAnterior?: boolean;
   octaDone?: boolean;
   onNewSuggestion?: (category: 'macula' | 'papille' | 'peripherie', item: string) => void;
@@ -37,6 +38,7 @@ export default function EyeExamSection({
   eye,
   onUpdate,
   isOCT = true,
+  showOpticNerve = false,
   showAnterior = false,
   octaDone = false,
   onNewSuggestion,
@@ -336,102 +338,106 @@ export default function EyeExamSection({
           </div>
         </div>
 
-        {/* Paramètres biométriques — section dépliable */}
-        {isOCT && (
+        {/* Paramètres biométriques / nerf optique — section dépliable */}
+        {(isOCT || showOpticNerve) && (
           <div className="border border-slate-200 rounded-2xl overflow-hidden">
             <button
               onClick={() => setShowMesures(!showMesures)}
               className="w-full flex items-center justify-between p-4 text-xs font-black text-teal-600 uppercase tracking-widest hover:bg-slate-50 transition-colors"
             >
-              <span>Paramètres biométriques (OCT)</span>
+              <span>{isOCT ? 'Paramètres biométriques (OCT)' : 'Paramètres nerf optique'}</span>
               <span className="text-slate-400 text-sm font-bold">{showMesures ? '▲' : '▼'}</span>
             </button>
 
             {showMesures && (
               <div className={`p-4 border-t border-slate-100 space-y-4 animate-in slide-in-from-top-2 ${isImpossible ? 'opacity-50 pointer-events-none select-none' : ''}`}>
-                {/* RNFL */}
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-2">RNFL</label>
-                  <select
-                    className="w-full p-2.5 border-2 border-slate-200 rounded-xl text-sm font-bold outline-none focus:border-teal-500 bg-white"
-                    value={eye.rnfl?.status ?? 'normal'}
-                    onChange={(e) =>
-                      onUpdate({
-                        ...eye,
-                        rnfl: {
-                          status: e.target.value as RNFLGCLStatus,
-                          location: needsLocalisation(e.target.value as RNFLGCLStatus)
-                            ? (eye.rnfl?.location ?? '')
-                            : undefined,
-                        },
-                      })
-                    }
-                  >
-                    {RNFL_STATUSES.map((o) => (
-                      <option key={o.value} value={o.value}>{o.label}</option>
-                    ))}
-                  </select>
-                  {needsLocalisation(eye.rnfl?.status) && (
+                {/* RNFL — OCT uniquement */}
+                {isOCT && (
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2">RNFL</label>
                     <select
-                      className="w-full p-2.5 mt-2 border-2 border-slate-200 rounded-xl text-sm font-bold bg-white"
-                      value={eye.rnfl?.location ?? ''}
+                      className="w-full p-2.5 border-2 border-slate-200 rounded-xl text-sm font-bold outline-none focus:border-teal-500 bg-white"
+                      value={eye.rnfl?.status ?? 'normal'}
                       onChange={(e) =>
                         onUpdate({
                           ...eye,
-                          rnfl: { status: eye.rnfl!.status, location: e.target.value },
+                          rnfl: {
+                            status: e.target.value as RNFLGCLStatus,
+                            location: needsLocalisation(e.target.value as RNFLGCLStatus)
+                              ? (eye.rnfl?.location ?? '')
+                              : undefined,
+                          },
                         })
                       }
                     >
-                      <option value="">— Localisation RNFL —</option>
-                      {RNFL_LOCATIONS.map((o) => (
+                      {RNFL_STATUSES.map((o) => (
                         <option key={o.value} value={o.value}>{o.label}</option>
                       ))}
                     </select>
-                  )}
-                </div>
+                    {needsLocalisation(eye.rnfl?.status) && (
+                      <select
+                        className="w-full p-2.5 mt-2 border-2 border-slate-200 rounded-xl text-sm font-bold bg-white"
+                        value={eye.rnfl?.location ?? ''}
+                        onChange={(e) =>
+                          onUpdate({
+                            ...eye,
+                            rnfl: { status: eye.rnfl!.status, location: e.target.value },
+                          })
+                        }
+                      >
+                        <option value="">— Localisation RNFL —</option>
+                        {RNFL_LOCATIONS.map((o) => (
+                          <option key={o.value} value={o.value}>{o.label}</option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+                )}
 
-                {/* GCL++ */}
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-2">GCL++</label>
-                  <select
-                    className="w-full p-2.5 border-2 border-slate-200 rounded-xl text-sm font-bold outline-none focus:border-teal-500 bg-white"
-                    value={eye.gcl?.status ?? 'normal'}
-                    onChange={(e) =>
-                      onUpdate({
-                        ...eye,
-                        gcl: {
-                          status: e.target.value as RNFLGCLStatus,
-                          location: needsLocalisation(e.target.value as RNFLGCLStatus)
-                            ? (eye.gcl?.location ?? '')
-                            : undefined,
-                        },
-                      })
-                    }
-                  >
-                    {RNFL_STATUSES.map((o) => (
-                      <option key={o.value} value={o.value}>{o.label}</option>
-                    ))}
-                  </select>
-                  {needsLocalisation(eye.gcl?.status) && (
+                {/* GCL++ — OCT uniquement */}
+                {isOCT && (
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2">GCL++</label>
                     <select
-                      className="w-full p-2.5 mt-2 border-2 border-slate-200 rounded-xl text-sm font-bold bg-white"
-                      value={eye.gcl?.location ?? ''}
+                      className="w-full p-2.5 border-2 border-slate-200 rounded-xl text-sm font-bold outline-none focus:border-teal-500 bg-white"
+                      value={eye.gcl?.status ?? 'normal'}
                       onChange={(e) =>
                         onUpdate({
                           ...eye,
-                          gcl: { status: eye.gcl!.status, location: e.target.value },
+                          gcl: {
+                            status: e.target.value as RNFLGCLStatus,
+                            location: needsLocalisation(e.target.value as RNFLGCLStatus)
+                              ? (eye.gcl?.location ?? '')
+                              : undefined,
+                          },
                         })
                       }
                     >
-                      <option value="">— Localisation GCL —</option>
-                      {RNFL_LOCATIONS.map((o) => (
+                      {RNFL_STATUSES.map((o) => (
                         <option key={o.value} value={o.value}>{o.label}</option>
                       ))}
                     </select>
-                  )}
-                </div>
+                    {needsLocalisation(eye.gcl?.status) && (
+                      <select
+                        className="w-full p-2.5 mt-2 border-2 border-slate-200 rounded-xl text-sm font-bold bg-white"
+                        value={eye.gcl?.location ?? ''}
+                        onChange={(e) =>
+                          onUpdate({
+                            ...eye,
+                            gcl: { status: eye.gcl!.status, location: e.target.value },
+                          })
+                        }
+                      >
+                        <option value="">— Localisation GCL —</option>
+                        {RNFL_LOCATIONS.map((o) => (
+                          <option key={o.value} value={o.value}>{o.label}</option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+                )}
 
-                {/* C/D + Surface discale */}
+                {/* C/D + Surface discale — toujours visible */}
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-bold text-slate-500 uppercase mb-2">
@@ -461,59 +467,61 @@ export default function EyeExamSection({
                   </div>
                 </div>
 
-                {/* Suivi RNFL/GCL */}
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <label className="text-xs font-bold text-slate-500 uppercase">Suivi RNFL/GCL</label>
-                    <div className="flex gap-2">
-                      {([true, false] as const).map((v) => (
-                        <button
-                          key={String(v)}
-                          onClick={() => update('hasFollowUp', v)}
-                          className={`px-3 py-1 rounded-lg text-xs font-black border transition-all active:scale-95 ${
-                            eye.hasFollowUp === v
-                              ? v
-                                ? 'bg-teal-500 border-teal-500 text-white'
-                                : 'bg-slate-200 border-slate-300 text-slate-700'
-                              : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'
-                          }`}
-                        >
-                          {v ? 'OUI' : 'NON'}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  {eye.hasFollowUp && (
-                    <div className="space-y-3 animate-in slide-in-from-top-2">
-                      <input
-                        type="date"
-                        className="w-full p-2.5 border-2 border-slate-200 rounded-xl text-sm font-bold focus:border-teal-500 outline-none"
-                        value={eye.followUpDate}
-                        onChange={(e) => update('followUpDate', e.target.value)}
-                      />
-                      <div className="grid grid-cols-2 gap-3">
-                        {(['rnflEvolution', 'gclEvolution'] as const).map((field) => (
-                          <div key={field}>
-                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">
-                              {field === 'rnflEvolution' ? 'Évol. RNFL' : 'Évol. GCL++'}
-                            </label>
-                            <select
-                              className="w-full p-2.5 border-2 border-slate-200 rounded-xl text-sm font-bold outline-none focus:border-teal-500 bg-white"
-                              value={eye[field]}
-                              onChange={(e) => update(field, e.target.value)}
-                            >
-                              {EVOLUTION_OPTIONS.map((o) => (
-                                <option key={o} value={o}>
-                                  {o}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
+                {/* Suivi RNFL/GCL — OCT uniquement */}
+                {isOCT && (
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-xs font-bold text-slate-500 uppercase">Suivi RNFL/GCL</label>
+                      <div className="flex gap-2">
+                        {([true, false] as const).map((v) => (
+                          <button
+                            key={String(v)}
+                            onClick={() => update('hasFollowUp', v)}
+                            className={`px-3 py-1 rounded-lg text-xs font-black border transition-all active:scale-95 ${
+                              eye.hasFollowUp === v
+                                ? v
+                                  ? 'bg-teal-500 border-teal-500 text-white'
+                                  : 'bg-slate-200 border-slate-300 text-slate-700'
+                                : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'
+                            }`}
+                          >
+                            {v ? 'OUI' : 'NON'}
+                          </button>
                         ))}
                       </div>
                     </div>
-                  )}
-                </div>
+                    {eye.hasFollowUp && (
+                      <div className="space-y-3 animate-in slide-in-from-top-2">
+                        <input
+                          type="date"
+                          className="w-full p-2.5 border-2 border-slate-200 rounded-xl text-sm font-bold focus:border-teal-500 outline-none"
+                          value={eye.followUpDate}
+                          onChange={(e) => update('followUpDate', e.target.value)}
+                        />
+                        <div className="grid grid-cols-2 gap-3">
+                          {(['rnflEvolution', 'gclEvolution'] as const).map((field) => (
+                            <div key={field}>
+                              <label className="block text-xs font-bold text-slate-500 uppercase mb-1">
+                                {field === 'rnflEvolution' ? 'Évol. RNFL' : 'Évol. GCL++'}
+                              </label>
+                              <select
+                                className="w-full p-2.5 border-2 border-slate-200 rounded-xl text-sm font-bold outline-none focus:border-teal-500 bg-white"
+                                value={eye[field]}
+                                onChange={(e) => update(field, e.target.value)}
+                              >
+                                {EVOLUTION_OPTIONS.map((o) => (
+                                  <option key={o} value={o}>
+                                    {o}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </div>

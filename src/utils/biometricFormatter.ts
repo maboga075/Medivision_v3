@@ -10,6 +10,10 @@ const LOCATION_LABEL: Record<string, string> = {
   temp_inf:  'Temp. inf',
   nasal_sup: 'Nasal sup',
   nasal_inf: 'Nasal inf',
+  sup:       'Supérieur',
+  inf:       'Inférieur',
+  temp:      'Temporal',
+  nasal:     'Nasal',
 };
 
 function locLabel(location: string | undefined): string {

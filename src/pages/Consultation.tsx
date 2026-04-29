@@ -791,6 +791,7 @@ export default function Consultation() {
                       eye={eyeOD}
                       onUpdate={setEyeOD}
                       isOCT={reportType.includes('OCT')}
+                      showOpticNerve={reportType === 'Compte rendu Rétinographie'}
                       showAnterior={showAnterior}
                       octaDone={octaDone}
                       onNewSuggestion={(category, item) => {
@@ -804,6 +805,7 @@ export default function Consultation() {
                       eye={eyeOG}
                       onUpdate={setEyeOG}
                       isOCT={reportType.includes('OCT')}
+                      showOpticNerve={reportType === 'Compte rendu Rétinographie'}
                       showAnterior={showAnterior}
                       octaDone={octaDone}
                       onNewSuggestion={(category, item) => {
