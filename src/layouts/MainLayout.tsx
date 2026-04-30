@@ -1,6 +1,7 @@
 import React from 'react';
 import { Outlet, NavLink } from 'react-router-dom';
-import { Activity, Stethoscope, Users, Settings, FileText } from 'lucide-react';
+import { Activity, Stethoscope, Users, Settings, FileText, LogOut } from 'lucide-react';
+import { useAuth } from '../hooks/useAuth';
 
 interface NavItemProps {
   to: string;
@@ -27,6 +28,12 @@ function NavItem({ to, icon, label }: NavItemProps) {
 }
 
 export default function MainLayout() {
+  const { user, signOut } = useAuth();
+
+  async function handleSignOut() {
+    await signOut();
+  }
+
   return (
     <div className="flex flex-col h-screen bg-slate-50 font-sans">
       <nav className="bg-white shadow-sm border-b border-slate-200 shrink-0">
@@ -49,12 +56,33 @@ export default function MainLayout() {
                 <NavItem to="/parametres" icon={<Settings className="w-5 h-5" />} label="Paramètres" />
               </div>
             </div>
-            <div className="sm:hidden flex items-center space-x-2">
-              <NavItem to="/accueil" icon={<Activity className="w-6 h-6" />} />
-              <NavItem to="/consultation" icon={<Stethoscope className="w-6 h-6" />} />
-              <NavItem to="/comptes-rendus" icon={<FileText className="w-6 h-6" />} />
-              <NavItem to="/patients" icon={<Users className="w-6 h-6" />} />
-              <NavItem to="/parametres" icon={<Settings className="w-6 h-6" />} />
+
+            <div className="flex items-center gap-2">
+              {/* Identité utilisateur — desktop */}
+              {user?.email && (
+                <span className="hidden sm:block text-xs text-slate-400 max-w-[180px] truncate">
+                  {user.email}
+                </span>
+              )}
+
+              {/* Bouton déconnexion */}
+              <button
+                onClick={handleSignOut}
+                title="Se déconnecter"
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition active:scale-95"
+              >
+                <LogOut className="w-4 h-4" />
+                <span className="hidden sm:inline font-medium">Déconnexion</span>
+              </button>
+
+              {/* Navigation mobile (icônes uniquement) */}
+              <div className="sm:hidden flex items-center space-x-1">
+                <NavItem to="/accueil" icon={<Activity className="w-6 h-6" />} />
+                <NavItem to="/consultation" icon={<Stethoscope className="w-6 h-6" />} />
+                <NavItem to="/comptes-rendus" icon={<FileText className="w-6 h-6" />} />
+                <NavItem to="/patients" icon={<Users className="w-6 h-6" />} />
+                <NavItem to="/parametres" icon={<Settings className="w-6 h-6" />} />
+              </div>
             </div>
           </div>
         </div>

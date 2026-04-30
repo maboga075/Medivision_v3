@@ -1,4 +1,5 @@
 import { initializeApp } from 'firebase/app';
+import { getAuth } from 'firebase/auth';
 import {
   getFirestore,
   initializeFirestore,
@@ -20,16 +21,35 @@ import {
   where,
 } from 'firebase/firestore';
 
+const requiredVars = [
+  'VITE_FIREBASE_API_KEY',
+  'VITE_FIREBASE_AUTH_DOMAIN',
+  'VITE_FIREBASE_PROJECT_ID',
+  'VITE_FIREBASE_STORAGE_BUCKET',
+  'VITE_FIREBASE_MESSAGING_SENDER_ID',
+  'VITE_FIREBASE_APP_ID',
+] as const;
+
+const missing = requiredVars.filter((key) => !import.meta.env[key]);
+if (missing.length > 0) {
+  throw new Error(
+    `Variables Firebase manquantes dans .env.local : ${missing.join(', ')}\n` +
+    'Consultez .env.example pour la liste complète.'
+  );
+}
+
 const firebaseConfig = {
-  apiKey: 'AIzaSyAxyHoWo94Gt-7o1KcgXFVmdObg8UjWhyU',
-  authDomain: 'medivision-187ed.firebaseapp.com',
-  projectId: 'medivision-187ed',
-  storageBucket: 'medivision-187ed.firebasestorage.app',
-  messagingSenderId: '331555739342',
-  appId: '1:331555739342:web:c6b1cc9d79e90b729f229f',
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY as string,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN as string,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID as string,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET as string,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID as string,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID as string,
 };
 
 const app = initializeApp(firebaseConfig);
+
+export const auth = getAuth(app);
 
 // API de persistance correcte pour Firebase v9+ (remplace enableIndexedDbPersistence dépréciée)
 const db = initializeFirestore(app, {

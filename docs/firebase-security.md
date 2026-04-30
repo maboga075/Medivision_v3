@@ -1,5 +1,19 @@
 # Sécurité Firebase — Medivision
 
+## Journal des phases
+
+| Phase | Date | Statut | Description |
+|---|---|---|---|
+| 1 bis — Audit & préparation | 2026-04-30 | ✅ Terminée | firebase.json, firestore.rules, indexes, doc créés |
+| 2A — Firebase Auth minimale | 2026-04-30 | ✅ Terminée | Auth email/password, Login, ProtectedRoute, déconnexion |
+| 2B — Rôles + déploiement règles | — | ⏳ À faire | Custom claims, tests émulateur, `firebase deploy` |
+
+> **Règles Firestore : NON déployées.** L'authentification UI est en place mais Firestore
+> reste accessible selon les règles actuelles de la console Firebase. La vraie sécurité
+> côté données nécessite la Phase 2B (voir section dédiée).
+
+---
+
 ## État actuel (audit du 2026-04-30)
 
 ### Collections Firestore utilisées
@@ -211,17 +225,45 @@ Tout refuser par défaut
 
 ---
 
-## Prochaine étape recommandée
+## Phase 2A — Ce qui a été réalisé (2026-04-30)
 
-**Phase 2 : Intégration Firebase Auth**
+### Fichiers créés / modifiés
 
-1. Créer `src/services/auth.ts` et `src/hooks/useAuth.ts`
-2. Ajouter une page `/login` avec formulaire email/mot de passe
-3. Protéger toutes les routes existantes avec un composant `<ProtectedRoute>`
-4. Créer le premier compte admin via la console Firebase
-5. Déployer les règles `firestore.rules` déjà préparées
+| Fichier | Action | Rôle |
+|---|---|---|
+| `src/services/firebase.ts` | Modifié | Export de `auth` (getAuth) |
+| `src/services/authService.ts` | Créé | signInWithEmail, signOutUser, subscribeToAuthState |
+| `src/contexts/AuthContext.tsx` | Créé | Provider React + gestion état auth |
+| `src/hooks/useAuth.ts` | Créé | Hook consommateur du contexte auth |
+| `src/components/auth/ProtectedRoute.tsx` | Créé | Guard de route (loading / redirect /login) |
+| `src/pages/Login.tsx` | Créé | Page de connexion email/password |
+| `src/App.tsx` | Modifié | AuthProvider + route /login + ProtectedRoute |
+| `src/layouts/MainLayout.tsx` | Modifié | Email utilisateur + bouton déconnexion |
 
-**Durée estimée :** 1 à 2 sessions de développement.
+### Ce que cette phase NE fait PAS encore
+
+- Les règles Firestore strictes **ne sont pas déployées** → Firestore reste en mode actuel.
+- Aucun custom claim ni système de rôles.
+- L'auth UI empêche l'accès visuel mais **ne protège pas les données Firestore côté serveur**.
+
+### Créer un utilisateur manuellement
+
+1. Aller sur [Firebase Console](https://console.firebase.google.com/) → projet `medivision-187ed`
+2. Menu **Authentication** → onglet **Users** → bouton **Add user**
+3. Saisir un e-mail et un mot de passe
+4. Cet utilisateur pourra se connecter immédiatement via la page `/login`
+
+## Prochaine étape recommandée — Phase 2B
+
+**Objectif : vraie sécurité Firestore (rôles + déploiement des règles)**
+
+1. Activer Firebase CLI : `firebase login && firebase use medivision-187ed`
+2. Tester les règles sur l'émulateur : `firebase emulators:start --only firestore`
+3. Écrire un script Admin SDK pour attribuer les custom claims (`role: 'admin'` etc.)
+4. Valider que l'app fonctionne avec les règles actives sur l'émulateur
+5. Déployer : `firebase deploy --only firestore:rules,firestore:indexes`
+
+**Durée estimée :** 1 session.
 
 ---
 
