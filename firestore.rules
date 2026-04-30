@@ -1,0 +1,120 @@
+// ============================================================
+// FIRESTORE SECURITY RULES — MEDIVISION
+// ============================================================
+//
+// ⚠️  AVERTISSEMENT CRITIQUE — NE PAS DÉPLOYER CES RÈGLES MAINTENANT
+//
+//     Ces règles exigent Firebase Authentication.
+//     Si vous les déployez AVANT d'avoir intégré Auth dans l'application,
+//     TOUTES les opérations Firestore seront refusées et l'app sera
+//     complètement bloquée (liste patients vide, paramètres inaccessibles).
+//
+//     Déployer uniquement après la Phase 2 (intégration Firebase Auth).
+//
+// ============================================================
+//
+// Commande de déploiement (Phase 2 uniquement) :
+//   firebase deploy --only firestore:rules
+//
+// Commande de test sans déploiement :
+//   firebase emulators:start --only firestore
+//
+// ============================================================
+//
+// Rôles utilisateurs (custom claims Firebase Auth) :
+//   - admin     : accès total, gestion des paramètres
+//   - medecin   : lecture/écriture patients, lecture paramètres
+//   - assistant : lecture/écriture patients (sauf archivage), lecture paramètres
+//
+// ============================================================
+
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ----------------------------------------------------------
+    // Fonctions utilitaires
+    // ----------------------------------------------------------
+
+    // Vérifie que l'utilisateur est authentifié
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Vérifie le rôle via custom claims
+    function hasRole(role) {
+      return isAuthenticated()
+          && request.auth.token.role == role;
+    }
+
+    // Vérifie si l'utilisateur a l'un des rôles listés
+    function hasAnyRole(roles) {
+      return isAuthenticated()
+          && request.auth.token.role in roles;
+    }
+
+    // ----------------------------------------------------------
+    // Règle de refus par défaut (toute collection non listée)
+    // ----------------------------------------------------------
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // ----------------------------------------------------------
+    // Collection : patients
+    // ----------------------------------------------------------
+    // Accès : admin, medecin, assistant uniquement
+    // Suppression : admin uniquement
+    // ----------------------------------------------------------
+    match /patients/{patientId} {
+
+      allow read: if hasAnyRole(['admin', 'medecin', 'assistant']);
+
+      allow create: if hasAnyRole(['admin', 'medecin', 'assistant'])
+                 && isValidPatient(request.resource.data);
+
+      allow update: if hasAnyRole(['admin', 'medecin', 'assistant'])
+                 && isValidPatientUpdate(request.resource.data);
+
+      // Suppression réservée à l'admin
+      allow delete: if hasRole('admin');
+    }
+
+    // ----------------------------------------------------------
+    // Collection : settings (document unique : 'clinic')
+    // ----------------------------------------------------------
+    // Lecture : tout utilisateur authentifié
+    // Écriture : admin uniquement
+    // ----------------------------------------------------------
+    match /settings/{settingId} {
+
+      allow read: if isAuthenticated();
+
+      allow write: if hasRole('admin');
+    }
+
+    // ----------------------------------------------------------
+    // Validateurs de données — patients
+    // ----------------------------------------------------------
+
+    function isValidPatient(data) {
+      return data.nom is string
+          && data.nom.size() > 0
+          && data.nom.size() <= 200
+          && data.statut in ['en_attente', 'traite']
+          && data.motifs is list
+          && data.antecedents is list
+          && data.hasTraitement is bool;
+    }
+
+    function isValidPatientUpdate(data) {
+      // Lors d'une mise à jour, les champs obligatoires doivent rester valides
+      return (!('nom' in data) || (data.nom is string && data.nom.size() > 0))
+          && (!('statut' in data) || data.statut in ['en_attente', 'traite'])
+          && (!('motifs' in data) || data.motifs is list)
+          && (!('antecedents' in data) || data.antecedents is list)
+          && (!('hasTraitement' in data) || data.hasTraitement is bool);
+    }
+  }
+}
