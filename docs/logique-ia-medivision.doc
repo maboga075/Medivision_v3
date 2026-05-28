@@ -1,0 +1,300 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Logique IA de Medivision Studio</title>
+<style>
+body { font-family: Aptos, Arial, sans-serif; color: #172033; line-height: 1.45; max-width: 900px; margin: 40px auto; }
+h1 { color: #0A6E6B; font-size: 30px; }
+h2 { color: #0A6E6B; border-bottom: 1px solid #d9e3e1; padding-bottom: 4px; margin-top: 28px; }
+table { border-collapse: collapse; width: 100%; margin: 14px 0; }
+th { background: #dcedea; text-align: left; }
+th, td { border: 1px solid #b8c7c5; padding: 8px; vertical-align: top; }
+code, pre { font-family: Consolas, monospace; background: #f4f7f7; }
+pre { padding: 12px; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<h1>Logique IA de Medivision Studio</h1>
+<p>Document technique destiné à un programmeur qui doit comprendre, maintenir ou faire évoluer la génération IA des comptes rendus OCT / rétinographie.</p>
+<h2>1. Résumé fonctionnel</h2>
+<p>Medivision Studio ne demande pas directement à l&#x27;IA d&#x27;interpréter un écran ou un texte libre. L&#x27;application construit d&#x27;abord des données cliniques structurées à partir du formulaire de consultation, les nettoie, les normalise, ajoute une pré-analyse déterministe, puis envoie un payload JSON strict à une API serveur. Le serveur choisit le fournisseur IA configuré, transmet les données avec un prompt système médical, parse la réponse, valide son schéma, puis renvoie un résultat structuré au front-end.</p>
+<p>Point important : le pipeline actif n&#x27;envoie pas un fichier Markdown brut à l&#x27;IA. Le flux réel est JSON -&gt; IA -&gt; JSON. Il existe seulement un nettoyage léger de Markdown dans l&#x27;affichage final, car certains modèles peuvent renvoyer des puces ou du gras Markdown dans les listes.</p>
+<h2>2. Chaîne de traitement globale</h2>
+<ol>
+<li>Le médecin remplit le formulaire de consultation.</li>
+<li>`Consultation.tsx` construit un objet brut `rawInputJson`.</li>
+<li>`normalizeClinicalData()` nettoie et normalise les données.</li>
+<li>`buildClinicalSummary()` produit une pré-analyse clinique déterministe.</li>
+<li>`buildAIPayload()` assemble le payload final envoyé à l&#x27;IA.</li>
+<li>`callNativeAI()` poste ce payload vers `/api/ai/generate-report`.</li>
+<li>L&#x27;API serveur lit la configuration IA, appelle OpenAI, Anthropic, DeepSeek ou Gemini.</li>
+<li>Le serveur parse et valide le JSON retourné par l&#x27;IA.</li>
+<li>Le front-end mappe le résultat IA vers le composant de compte rendu.</li>
+<li>Le compte rendu est affiché, sauvegardé et exportable.</li>
+</ol>
+<h2>3. Fichiers clés</h2>
+<table>
+<tr><th>Fichier</th><th>Rôle</th></tr>
+<tr><td>`src/pages/Consultation.tsx`</td><td>Orchestrateur principal du pipeline IA côté interface.</td></tr>
+<tr><td>`src/utils/clinicalPayload.ts`</td><td>Nettoyage, normalisation et suppression des champs vides.</td></tr>
+<tr><td>`src/utils/clinicalSummary.ts`</td><td>Pré-analyse déterministe des anomalies et suspicions.</td></tr>
+<tr><td>`src/utils/aiPayload.ts`</td><td>Construction du payload JSON envoyé au serveur IA.</td></tr>
+<tr><td>`src/services/aiManager.ts`</td><td>Client HTTP qui appelle `/api/ai/generate-report`.</td></tr>
+<tr><td>`api/ai/generate-report.ts`</td><td>API serveur : prompt système, fournisseurs IA, parsing, validation.</td></tr>
+<tr><td>`src/utils/reportDataMapper.tsx`</td><td>Transformation du résultat IA en données exploitables par le compte rendu.</td></tr>
+<tr><td>`src/components/reports/OCTReport.tsx`</td><td>Affichage final du compte rendu et nettoyage visuel léger.</td></tr>
+<tr><td>`src/types/ai.ts`</td><td>Contrats TypeScript du payload et de la réponse IA.</td></tr>
+<tr><td>`src/types/clinical.ts`</td><td>Contrats TypeScript des données cliniques brutes et normalisées.</td></tr>
+</table>
+<h2>4. Étape 1 - construction des données brutes</h2>
+<p>Le point d&#x27;entrée est la fonction <code>soumettreIA()</code> dans <code>src/pages/Consultation.tsx</code>.</p>
+<p>Elle construit <code>rawInputJson</code> à partir de trois sources :</p>
+<ul>
+<li>les informations patient sélectionnées dans la file d&#x27;attente ;</li>
+<li>les champs du formulaire de consultation ;</li>
+<li>les paramètres du compte rendu comme le type d&#x27;examen, OCTA, segment antérieur et qualité d&#x27;acquisition.</li>
+</ul>
+<p>Structure simplifiée :</p>
+<pre>
+const rawInputJson = {
+  patient: { nom, age, date_naissance },
+  contexte: {
+    prescripteur,
+    motifs,
+    antecedents,
+    hypotheses_diagnostiques,
+    hypothese_libre,
+  },
+  oeil_droit: form.eyeOD,
+  oeil_gauche: form.eyeOG,
+  reportType,
+  anteriorSegmentDone,
+  octaDone,
+  acquisitionQualityOD,
+  acquisitionQualityOG,
+};
+</pre>
+<p>Cette étape est volontairement proche du formulaire : elle capture l&#x27;état clinique tel qu&#x27;il existe dans l&#x27;interface, sans demander encore à l&#x27;IA de raisonner.</p>
+<h2>5. Étape 2 - nettoyage et normalisation</h2>
+<p>La fonction <code>normalizeClinicalData()</code> transforme les données brutes en données propres et plus stables.</p>
+<p>Les règles principales sont :</p>
+<ul>
+<li>`cleanString()` transforme les valeurs non textuelles en chaîne vide et supprime les espaces inutiles ;</li>
+<li>`cleanArray()` supprime les valeurs vides et les doublons ;</li>
+<li>`toNumberIfPossible()` convertit les nombres saisis en texte vers des nombres quand c&#x27;est possible ;</li>
+<li>`removeEmptyFields()` supprime récursivement les champs vides, nuls, tableaux vides et objets vides ;</li>
+<li>les observations plates du formulaire sont regroupées dans `observations`.</li>
+</ul>
+<p>Exemple métier important :</p>
+<ul>
+<li>une acquisition &quot;Bon&quot; n&#x27;est pas envoyée, car elle est considérée comme implicite ;</li>
+<li>`octaPerformed: false` n&#x27;est pas envoyé, pour éviter que l&#x27;IA écrive &quot;OCTA non réalisé&quot; ;</li>
+<li>les statuts RNFL/GCL normaux ne sont pas transmis, pour concentrer la génération sur les anomalies utiles.</li>
+</ul>
+<p>Cette étape réduit le bruit envoyé à l&#x27;IA et limite fortement le risque de phrases inutiles sur des données absentes.</p>
+<h2>6. Étape 3 - pré-analyse clinique déterministe</h2>
+<p>La fonction <code>buildClinicalSummary()</code> produit une analyse automatique locale avant l&#x27;appel IA. Elle ne génère pas de texte final, elle extrait des signaux.</p>
+<p>Elle analyse chaque oeil avec des règles déterministes :</p>
+<ul>
+<li>suspicion glaucomateuse si Cup/Disc élevé, RNFL aminci ou excavation papillaire ;</li>
+<li>suspicion de rétinopathie diabétique si le contexte diabétique est associé à des signes compatibles ;</li>
+<li>suspicion DMLA si drusen ou remaniements maculaires ;</li>
+<li>membrane épirétinienne ou anomalie d&#x27;interface vitréo-maculaire selon les observations.</li>
+</ul>
+<p>La sortie contient :</p>
+<pre>
+{
+  analyse_clinique: {
+    oeil_droit: { anomalies, patterns, suspicion },
+    oeil_gauche: { anomalies, patterns, suspicion }
+  },
+  hypotheses_medecin
+}
+</pre>
+<p>Cette pré-analyse sert de garde-fou : l&#x27;IA reçoit les données objectives et une synthèse logique déjà calculée par l&#x27;application.</p>
+<h2>7. Étape 4 - construction du payload IA</h2>
+<p>La fonction <code>buildAIPayload()</code> assemble le JSON final envoyé au serveur.</p>
+<p>Le payload contient :</p>
+<ul>
+<li>`meta` : type de document, version de schéma, langue et libellé original ;</li>
+<li>`patient` : données patient normalisées ;</li>
+<li>`contexte` : prescripteur, motifs, antécédents, hypothèses ;</li>
+<li>`donnees_cliniques` : données OD/OG normalisées ;</li>
+<li>`analyse_clinique` : pré-analyse déterministe ;</li>
+<li>`hypotheses_medecin` : hypothèses explicites du médecin ;</li>
+<li>`instructions_generation` : contraintes de génération.</li>
+</ul>
+<p>Les instructions importantes sont :</p>
+<ul>
+<li>style médical professionnel ;</li>
+<li>niveau synthétique ;</li>
+<li>ne pas inventer ;</li>
+<li>analyse clinique limitée à 4 phrases ;</li>
+<li>focus sur les anomalies significatives ;</li>
+<li>interdiction de mentions comme &quot;non réalisé&quot;, &quot;non transmis&quot;, &quot;aucune donnée&quot;.</li>
+</ul>
+<h2>8. Étape 5 - appel front-end vers serveur IA</h2>
+<p><code>callNativeAI()</code> dans <code>src/services/aiManager.ts</code> effectue un <code>POST</code> vers <code>/api/ai/generate-report</code>.</p>
+<p>Le front-end n&#x27;appelle pas directement OpenAI, Gemini ou un autre fournisseur. Les clés API restent côté serveur.</p>
+<p>En cas d&#x27;erreur HTTP, le service tente de lire un message serveur et lève une exception claire.</p>
+<h2>9. Étape 6 - API serveur et fournisseurs IA</h2>
+<p>Le fichier <code>api/ai/generate-report.ts</code> contient :</p>
+<ul>
+<li>le prompt système médical ;</li>
+<li>la liste des fournisseurs supportés : `openai`, `anthropic`, `deepseek`, `gemini` ;</li>
+<li>la lecture des variables d&#x27;environnement ;</li>
+<li>les adaptateurs propres à chaque fournisseur ;</li>
+<li>le parsing et la validation de la réponse.</li>
+</ul>
+<p>Variables attendues :</p>
+<ul>
+<li>`AI_PROVIDER` : fournisseur actif ;</li>
+<li>`AI_MODEL` : modèle à utiliser ;</li>
+<li>`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `DEEPSEEK_API_KEY` ou `GEMINI_API_KEY` selon le fournisseur.</li>
+</ul>
+<p>En local, le serveur peut charger <code>.env.local</code> ou <code>.env</code> si <code>AI_PROVIDER</code> n&#x27;est pas déjà présent.</p>
+<h2>10. Prompt système</h2>
+<p>Le prompt système impose à l&#x27;IA un rôle d&#x27;ophtalmologue senior et un format de sortie JSON strict.</p>
+<p>La réponse attendue est :</p>
+<pre>
+{
+  &quot;analyse_clinique&quot;: &quot;3 à 4 phrases synthétiques orientées raisonnement clinique.&quot;,
+  &quot;conclusion&quot;: &quot;Synthèse diagnostique pure.&quot;,
+  &quot;prevention&quot;: [&quot;item 1&quot;, &quot;item 2&quot;],
+  &quot;suivi&quot;: [&quot;item 1&quot;, &quot;item 2&quot;],
+  &quot;severite&quot;: &quot;normal | surveillance | alerte&quot;
+}
+</pre>
+<p>Règles critiques :</p>
+<ul>
+<li>ne générer une section que si des données pertinentes sont transmises ;</li>
+<li>ne jamais inventer de données ;</li>
+<li>répondre uniquement en JSON strict ;</li>
+<li>ne pas signaler l&#x27;absence d&#x27;un examen ;</li>
+<li>ne pas répéter textuellement les valeurs brutes ;</li>
+<li>séparer diagnostic, prévention et suivi.</li>
+</ul>
+<h2>11. Étape 7 - parsing et validation de la réponse IA</h2>
+<p>La fonction <code>parseAndValidate()</code> reçoit le texte brut du modèle.</p>
+<p>Elle applique deux protections :</p>
+<ol>
+<li>Extraction d&#x27;un objet JSON même si le modèle a ajouté du texte autour.</li>
+<li>Validation des champs obligatoires.</li>
+</ol>
+<p>Champs obligatoires :</p>
+<ul>
+<li>`analyse_clinique` doit être une chaîne ;</li>
+<li>`conclusion` doit être une chaîne ;</li>
+<li>`prevention` doit être un tableau ;</li>
+<li>`suivi` doit être un tableau ;</li>
+<li>`severite` doit valoir `normal`, `surveillance` ou `alerte`.</li>
+</ul>
+<p>Si le JSON est invalide, le serveur renvoie une erreur 502 avec un score rouge.</p>
+<p>Si le JSON est exploitable mais incomplet, le serveur renvoie un résultat de secours et un score orange.</p>
+<p>Si tout est conforme, le score est vert.</p>
+<h2>12. Étape 8 - mapping vers le compte rendu</h2>
+<p>Une fois le résultat IA reçu, <code>Consultation.tsx</code> appelle <code>mapAIResultToOCTReportData()</code>.</p>
+<p>Ce mapping fusionne :</p>
+<ul>
+<li>les données cliniques brutes utiles à l&#x27;affichage ;</li>
+<li>le texte IA structuré ;</li>
+<li>les informations du médecin ;</li>
+<li>le numéro de dossier ;</li>
+<li>les badges éventuels ;</li>
+<li>le délai de contrôle éventuel.</li>
+</ul>
+<p>Le composant <code>OCTReport.tsx</code> affiche ensuite :</p>
+<ul>
+<li>données patient ;</li>
+<li>indication et antécédents ;</li>
+<li>OD/OG ;</li>
+<li>analyse clinique ;</li>
+<li>conclusion ;</li>
+<li>prévention ;</li>
+<li>suivi ;</li>
+<li>signature.</li>
+</ul>
+<p>Le rapport est ensuite sauvegardé via <code>saveReport()</code>, le brouillon est supprimé, et l&#x27;interface bascule vers la vue compte rendu.</p>
+<h2>13. Nettoyage du Markdown en sortie</h2>
+<p>Le composant <code>OCTReport.tsx</code> contient <code>stripItem()</code>.</p>
+<p>Cette fonction supprime uniquement des artefacts visuels fréquents :</p>
+<ul>
+<li>tirets ou puces au début d&#x27;un item ;</li>
+<li>gras Markdown `**texte**`.</li>
+</ul>
+<p>Ce nettoyage ne transforme pas la logique médicale. Il sert seulement à rendre propres les listes <code>prevention</code> et <code>suivi</code> si le modèle n&#x27;a pas parfaitement respecté le JSON sans Markdown.</p>
+<h2>14. Gestion des erreurs</h2>
+<p>Le pipeline gère explicitement plusieurs erreurs :</p>
+<ul>
+<li>absence de patient sélectionné ;</li>
+<li>échec de normalisation clinique ;</li>
+<li>échec de construction du résumé clinique ;</li>
+<li>payload IA vide ou insuffisant ;</li>
+<li>serveur IA non configuré ;</li>
+<li>fournisseur IA inconnu ;</li>
+<li>modèle absent ;</li>
+<li>clé API absente ;</li>
+<li>erreur fournisseur ;</li>
+<li>réponse IA non parsable ;</li>
+<li>réponse IA incomplète.</li>
+</ul>
+<p>Côté utilisateur, les erreurs sont actuellement affichées par <code>alert()</code>. Côté développeur, elles sont loggées avec <code>[IA] Erreur pipeline:</code>.</p>
+<h2>15. Responsabilités médicales</h2>
+<p>Le système est conçu pour limiter les hallucinations :</p>
+<ul>
+<li>les données normales implicites sont souvent omises ;</li>
+<li>les données absentes ne doivent pas être commentées ;</li>
+<li>les hypothèses du médecin sont transmises mais ne doivent pas écraser les données objectives ;</li>
+<li>l&#x27;IA doit synthétiser les anomalies, pas inventer un diagnostic complet sans support ;</li>
+<li>le résultat doit rester cohérent avec le payload d&#x27;entrée.</li>
+</ul>
+<p>Le point sensible reste que la cohérence médicale finale dépend du modèle. La validation actuelle vérifie surtout la forme JSON, pas la vérité médicale phrase par phrase.</p>
+<h2>16. Pseudo-code du flux</h2>
+<pre>
+async function soumettreIA() {
+  const rawInputJson = collecterDonneesFormulaireEtPatient();
+  const normalizedJson = normalizeClinicalData(rawInputJson);
+  const clinicalSummary = buildClinicalSummary(normalizedJson);
+  const aiPayload = buildAIPayload(normalizedJson, clinicalSummary, reportType);
+
+  const { result, validation } = await callNativeAI(aiPayload);
+
+  const reportData = mapAIResultToOCTReportData(
+    rawInputJson,
+    result,
+    practitioner,
+    folderId
+  );
+
+  setJsonValidation(validation);
+  setOctReportData(reportData);
+  saveReport(reportData);
+  deleteDraft(patientId);
+  showReportView();
+}
+</pre>
+<h2>17. Points d&#x27;attention pour un programmeur</h2>
+<ul>
+<li>Ne pas envoyer de texte libre ou Markdown à la place du JSON sans revoir tout le contrat serveur.</li>
+<li>Ne pas supprimer `removeEmptyFields()` sans risque d&#x27;augmenter les mentions inutiles dans les comptes rendus.</li>
+<li>Ne pas mélanger conclusion et suivi : le prompt impose une séparation stricte.</li>
+<li>Ne pas exposer les clés API côté front-end.</li>
+<li>Toute nouvelle donnée clinique doit être ajoutée dans les types, la normalisation, le payload IA et le mapping d&#x27;affichage si elle doit apparaître dans le rapport.</li>
+<li>Toute nouvelle règle médicale déterministe devrait idéalement être ajoutée dans `clinicalSummary.ts`, pas seulement dans le prompt.</li>
+<li>La validation actuelle est structurelle ; une validation médicale plus poussée nécessiterait des règles supplémentaires.</li>
+</ul>
+<h2>18. Améliorations possibles</h2>
+<ol>
+<li>Ajouter une validation JSON plus stricte par schéma partagé entre front-end et serveur.</li>
+<li>Journaliser le payload IA anonymisé pour audit technique.</li>
+<li>Ajouter une validation de cohérence entre les anomalies d&#x27;entrée et les phrases de sortie.</li>
+<li>Remplacer les `alert()` par une UI d&#x27;erreur médicale plus professionnelle.</li>
+<li>Ajouter des tests unitaires sur `normalizeClinicalData()`, `buildClinicalSummary()` et `parseAndValidate()`.</li>
+<li>Versionner explicitement le prompt système pour tracer les changements de génération.</li>
+<li>Prévoir un mode &quot;prévisualisation payload&quot; pour les développeurs, sans données patient identifiantes.</li>
+</ol>
+<h2>19. Conclusion</h2>
+<p>La logique IA de Medivision Studio repose sur une architecture prudente : l&#x27;application prépare les données, réduit le bruit, produit une pré-analyse déterministe, puis demande à l&#x27;IA de rédiger une synthèse JSON strictement encadrée. Le modèle n&#x27;est donc pas la source unique de vérité ; il intervient comme moteur rédactionnel contrôlé par des données structurées, un prompt médical et une validation de schéma.</p>
+</body>
+</html>
