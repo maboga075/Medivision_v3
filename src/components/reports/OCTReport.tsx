@@ -30,15 +30,6 @@ const BrandMark: React.FC = () => (
   </div>
 );
 
-const EyePictogram: React.FC = () => (
-  <svg className="eye-pict" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-       strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-    <path d="M2 12c2.8-4.5 6.3-6.8 10-6.8S19.2 7.5 22 12c-2.8 4.5-6.3 6.8-10 6.8S4.8 16.5 2 12Z" />
-    <circle cx={12} cy={12} r={3.4} fill="currentColor" stroke="none" />
-    <circle cx={13.1} cy={10.9} r={0.9} fill="#FFFFFF" stroke="none" />
-  </svg>
-);
-
 const KEY_TERM_RE = /\b(RNFL|GCL\+\+|GCL|C\/D|OCT[A]?|PIO|DMLA|OVCR|OBVR|OACR|DR[NP]?)\b/g;
 
 // Supprime les tirets/puces de début et le markdown **gras** générés par certains modèles IA
@@ -60,119 +51,166 @@ function highlightText(text: string): React.ReactNode {
   return <>{chunks}</>;
 }
 
-const Pill: React.FC<{ variant: PillVariant; children: React.ReactNode }> = ({ variant, children }) => (
-  <span
-    className={`pill ${variant}`}
-    contentEditable="true"
-    suppressContentEditableWarning={true}
-  >{children}</span>
-);
+/* Bloc synthèse — résolution des champs avec repli sur les anciens rapports.
+   Les rapports sauvegardés avant la refonte n'ont pas les champs structurés :
+   on retombe alors sur suivi[] (item "Contrôle OCT …") et prevention[]. */
+function resolveControleOCT(d: OCTReportData): string {
+  if (d.prochainControleOCT) return d.prochainControleOCT;
+  const fromSuivi = (d.suivi ?? []).find((s) => /contr[ôo]le\s*oct/i.test(s));
+  if (fromSuivi) return stripItem(fromSuivi.replace(/^.*?contr[ôo]le\s*oct\s*:?\s*/i, ''));
+  return '';
+}
 
-/* A7 — ParamLine : une bulle par anomalie (pills[]), ou valeur colorée (value + customColor) */
-const ParamLine: React.FC<{ row: ParamRow }> = ({ row }) => (
-  <div className="param">
-    <div className="param-key">
-      {row.label}{" "}
-      {row.hint && <span className="hint">· {row.hint}</span>}
-    </div>
-    <div className="param-val">
-      {row.pills && row.pills.length > 0 ? (
-        <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-          {row.pills.map((p, i) => (
-            <Pill key={i} variant={p.variant}>{p.text}</Pill>
-          ))}
-        </div>
-      ) : row.value ? (
-        <span
-          contentEditable="true"
-          suppressContentEditableWarning={true}
-          style={
-            row.customColor ? { color: row.customColor }
-            : row.flag === 'alert' ? { color: 'var(--amber)' }
-            : row.flag === 'critical' ? { color: 'var(--crimson)' }
-            : undefined
-          }
-        >
-          {row.value}
-        </span>
-      ) : null}
-    </div>
-  </div>
-);
+function resolveConseil(d: OCTReportData): string {
+  if (d.conseilPatient) return d.conseilPatient;
+  if (d.prevention && d.prevention.length > 0) return stripItem(d.prevention[0]);
+  return '';
+}
 
-/* A2 — EyeColumn : badge qualité acquisition dans l'en-tête */
-const EyeColumn: React.FC<{ eye: EyeData; side: "od" | "og" }> = ({ eye, side }) => (
-  <div className={`eye ${side}`}>
-    <div className="eye-header">
-      <div className="eye-label">
-        <span className="code">{eye.code}</span>
-        <EyePictogram />
-        <span className="name">{eye.name}</span>
-        <span className="latin">· {eye.latin}</span>
-      </div>
-      {eye.acquisitionQuality && (
-        <div className={`pill-acquisition pill-${eye.acquisitionQuality}`}>
-          {eye.acquisitionQuality === 'bon' ? '✓ Bon'
-           : eye.acquisitionQuality === 'faible' ? '⚠ Faible'
-           : '✗ Analyse impossible'}
-        </div>
-      )}
-    </div>
+/* ─── Tableau fusionné OD | Catégorie | OG ─────────────────────────
+   Objectif : afficher les catégories une seule fois au centre,
+   et un résultat compact (texte coloré, pas de badge) de chaque côté. */
 
-    {eye.acquisitionQuality === 'impossible' ? (
-      <div className="acquisition-impossible">
-        <div className="acquisition-impossible-icon">✗</div>
-        <div>
-          <div className="acquisition-impossible-title">Analyse impossible</div>
-          {eye.acquisitionQualityReasons && eye.acquisitionQualityReasons.length > 0 && (
-            <div className="acquisition-impossible-reasons">
-              {eye.acquisitionQualityReasons.join(' · ')}
-            </div>
-          )}
-        </div>
-      </div>
-    ) : (
-      <>
-        <div className="section">
-          <div className="section-title">Analyse morphologique</div>
-          {eye.morphology.map((r, i) => <ParamLine key={i} row={r} />)}
-        </div>
+interface MergedRow {
+  label: string;
+  hint?: string;
+  od?: ParamRow;
+  og?: ParamRow;
+}
 
-        <div className="section">
-          <div className="section-title">Paramètres biométriques</div>
+/* Rassemble toutes les lignes d'un œil dans l'ordre d'affichage :
+   morphologie → biométrie → Rapport C/D → Surface discale. */
+function collectEyeRows(eye: EyeData): ParamRow[] {
+  const rows: ParamRow[] = [...eye.morphology, ...eye.biometrics];
+  if (eye.cupDisc) {
+    rows.push({ label: 'Rapport C/D', hint: 'vertical', value: eye.cupDisc, flag: eye.cupDiscFlag });
+  }
+  if (eye.discSurface) {
+    rows.push({ label: 'Surface discale', value: `${eye.discSurface} mm²` });
+  }
+  return rows;
+}
 
-          {/* Boîtes Surface discale + C/D */}
-          {(eye.discSurface || eye.cupDisc) && (
-            <div className="biometrics-summary">
-              <div className="biometrics-summary-box">
-                <div className="biometrics-summary-label">Surface discale</div>
-                <div
-                  className="biometrics-summary-value"
-                  contentEditable="true"
-                  suppressContentEditableWarning={true}
-                >
-                  {eye.discSurface ? `${eye.discSurface} mm²` : '—'}
-                </div>
-              </div>
-              <div className="biometrics-summary-box">
-                <div className="biometrics-summary-label">Rapport C/D</div>
-                <div
-                  className={`biometrics-summary-value${eye.cupDiscFlag ? ` ${eye.cupDiscFlag}` : ''}`}
-                  contentEditable="true"
-                  suppressContentEditableWarning={true}
-                >
-                  {eye.cupDisc || '—'}
-                </div>
-              </div>
-            </div>
-          )}
+/* Fusionne OD et OG par libellé de catégorie.
+   Ordre : suit OD, puis ajoute les catégories présentes uniquement à gauche (OG). */
+function buildMergedRows(od: EyeData, og: EyeData): MergedRow[] {
+  const odRows = collectEyeRows(od);
+  const ogRows = collectEyeRows(og);
+  const ogByLabel = new Map(ogRows.map((r) => [r.label, r]));
+  const odLabels = new Set(odRows.map((r) => r.label));
 
-          {eye.biometrics.map((r, i) => <ParamLine key={i} row={r} />)}
-        </div>
-      </>
+  const merged: MergedRow[] = odRows.map((r) => ({
+    label: r.label,
+    hint: r.hint ?? ogByLabel.get(r.label)?.hint,
+    od: r,
+    og: ogByLabel.get(r.label),
+  }));
+
+  for (const r of ogRows) {
+    if (!odLabels.has(r.label)) {
+      merged.push({ label: r.label, hint: r.hint, og: r });
+    }
+  }
+  return merged;
+}
+
+/* Cellule compacte : texte simple coloré, virgules entre symptômes, sans encadré.
+   Couleur appliquée à toute la cellule : rouge si au moins une anomalie, vert sinon. */
+const CompactCell: React.FC<{ row?: ParamRow; impossible?: boolean }> = ({ row, impossible }) => {
+  if (impossible) {
+    return <span className="compact-impossible">Analyse impossible</span>;
+  }
+  if (!row) {
+    return <span className="compact-empty">—</span>;
+  }
+  if (row.pills && row.pills.length > 0) {
+    const hasAnomaly = row.pills.some((p) => p.variant !== 'normal');
+    const text = row.pills.map((p) => p.text).join(', ');
+    return (
+      <span
+        className={`compact-val ${hasAnomaly ? 'is-alert' : 'is-normal'}`}
+        contentEditable="true"
+        suppressContentEditableWarning={true}
+      >
+        {text}
+      </span>
+    );
+  }
+  if (row.value) {
+    const style =
+      row.customColor ? { color: row.customColor }
+      : row.flag === 'alert' ? { color: 'var(--amber)' }
+      : row.flag === 'critical' ? { color: 'var(--crimson)' }
+      : undefined;
+    return (
+      <span className="compact-val" style={style} contentEditable="true" suppressContentEditableWarning={true}>
+        {row.value}
+      </span>
+    );
+  }
+  return <span className="compact-empty">—</span>;
+};
+
+/* En-tête d'un œil dans le tableau fusionné (code + nom + qualité d'acquisition). */
+const EyeHead: React.FC<{ eye: EyeData; side: 'od' | 'og' }> = ({ eye, side }) => (
+  <div className={`cm-eye ${side}`}>
+    <span className="cm-eye-code">{eye.code}</span>
+    <span className="cm-eye-name">{eye.name}</span>
+    {eye.acquisitionQuality && (
+      <span className={`pill-acquisition pill-${eye.acquisitionQuality}`}>
+        {eye.acquisitionQuality === 'bon' ? '✓ Bon'
+         : eye.acquisitionQuality === 'faible' ? '⚠ Faible'
+         : '✗ Impossible'}
+      </span>
     )}
   </div>
 );
+
+const MergedClinicalTable: React.FC<{ od: EyeData; og: EyeData }> = ({ od, og }) => {
+  const rows = buildMergedRows(od, og);
+  const odImpossible = od.acquisitionQuality === 'impossible';
+  const ogImpossible = og.acquisitionQuality === 'impossible';
+
+  return (
+    <div className="clinical-merged">
+      <div className="cm-row cm-head">
+        <EyeHead eye={od} side="od" />
+        <div className="cm-cat-head">Catégorie</div>
+        <EyeHead eye={og} side="og" />
+      </div>
+
+      {rows.length === 0 ? (
+        <div className="cm-empty-state">Analyse impossible des deux côtés.</div>
+      ) : (
+        rows.map((r, i) => (
+          <div className="cm-row" key={i}>
+            <div className="cm-cell cm-od">
+              <CompactCell row={r.od} impossible={odImpossible} />
+            </div>
+            <div className="cm-cat">
+              <span className="cm-cat-label">{r.label}</span>
+              {r.hint && <span className="cm-hint">{r.hint}</span>}
+            </div>
+            <div className="cm-cell cm-og">
+              <CompactCell row={r.og} impossible={ogImpossible} />
+            </div>
+          </div>
+        ))
+      )}
+
+      {(odImpossible || ogImpossible) && (
+        <div className="cm-reasons">
+          {odImpossible && od.acquisitionQualityReasons && od.acquisitionQualityReasons.length > 0 && (
+            <div><strong>OD :</strong> {od.acquisitionQualityReasons.join(' · ')}</div>
+          )}
+          {ogImpossible && og.acquisitionQualityReasons && og.acquisitionQualityReasons.length > 0 && (
+            <div><strong>OG :</strong> {og.acquisitionQualityReasons.join(' · ')}</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
 
 /* ───────────────────────── Main component ───────────────────────── */
 
@@ -238,10 +276,9 @@ const OCTReport: React.FC<{ data: OCTReportData }> = ({ data }) => {
         </div>
       </section>
 
-      {/* ══ CLINICAL GRID ══ */}
+      {/* ══ CLINICAL GRID — tableau fusionné OD | Catégorie | OG ══ */}
       <section className="clinical">
-        <EyeColumn eye={d.eyes.od} side="od" />
-        <EyeColumn eye={d.eyes.og} side="og" />
+        <MergedClinicalTable od={d.eyes.od} og={d.eyes.og} />
       </section>
 
       {/* ══ 4 BLOCS CLINIQUES ══ */}
@@ -278,34 +315,34 @@ const OCTReport: React.FC<{ data: OCTReportData }> = ({ data }) => {
           </p>
         </div>
 
-        {/* 3 et 4 — Prévention + Suivi côte à côte */}
-        <div className="clin-duo">
-          <div className="clin-block prevention">
-            <div className="clin-block-head">
-              <span className="clin-block-tag">Hygiène &amp; prévention</span>
-            </div>
-            <ul className="clin-list">
-              {d.prevention.map((item, i) => (
-                <li key={i} contentEditable="true" suppressContentEditableWarning={true}>
-                  <span className="clin-bullet" contentEditable="false">–</span>
-                  {stripItem(item)}
-                </li>
-              ))}
-            </ul>
+        {/* 3 — Synthèse & suivi (bloc compact unique) */}
+        <div className="clin-block synthese">
+          <div className="clin-block-head">
+            <span className="clin-block-tag">Synthèse &amp; suivi</span>
           </div>
-          <div className="clin-block suivi">
-            <div className="clin-block-head">
-              <span className="clin-block-tag">Suivi &amp; examens complémentaires</span>
-            </div>
-            <ul className="clin-list">
-              {d.suivi.map((item, i) => (
-                <li key={i} contentEditable="true" suppressContentEditableWarning={true}>
-                  <span className="clin-bullet" contentEditable="false">–</span>
-                  {stripItem(item)}
-                </li>
-              ))}
-            </ul>
-          </div>
+          <ul className="clin-list">
+            {resolveControleOCT(d) && (
+              <li contentEditable="true" suppressContentEditableWarning={true}>
+                <span className="clin-bullet" contentEditable="false">–</span>
+                <span className="clin-strong" contentEditable="false">Prochain contrôle OCT : </span>
+                {resolveControleOCT(d)}
+              </li>
+            )}
+            {d.examenComplementaire && (
+              <li contentEditable="true" suppressContentEditableWarning={true}>
+                <span className="clin-bullet" contentEditable="false">–</span>
+                <span className="clin-strong" contentEditable="false">Examen complémentaire : </span>
+                {d.examenComplementaire}
+              </li>
+            )}
+            {resolveConseil(d) && (
+              <li contentEditable="true" suppressContentEditableWarning={true}>
+                <span className="clin-bullet" contentEditable="false">–</span>
+                <span className="clin-strong" contentEditable="false">Conseil : </span>
+                {resolveConseil(d)}
+              </li>
+            )}
+          </ul>
         </div>
 
       </section>
@@ -396,6 +433,9 @@ export const sampleReport: OCTReportData = {
     "Contrôle OCT annuel — suivi RNFL/GCL pour confirmer la stabilité.",
   ],
   severite: "surveillance",
+  prochainControleOCT: "dans 6 mois",
+  examenComplementaire: "Mesure PIO + champ visuel Humphrey 24-2",
+  conseilPatient: "Contrôler la tension artérielle, signaler tout antécédent familial de glaucome et consulter rapidement en cas de baisse du champ visuel.",
   signature: {
     city: "Libreville",
     dateLabel: "Fait à Libreville, le 22 avril 2026",

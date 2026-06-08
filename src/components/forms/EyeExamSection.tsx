@@ -243,11 +243,9 @@ export default function EyeExamSection({
             title="Macula"
             selectedItems={eye.observationsMacula}
             suggestions={suggestions.macula}
-            onAdd={(item) => {
-              handleAddObs('observationsMacula', item);
-              if (!suggestions.macula.includes(item)) onNewSuggestion?.('macula', item);
-            }}
+            onAdd={(item) => handleAddObs('observationsMacula', item)}
             onRemove={(item) => handleRemoveObs('observationsMacula', item)}
+            onNewSuggestion={onNewSuggestion ? (item) => onNewSuggestion('macula', item) : undefined}
             disabled={isImpossible}
           />
 
@@ -255,11 +253,9 @@ export default function EyeExamSection({
             title="Papille"
             selectedItems={eye.observationsPapille}
             suggestions={suggestions.papille}
-            onAdd={(item) => {
-              handleAddObs('observationsPapille', item);
-              if (!suggestions.papille.includes(item)) onNewSuggestion?.('papille', item);
-            }}
+            onAdd={(item) => handleAddObs('observationsPapille', item)}
             onRemove={(item) => handleRemoveObs('observationsPapille', item)}
+            onNewSuggestion={onNewSuggestion ? (item) => onNewSuggestion('papille', item) : undefined}
             disabled={isImpossible}
           />
 
@@ -267,11 +263,9 @@ export default function EyeExamSection({
             title="Périphérie"
             selectedItems={eye.observationsPeripherie}
             suggestions={suggestions.peripherie}
-            onAdd={(item) => {
-              handleAddObs('observationsPeripherie', item);
-              if (!suggestions.peripherie.includes(item)) onNewSuggestion?.('peripherie', item);
-            }}
+            onAdd={(item) => handleAddObs('observationsPeripherie', item)}
             onRemove={(item) => handleRemoveObs('observationsPeripherie', item)}
+            onNewSuggestion={onNewSuggestion ? (item) => onNewSuggestion('peripherie', item) : undefined}
             disabled={isImpossible}
           />
 

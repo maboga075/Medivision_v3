@@ -53,6 +53,11 @@ export interface OCTReportData {
   conclusion: string;
   prevention: string[];
   suivi: string[];
+  // Bloc synthèse compact (remplace l'affichage prévention + suivi côte à côte).
+  // Optionnels : repli sur prevention[]/suivi[] pour les rapports déjà sauvegardés.
+  prochainControleOCT?: string;   // ex : "dans 6 mois"
+  examenComplementaire?: string;  // examen non-ophtalmologique précisé au formulaire
+  conseilPatient?: string;        // conseil unique lié à la pathologie
   severite: AISeverite;
   badge?: { label: string; variant: 'surveillance' | 'alerte' };
   signature: {

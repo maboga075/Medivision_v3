@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState } from 'react';
-import { Plus, X } from 'lucide-react';
+import { Plus, X, Save } from 'lucide-react';
 
 export interface BubblePickerProps {
   title: string;
@@ -7,6 +7,7 @@ export interface BubblePickerProps {
   suggestions: string[];
   onAdd: (item: string) => void;
   onRemove: (item: string) => void;
+  onNewSuggestion?: (item: string) => void;
   disabled?: boolean;
 }
 
@@ -16,6 +17,7 @@ export default function BubblePicker({
   suggestions,
   onAdd,
   onRemove,
+  onNewSuggestion,
   disabled = false,
 }: BubblePickerProps) {
   const [isOpen, setIsOpen] = useState(false);
@@ -42,10 +44,19 @@ export default function BubblePicker({
     return () => document.removeEventListener('keydown', handler);
   }, [isOpen]);
 
-  const handleAddCustom = () => {
+  const handleAddCustomSession = () => {
     const v = customInput.trim();
     if (v && !selectedItems.includes(v)) {
       onAdd(v);
+      setCustomInput('');
+    }
+  };
+
+  const handleAddCustomAndSave = () => {
+    const v = customInput.trim();
+    if (v && !selectedItems.includes(v)) {
+      onAdd(v);
+      onNewSuggestion?.(v);
       setCustomInput('');
     }
   };
@@ -117,7 +128,7 @@ export default function BubblePicker({
               value={customInput}
               onChange={(e) => setCustomInput(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === 'Enter') handleAddCustom();
+                if (e.key === 'Enter') handleAddCustomSession();
                 if (e.key === 'Escape') setIsOpen(false);
               }}
               placeholder="Observation personnalisée…"
@@ -125,12 +136,24 @@ export default function BubblePicker({
             />
             <button
               type="button"
-              onClick={handleAddCustom}
+              onClick={handleAddCustomSession}
               disabled={!customInput.trim()}
-              className="px-4 py-2.5 bg-teal-500 text-white rounded-lg text-sm font-bold disabled:opacity-40 hover:bg-teal-600 active:scale-95 transition-all min-h-[44px]"
+              title="Ajouter pour cette session uniquement"
+              className="px-3 py-2.5 bg-teal-400 text-white rounded-lg text-sm font-bold disabled:opacity-40 hover:bg-teal-500 active:scale-95 transition-all min-h-[44px] whitespace-nowrap"
             >
-              OK
+              Session
             </button>
+            {onNewSuggestion && (
+              <button
+                type="button"
+                onClick={handleAddCustomAndSave}
+                disabled={!customInput.trim()}
+                title="Ajouter et enregistrer pour les prochaines sessions"
+                className="px-3 py-2.5 bg-teal-600 text-white rounded-lg text-sm font-bold disabled:opacity-40 hover:bg-teal-700 active:scale-95 transition-all min-h-[44px] flex items-center gap-1.5 whitespace-nowrap"
+              >
+                <Save className="w-3.5 h-3.5" /> Garder
+              </button>
+            )}
             <button
               type="button"
               onClick={() => setIsOpen(false)}

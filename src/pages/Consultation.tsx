@@ -194,7 +194,12 @@ export default function Consultation() {
       const resolvedDelay =
         form.nextControlDelay === '__custom__' ? form.customDelayText.trim() : form.nextControlDelay;
       if (resolvedDelay) {
+        mapped.prochainControleOCT = resolvedDelay;
         mapped.suivi = [`Contrôle OCT : ${resolvedDelay}`, ...mapped.suivi];
+      }
+      const resolvedComplementaryExam = form.complementaryExam.trim();
+      if (resolvedComplementaryExam) {
+        mapped.examenComplementaire = resolvedComplementaryExam;
       }
 
       setJsonValidation(validation);
@@ -502,6 +507,8 @@ export default function Consultation() {
                     onNextControlDelayChange={form.setNextControlDelay}
                     customDelayText={form.customDelayText}
                     onCustomDelayTextChange={form.setCustomDelayText}
+                    complementaryExam={form.complementaryExam}
+                    onComplementaryExamChange={form.setComplementaryExam}
                   />
 
                   <div className="flex justify-center border-t-2 border-slate-200 pt-8">

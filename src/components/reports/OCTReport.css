@@ -19,9 +19,9 @@
   --amber: #C86A1C;
   --crimson: #B4322A;
   --sage: #5C8A6E;
-  --od-tint: #F4F8FB;
+  --od-tint: transparent;
   --od-bar: #2C6A9E;
-  --og-tint: #F9F7F2;
+  --og-tint: transparent;
   --og-bar: #A67938;
 }
 
@@ -64,7 +64,7 @@
 .masthead { padding-bottom: 13px; border-bottom: 1.5px solid var(--ink); }
 .masthead-top { display: flex; justify-content: flex-end; margin-bottom: 8px; }
 .masthead-top .kicker {
-  font-family: 'JetBrains Mono', monospace; font-size: 9px;
+  font-family: 'JetBrains Mono', monospace; font-size: 10px;
   letter-spacing: .2em; color: var(--teal); text-transform: uppercase; font-weight: 600;
 }
 .masthead-main { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 14px; }
@@ -110,16 +110,101 @@
 .meta-cell:first-child { padding-left: 0; }
 .meta-cell:last-child  { border-right: 0; padding-right: 0; }
 .meta-label {
-  font-family: 'JetBrains Mono', monospace; font-size: 7px; letter-spacing: .18em;
+  font-family: 'JetBrains Mono', monospace; font-size: 8px; letter-spacing: .18em;
   text-transform: uppercase; color: var(--mute); margin-bottom: 3px; font-weight: 500;
 }
-.meta-value { font-size: 12px; font-weight: 600; line-height: 1.25; letter-spacing: -.005em; }
-.meta-value .soft { font-weight: 400; color: var(--mute); font-size: 10.5px; }
+.meta-value { font-size: 15px; font-weight: 600; line-height: 1.3; letter-spacing: -.005em; }
+.meta-value .soft { font-weight: 400; color: var(--mute); font-size: 13px; }
 
-/* Clinical grid */
+/* Clinical grid — conteneur du tableau fusionné */
 .clinical {
-  margin-top: 11px; display: grid; grid-template-columns: 1fr 1fr;
+  margin-top: 11px;
   border: 1px solid var(--line); border-radius: 6px; overflow: hidden;
+}
+
+/* ─── Tableau fusionné OD | Catégorie | OG ─────────────────────────── */
+.clinical-merged { display: flex; flex-direction: column; }
+
+/* Une ligne = OD | catégorie centrale | OG.
+   Colonnes latérales égales, catégorie centrale compacte. */
+.cm-row {
+  display: grid;
+  /* OD et OG strictement égales (1fr) ; colonne centrale fixe et étroite
+     pour réserver un maximum d'espace à la description des symptômes. */
+  grid-template-columns: minmax(0, 1fr) 132px minmax(0, 1fr);
+  align-items: baseline;
+}
+.cm-row + .cm-row { border-top: 1px solid rgba(201,211,218,.5); }
+
+/* En-tête du tableau */
+.cm-head {
+  align-items: center;
+  background: var(--paper);
+  border-bottom: 1.5px solid var(--line-strong);
+}
+.cm-eye {
+  display: flex; align-items: center; gap: 7px;
+  padding: 8px 12px;
+  font-family: 'Fraunces', serif; font-weight: 600; font-size: 13px;
+}
+.cm-eye.og { flex-direction: row-reverse; text-align: right; }
+.cm-eye-code {
+  font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 700;
+  letter-spacing: .08em; padding: 3px 8px; border-radius: 4px; color: #fff; line-height: 1;
+}
+.cm-eye.od .cm-eye-code { background: var(--od-bar); }
+.cm-eye.og .cm-eye-code { background: var(--og-bar); }
+.cm-eye-name { color: var(--ink); }
+.cm-head .pill-acquisition { margin-left: 0; }
+.cm-cat-head {
+  text-align: center; padding: 8px 8px;
+  font-family: 'JetBrains Mono', monospace; font-size: 9px; letter-spacing: .18em;
+  text-transform: uppercase; color: var(--mute); font-weight: 600;
+  border-left: 1px solid var(--line); border-right: 1px solid var(--line);
+  align-self: stretch; display: flex; align-items: center; justify-content: center;
+}
+
+/* Catégorie centrale (affichée une seule fois) */
+.cm-cat {
+  text-align: center; padding: 5px 8px;
+  border-left: 1px solid var(--line); border-right: 1px solid var(--line);
+  align-self: stretch;
+  display: flex; flex-direction: column; justify-content: center; gap: 1px;
+  background: rgba(232,242,241,.4);
+}
+.cm-cat-label {
+  font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 600;
+  letter-spacing: .04em; color: var(--teal-deep); text-transform: uppercase;
+  line-height: 1.15;
+}
+.cm-hint { font-size: 9px; color: var(--mute); font-style: italic; }
+
+/* Cellules de résultat compact */
+.cm-cell { padding: 5px 12px; font-size: 12.5px; line-height: 1.35; }
+.cm-od { text-align: right; }
+.cm-og { text-align: left; }
+
+/* Texte compact coloré — pas de badge, virgules entre symptômes */
+.compact-val {
+  font-weight: 600; color: var(--ink-soft);
+}
+.compact-val.is-normal { color: var(--sage); }
+.compact-val.is-alert  { color: var(--crimson); font-weight: 700; }
+.compact-empty { color: var(--line-strong); }
+.compact-impossible {
+  color: var(--crimson); font-style: italic; font-weight: 600; font-size: 11px;
+}
+
+/* Raisons d'acquisition impossible, sous le tableau */
+.cm-reasons {
+  padding: 6px 12px; font-size: 9.5px; color: var(--mute); line-height: 1.4;
+  border-top: 1px solid var(--line); background: rgba(180,50,42,.04);
+}
+.cm-reasons strong { color: var(--crimson); }
+
+.cm-empty-state {
+  padding: 14px 12px; text-align: center; color: var(--crimson);
+  font-style: italic; font-size: 12px; font-weight: 600;
 }
 /* Subgrid : chaque colonne partage les mêmes tracks de lignes que le parent,
    garantissant un alignement parfait entre OD et OG pour chaque section. */
@@ -160,7 +245,7 @@
 .section { padding: 8px 12px 9px; }
 .section + .section { border-top: 1px dashed var(--line-strong); }
 .section-title {
-  font-family: 'JetBrains Mono', monospace; font-size: 9px; letter-spacing: .2em;
+  font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: .2em;
   text-transform: uppercase; color: var(--teal-deep); font-weight: 600;
   margin-bottom: 8px; display: flex; align-items: center; gap: 6px;
 }
@@ -171,19 +256,19 @@
   padding: 3px 0; gap: 8px;
 }
 .param + .param { border-top: 1px solid rgba(201,211,218,.45); }
-.param-key { font-size: 10px; color: var(--ink-soft); font-weight: 500; }
-.param-key .hint { color: var(--mute); font-weight: 400; font-size: 8.5px; }
+.param-key { font-size: 13px; color: var(--ink-soft); font-weight: 500; }
+.param-key .hint { color: var(--mute); font-weight: 400; font-size: 11px; }
 .param-val {
-  font-size: 10.5px; font-weight: 600; color: var(--ink);
+  font-size: 13.5px; font-weight: 600; color: var(--ink);
   font-family: 'JetBrains Mono', monospace; letter-spacing: -.01em;
 }
 
 /* Pills */
 .pill {
   display: inline-flex; align-items: center; gap: 5px;
-  font-size: 10px; font-weight: 600; padding: 3px 9px;
+  font-size: 12.5px; font-weight: 600; padding: 3px 10px;
   border-radius: 99px; font-family: 'Inter Tight', sans-serif;
-  letter-spacing: .01em; border: 1px solid transparent; line-height: 1.1;
+  letter-spacing: .01em; border: 1px solid transparent; line-height: 1.15;
 }
 .pill.normal { background: rgba(92,138,110,.14); color: #2F5A40; border-color: rgba(92,138,110,.35); }
 .pill.normal::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--sage); box-shadow: 0 0 0 2px rgba(92,138,110,.18); }
@@ -222,9 +307,10 @@
   border-left-width: 3px;
 }
 .clin-block.analyse    { border-left-color: var(--bloc-analyse-accent);    background: transparent; }
-.clin-block.conclusion { border-left-color: var(--bloc-conclusion-accent);  background: var(--bloc-conclusion-bg); }
+.clin-block.conclusion { border-left-color: var(--bloc-conclusion-accent);  background: transparent; }
 .clin-block.prevention { border-left-color: var(--bloc-prevention-accent); background: transparent; }
 .clin-block.suivi      { border-left-color: var(--bloc-suivi-accent);      background: transparent; }
+.clin-block.synthese   { border-left-color: var(--bloc-suivi-accent);      background: transparent; }
 
 /* En-tête du bloc */
 .clin-block-head {
@@ -235,16 +321,22 @@
 .clin-block.conclusion .clin-block-head { border-bottom-color: var(--bloc-conclusion-border); }
 .clin-block.prevention .clin-block-head { border-bottom-color: var(--bloc-prevention-border); }
 .clin-block.suivi      .clin-block-head { border-bottom-color: var(--bloc-suivi-border); }
+.clin-block.synthese   .clin-block-head { border-bottom-color: var(--bloc-suivi-border); }
 
 /* Étiquette du bloc */
 .clin-block-tag {
   font-family: 'Inter Tight', sans-serif;
-  font-size: 10px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase;
+  font-size: 12px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase;
 }
 .clin-block.analyse    .clin-block-tag { color: var(--bloc-analyse-accent); }
 .clin-block.conclusion .clin-block-tag { color: var(--bloc-conclusion-accent); }
 .clin-block.prevention .clin-block-tag { color: var(--bloc-prevention-accent); }
 .clin-block.suivi      .clin-block-tag { color: var(--bloc-suivi-accent); }
+.clin-block.synthese   .clin-block-tag { color: var(--bloc-suivi-accent); }
+
+/* Préfixe en gras des items de synthèse (non éditable) */
+.clin-strong { font-weight: 700; color: var(--ink); }
+.clin-block.synthese .clin-bullet { color: var(--bloc-suivi-accent); }
 
 /* Badge sévérité (bloc conclusion uniquement) */
 .sev-badge {
@@ -260,7 +352,7 @@
 /* Corps du bloc — texte narratif */
 .clin-block-body {
   font-family: 'Inter Tight', sans-serif;
-  font-size: 11px; line-height: 1.50; color: var(--ink-soft);
+  font-size: 14px; line-height: 1.55; color: var(--ink-soft);
   text-align: justify; hyphens: auto; margin: 0;
 }
 .clin-block-body .key { font-weight: 600; color: var(--ink); }
@@ -268,7 +360,7 @@
 /* Corps du bloc — liste */
 .clin-list {
   list-style: none; padding: 0; margin: 0;
-  font-size: 10.5px; line-height: 1.42; color: var(--ink-soft);
+  font-size: 13.5px; line-height: 1.48; color: var(--ink-soft);
 }
 .clin-list li { padding: 1.5px 0; position: relative; font-weight: 400; }
 .clin-bullet {
@@ -286,13 +378,13 @@
 }
 .sign-left { font-size: 8.5px; color: var(--mute); line-height: 1.45; }
 .sign-left .city {
-  font-family: 'Fraunces', serif; font-style: italic; font-size: 10px;
+  font-family: 'Fraunces', serif; font-style: italic; font-size: 11.5px;
   color: var(--ink-soft); margin-bottom: 2px;
 }
 .sign-left .contact { letter-spacing: .03em; }
 .sign-right { text-align: right; }
 .sign-doctor {
-  font-family: 'Fraunces', serif; font-size: 16px; font-weight: 500;
+  font-family: 'Fraunces', serif; font-size: 18px; font-weight: 500;
   color: var(--teal); letter-spacing: -.01em; line-height: 1;
 }
 .sign-doctor .dr { font-style: italic; color: var(--teal); }
@@ -351,7 +443,7 @@
 .eye.og .biometrics-summary-box { border-top: 2px solid var(--og-bar); }
 .biometrics-summary-label {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 7.5px;
+  font-size: 8.5px;
   letter-spacing: .14em;
   text-transform: uppercase;
   color: var(--mute);
@@ -359,7 +451,7 @@
 }
 .biometrics-summary-value {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
   color: var(--ink);
 }
@@ -373,7 +465,7 @@
   align-items: flex-start;
   gap: 10px;
   padding: 14px;
-  background: rgba(180,50,42,.06);
+  background: transparent;
   border-left: 3px solid var(--crimson);
   border-radius: 0 4px 4px 0;
 }

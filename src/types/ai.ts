@@ -54,6 +54,7 @@ export interface AIResult {
   conclusion: string;        // diagnostic pur, sans suivi
   prevention: string[];      // items hygiène & prévention (tableau)
   suivi: string[];           // items suivi & examens complémentaires (tableau)
+  conseil_patient?: string;  // conseil unique lié à la pathologie (facteurs de risque, alimentation, surveillance)
   severite: AISeverite;
 }
 

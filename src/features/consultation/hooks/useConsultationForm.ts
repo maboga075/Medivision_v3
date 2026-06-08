@@ -31,6 +31,7 @@ export function useConsultationForm() {
   const [showBadgeCustom, setShowBadgeCustom] = useState(false);
   const [nextControlDelay, setNextControlDelay] = useState('');
   const [customDelayText, setCustomDelayText] = useState('');
+  const [complementaryExam, setComplementaryExam] = useState('');
 
   const isAnteriorBase = reportType === 'OCT du Segment Antérieur';
   const showAnterior = isAnteriorBase || forceShowAnterior;
@@ -55,6 +56,7 @@ export function useConsultationForm() {
     setShowBadgeCustom(false);
     setNextControlDelay('');
     setCustomDelayText('');
+    setComplementaryExam('');
   }, []);
 
   const applyDraft = useCallback((draft: ConsultationDraft) => {
@@ -126,13 +128,13 @@ export function useConsultationForm() {
     hypothesesDiagnostiques, hypotheseLibre, selectedCat, selectedHyp, selectedLat,
     hypoError, hypoWarning,
     showBadge, badgeVariant, badgeCustomLabel, showBadgeCustom,
-    nextControlDelay, customDelayText,
+    nextControlDelay, customDelayText, complementaryExam,
     isAnteriorBase, showAnterior,
     setEyeOD, setEyeOG, setOctaDone,
     setHypothesesDiagnostiques, setHypotheseLibre,
     setSelectedCat, setSelectedHyp, setSelectedLat,
     setShowBadge, setBadgeVariant, setBadgeCustomLabel, setShowBadgeCustom,
-    setNextControlDelay, setCustomDelayText,
+    setNextControlDelay, setCustomDelayText, setComplementaryExam,
     reset, applyDraft, snapshotDraft,
     handleAddHypothese, handleRemoveHypothese,
     handleReportTypeChange, handleAnteriorChange,

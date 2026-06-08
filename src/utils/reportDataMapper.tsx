@@ -32,6 +32,11 @@ const MONTHS_FR = [
   'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre',
 ];
 
+// Supprime puces/tirets de début et markdown **gras** générés par certains modèles IA
+function stripItem(s: string): string {
+  return s.replace(/^\s*[-–—•*]\s*/, '').replace(/\*\*([^*]+)\*\*/g, '$1').trim();
+}
+
 function formatDateFR(dateStr: string): string {
   const d = new Date(dateStr + 'T12:00:00');
   if (isNaN(d.getTime())) return dateStr;
@@ -386,6 +391,15 @@ export function mapAIResultToOCTReportData(
     conclusion: aiResult.conclusion || 'Résultat non exploitable — vérifier les données cliniques.',
     prevention: Array.isArray(aiResult.prevention) ? aiResult.prevention : [],
     suivi: Array.isArray(aiResult.suivi) ? aiResult.suivi : [],
+    // Conseil patient = champ IA dédié (facteurs de risque, alimentation, surveillance des symptômes).
+    // Repli sur le 1er item de prévention si l'IA ne renvoie pas le champ.
+    // prochainControleOCT et examenComplementaire sont renseignés depuis le formulaire (Consultation).
+    conseilPatient:
+      aiResult.conseil_patient && aiResult.conseil_patient.trim()
+        ? stripItem(aiResult.conseil_patient)
+        : Array.isArray(aiResult.prevention) && aiResult.prevention.length > 0
+          ? stripItem(aiResult.prevention[0])
+          : undefined,
     severite: aiResult.severite ?? 'normal',
 
     signature: {

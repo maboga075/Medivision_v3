@@ -78,15 +78,46 @@ export default function PatientEditModal({ isOpen, onClose, patient, onUpdate }:
 
   if (!isOpen || !patient) return null;
 
+  const SP = 'Sans particularité';
+
   const toggleArrayItem = (field: 'motifs' | 'antecedents', item: string) => {
     setFormData((prev) => {
-      const arr = prev[field];
-      return arr.includes(item)
-        ? { ...prev, [field]: arr.filter((i) => i !== item) }
-        : { ...prev, [field]: [...arr, item] };
+      const arr = prev[field] as string[];
+      if (arr.includes(item)) {
+        return { ...prev, [field]: arr.filter((i) => i !== item) };
+      }
+      // "Sans particularité" est mutuellement exclusif avec les autres choix
+      if (item === SP) {
+        return { ...prev, [field]: [SP] };
+      }
+      return { ...prev, [field]: [...arr.filter((i) => i !== SP), item] };
     });
   };
 
+  // Ajoute à la session courante uniquement (pas de sauvegarde dans les suggestions)
+  const handleAddCustomSessionOnly = (
+    field: 'motifs' | 'antecedents' | 'medecinPrescripteur',
+    value: string,
+    setCustomList: React.Dispatch<React.SetStateAction<string[]>>,
+    setShow: React.Dispatch<React.SetStateAction<boolean>>,
+    setVal: React.Dispatch<React.SetStateAction<string>>
+  ) => {
+    if (!value.trim()) return;
+    const trimmed = value.trim();
+    setCustomList((prev) => [...new Set([...prev, trimmed])]);
+    if (field === 'medecinPrescripteur') {
+      setFormData((prev) => ({ ...prev, medecinPrescripteur: trimmed }));
+    } else {
+      setFormData((prev) => ({
+        ...prev,
+        [field]: [...new Set([...(prev[field] as string[]), trimmed])],
+      }));
+    }
+    setVal('');
+    setShow(false);
+  };
+
+  // Ajoute à la session ET enregistre dans les suggestions futures (Firebase)
   const handleAddCustom = (
     field: 'motifs' | 'antecedents' | 'medecinPrescripteur',
     value: string,
@@ -189,8 +220,9 @@ export default function PatientEditModal({ isOpen, onClose, patient, onUpdate }:
                   <div className="flex items-center gap-2 bg-indigo-50 p-2 rounded-2xl border border-indigo-100">
                     <input autoFocus className="px-4 py-3 border-2 border-indigo-300 rounded-xl text-sm font-bold outline-none" placeholder="Motif..."
                       value={newMotif} onChange={(e) => setNewMotif(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === 'Enter') handleAddCustom('motifs', newMotif, setCustomMotifs, setShowAddMotif, setNewMotif); if (e.key === 'Escape') setShowAddMotif(false); }} />
-                    <button onClick={() => handleAddCustom('motifs', newMotif, setCustomMotifs, setShowAddMotif, setNewMotif)} className="bg-indigo-500 text-white px-4 py-3 rounded-xl text-sm font-bold">OK</button>
+                      onKeyDown={(e) => { if (e.key === 'Enter') handleAddCustomSessionOnly('motifs', newMotif, setCustomMotifs, setShowAddMotif, setNewMotif); if (e.key === 'Escape') setShowAddMotif(false); }} />
+                    <button onClick={() => handleAddCustomSessionOnly('motifs', newMotif, setCustomMotifs, setShowAddMotif, setNewMotif)} title="Ajouter pour cette session uniquement" className="bg-indigo-400 text-white px-4 py-3 rounded-xl text-sm font-bold whitespace-nowrap">Session</button>
+                    <button onClick={() => handleAddCustom('motifs', newMotif, setCustomMotifs, setShowAddMotif, setNewMotif)} title="Ajouter et enregistrer pour les prochaines sessions" className="bg-indigo-600 text-white px-4 py-3 rounded-xl text-sm font-bold whitespace-nowrap flex items-center gap-1"><Save className="w-4 h-4" /> Garder</button>
                     <button onClick={() => setShowAddMotif(false)} className="text-slate-400 p-2"><X className="w-5 h-5"/></button>
                   </div>
                 ) : (
@@ -217,8 +249,9 @@ export default function PatientEditModal({ isOpen, onClose, patient, onUpdate }:
                   <div className="flex items-center gap-2 bg-orange-50 p-2 rounded-2xl border border-orange-100">
                     <input autoFocus className="px-4 py-3 border-2 border-orange-300 rounded-xl text-sm font-bold outline-none" placeholder="Antécédent..."
                       value={newAtcd} onChange={(e) => setNewAtcd(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === 'Enter') handleAddCustom('antecedents', newAtcd, setCustomAtcd, setShowAddAtcd, setNewAtcd); if (e.key === 'Escape') setShowAddAtcd(false); }} />
-                    <button onClick={() => handleAddCustom('antecedents', newAtcd, setCustomAtcd, setShowAddAtcd, setNewAtcd)} className="bg-orange-500 text-white px-4 py-3 rounded-xl text-sm font-bold">OK</button>
+                      onKeyDown={(e) => { if (e.key === 'Enter') handleAddCustomSessionOnly('antecedents', newAtcd, setCustomAtcd, setShowAddAtcd, setNewAtcd); if (e.key === 'Escape') setShowAddAtcd(false); }} />
+                    <button onClick={() => handleAddCustomSessionOnly('antecedents', newAtcd, setCustomAtcd, setShowAddAtcd, setNewAtcd)} title="Ajouter pour cette session uniquement" className="bg-orange-400 text-white px-4 py-3 rounded-xl text-sm font-bold whitespace-nowrap">Session</button>
+                    <button onClick={() => handleAddCustom('antecedents', newAtcd, setCustomAtcd, setShowAddAtcd, setNewAtcd)} title="Ajouter et enregistrer pour les prochaines sessions" className="bg-orange-600 text-white px-4 py-3 rounded-xl text-sm font-bold whitespace-nowrap flex items-center gap-1"><Save className="w-4 h-4" /> Garder</button>
                     <button onClick={() => setShowAddAtcd(false)} className="text-slate-400 p-2"><X className="w-5 h-5"/></button>
                   </div>
                 ) : (
@@ -258,8 +291,9 @@ export default function PatientEditModal({ isOpen, onClose, patient, onUpdate }:
                 <div className="flex items-center gap-2 bg-indigo-50 p-2 rounded-2xl border border-indigo-100">
                   <input autoFocus className="w-full px-4 py-3 border-2 border-indigo-300 rounded-xl text-sm font-bold outline-none" value={newDoc}
                     onChange={(e) => setNewDoc(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') handleAddCustom('medecinPrescripteur', newDoc, setCustomDoctors, setShowAddDoc, setNewDoc); if (e.key === 'Escape') setShowAddDoc(false); }} />
-                  <button onClick={() => handleAddCustom('medecinPrescripteur', newDoc, setCustomDoctors, setShowAddDoc, setNewDoc)} className="bg-indigo-500 text-white px-4 py-3 rounded-xl text-sm font-bold">OK</button>
+                    onKeyDown={(e) => { if (e.key === 'Enter') handleAddCustomSessionOnly('medecinPrescripteur', newDoc, setCustomDoctors, setShowAddDoc, setNewDoc); if (e.key === 'Escape') setShowAddDoc(false); }} />
+                  <button onClick={() => handleAddCustomSessionOnly('medecinPrescripteur', newDoc, setCustomDoctors, setShowAddDoc, setNewDoc)} title="Pour cette session uniquement" className="bg-indigo-400 text-white px-4 py-3 rounded-xl text-sm font-bold whitespace-nowrap">Session</button>
+                  <button onClick={() => handleAddCustom('medecinPrescripteur', newDoc, setCustomDoctors, setShowAddDoc, setNewDoc)} title="Enregistrer pour les prochaines sessions" className="bg-indigo-600 text-white px-4 py-3 rounded-xl text-sm font-bold whitespace-nowrap flex items-center gap-1"><Save className="w-4 h-4" /> Garder</button>
                 </div>
               ) : (
                 <div className="flex gap-2">

@@ -13,6 +13,8 @@ interface ReportParamsSectionProps {
   onNextControlDelayChange: (v: string) => void;
   customDelayText: string;
   onCustomDelayTextChange: (v: string) => void;
+  complementaryExam: string;
+  onComplementaryExamChange: (v: string) => void;
 }
 
 export default function ReportParamsSection({
@@ -28,6 +30,8 @@ export default function ReportParamsSection({
   onNextControlDelayChange,
   customDelayText,
   onCustomDelayTextChange,
+  complementaryExam,
+  onComplementaryExamChange,
 }: ReportParamsSectionProps) {
   return (
     <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm mb-10 w-full">
@@ -151,10 +155,24 @@ export default function ReportParamsSection({
           {((nextControlDelay && nextControlDelay !== '__custom__') ||
             (nextControlDelay === '__custom__' && customDelayText.trim())) && (
             <p className="text-xs text-slate-400 font-medium">
-              → Ajouté en premier item de{' '}
-              <span className="font-bold text-indigo-600">Suivi &amp; examens complémentaires</span>
+              → Affiché dans le bloc{' '}
+              <span className="font-bold text-indigo-600">Synthèse &amp; suivi</span>
             </p>
           )}
+
+          {/* Examen complémentaire (non ophtalmologique) */}
+          <p className="text-xs font-black text-slate-500 uppercase tracking-wider pt-2">
+            Examen complémentaire
+          </p>
+          <input
+            value={complementaryExam}
+            onChange={(e) => onComplementaryExamChange(e.target.value)}
+            placeholder="Ex : bilan cardiologique, glycémie à jeun…"
+            className="w-full p-3 border-2 border-slate-200 rounded-xl text-sm font-bold outline-none focus:border-teal-400 bg-white transition-colors"
+          />
+          <p className="text-xs text-slate-400 font-medium">
+            Examen non ophtalmologique à recommander, si pertinent.
+          </p>
         </div>
       </div>
     </div>

@@ -9,6 +9,7 @@ interface AIResult {
   conclusion: string;
   prevention: string[];
   suivi: string[];
+  conseil_patient: string;
   severite: 'normal' | 'surveillance' | 'alerte';
 }
 
@@ -40,6 +41,7 @@ RÈGLES ABSOLUES :
   "conclusion": "Synthèse diagnostique pure (1-2 phrases). AUCUN suivi ici.",
   "prevention": ["item 1", "item 2"],
   "suivi": ["item 1", "item 2"],
+  "conseil_patient": "Une seule phrase de conseil au patient, liée à sa pathologie.",
   "severite": "normal | surveillance | alerte"
 }
 
@@ -69,7 +71,15 @@ LOGIQUE DE RÉDACTION :
 - Conseils pratiques adaptés au profil et aux pathologies identifiées
 
 **DIRECTIVES SUIVI (2 à 3 items) :**
-- Examens complémentaires et contrôles spécifiques aux anomalies trouvées`;
+- Examens complémentaires et contrôles spécifiques aux anomalies trouvées
+
+**DIRECTIVES CONSEIL_PATIENT (1 phrase, OBLIGATOIRE) :**
+- UNE seule phrase, adressée au patient, en lien direct avec SA pathologie identifiée
+- Cibler en priorité : arrêt et information des facteurs de risque (tabac, équilibre tensionnel/glycémique…),
+  recommandations alimentaires pertinentes, et surveillance de l'apparition ou de l'évolution de symptômes
+- Adapter au profil : ne mentionner que ce qui est pertinent pour la/les pathologie(s) du patient
+- Formulation prudente et factuelle — n'invente aucune donnée
+- Si aucune pathologie n'est identifiée, donner un conseil d'hygiène visuelle générale et de surveillance`;
 
 // ─── Parsing / validation ────────────────────────────────────────────────────
 
@@ -104,6 +114,7 @@ function parseAndValidate(raw: string): { result: AIResult | null; validation: V
     conclusion: typeof obj['conclusion'] === 'string' ? obj['conclusion'] : 'Résultat non exploitable.',
     prevention: Array.isArray(obj['prevention']) ? (obj['prevention'] as string[]) : [],
     suivi: Array.isArray(obj['suivi']) ? (obj['suivi'] as string[]) : [],
+    conseil_patient: typeof obj['conseil_patient'] === 'string' ? obj['conseil_patient'] : '',
     severite: (['normal', 'surveillance', 'alerte'].includes(String(severite)) ? severite : 'normal') as AIResult['severite'],
   };
 

@@ -1,5 +1,5 @@
 import { useState, type Dispatch, type SetStateAction } from 'react';
-import { UserPlus, FileText, Activity, Plus, X, Pill, CheckCircle } from 'lucide-react';
+import { UserPlus, FileText, Activity, Plus, X, Pill, CheckCircle, Save } from 'lucide-react';
 import { db, collection, addDoc, serverTimestamp } from '../services/firebase';
 import { useSettings } from '../hooks/useSettings';
 import type { PatientFormData } from '../types/patient';
@@ -76,14 +76,43 @@ export default function Accueil() {
   const [showAddDoc, setShowAddDoc] = useState(false);
   const [newDoc, setNewDoc] = useState('');
 
+  const SP = 'Sans particularité';
+
   const toggleArrayItem = (field: 'motifs' | 'antecedents', item: string) => {
     setFormData((prev) => {
       const arr = prev[field];
       if (arr.includes(item)) return { ...prev, [field]: arr.filter((i) => i !== item) };
-      return { ...prev, [field]: [...arr, item] };
+      // "Sans particularité" est mutuellement exclusif avec les autres choix
+      if (item === SP) return { ...prev, [field]: [SP] };
+      return { ...prev, [field]: [...arr.filter((i) => i !== SP), item] };
     });
   };
 
+  // Ajoute à la session courante uniquement (pas de sauvegarde dans les suggestions)
+  const handleAddCustomSessionOnly = (
+    field: 'motifs' | 'antecedents' | 'medecinPrescripteur',
+    value: string,
+    setCustomList: Dispatch<SetStateAction<string[]>>,
+    setShow: Dispatch<SetStateAction<boolean>>,
+    setVal: Dispatch<SetStateAction<string>>
+  ) => {
+    const trimmed = value.trim();
+    if (!trimmed) return;
+
+    setCustomList((prev) => [...new Set([...prev, trimmed])]);
+    if (field === 'medecinPrescripteur') {
+      setFormData((prev) => ({ ...prev, medecinPrescripteur: trimmed }));
+    } else {
+      setFormData((prev) => ({
+        ...prev,
+        [field]: [...new Set([...prev[field as 'motifs' | 'antecedents'].filter((i) => i !== SP), trimmed])],
+      }));
+    }
+    setVal('');
+    setShow(false);
+  };
+
+  // Ajoute à la session ET enregistre dans les suggestions futures (Firebase)
   const handleAddCustom = (
     field: 'motifs' | 'antecedents' | 'medecinPrescripteur',
     value: string,
@@ -103,7 +132,7 @@ export default function Accueil() {
     } else {
       setFormData((prev) => ({
         ...prev,
-        [field]: [...new Set([...prev[field as 'motifs' | 'antecedents'], trimmed])],
+        [field]: [...new Set([...prev[field as 'motifs' | 'antecedents'].filter((i) => i !== SP), trimmed])],
       }));
       if (field === 'motifs' && !availableMotifs.some((m) => m.toLowerCase() === trimmed.toLowerCase())) {
         updateBulles('motifs', [...availableMotifs, trimmed]).catch(console.error);
@@ -239,17 +268,27 @@ export default function Accueil() {
                       onChange={(e) => setNewMotif(e.target.value)}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter')
-                          handleAddCustom('motifs', newMotif, setCustomMotifs, setShowAddMotif, setNewMotif);
+                          handleAddCustomSessionOnly('motifs', newMotif, setCustomMotifs, setShowAddMotif, setNewMotif);
                         if (e.key === 'Escape') setShowAddMotif(false);
                       }}
                     />
                     <button
                       onClick={() =>
+                        handleAddCustomSessionOnly('motifs', newMotif, setCustomMotifs, setShowAddMotif, setNewMotif)
+                      }
+                      title="Ajouter pour cette session uniquement"
+                      className="bg-teal-400 text-white px-4 py-3 rounded-xl text-sm font-bold hover:bg-teal-500 transition-colors whitespace-nowrap"
+                    >
+                      Session
+                    </button>
+                    <button
+                      onClick={() =>
                         handleAddCustom('motifs', newMotif, setCustomMotifs, setShowAddMotif, setNewMotif)
                       }
-                      className="bg-teal-500 text-white px-4 py-3 rounded-xl text-sm font-bold hover:bg-teal-600 transition-colors"
+                      title="Ajouter et enregistrer pour les prochaines sessions"
+                      className="bg-teal-600 text-white px-4 py-3 rounded-xl text-sm font-bold hover:bg-teal-700 transition-colors whitespace-nowrap flex items-center gap-1.5"
                     >
-                      OK
+                      <Save className="w-4 h-4" /> Garder
                     </button>
                     <button
                       onClick={() => setShowAddMotif(false)}
@@ -299,17 +338,27 @@ export default function Accueil() {
                       onChange={(e) => setNewAtcd(e.target.value)}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter')
-                          handleAddCustom('antecedents', newAtcd, setCustomAtcd, setShowAddAtcd, setNewAtcd);
+                          handleAddCustomSessionOnly('antecedents', newAtcd, setCustomAtcd, setShowAddAtcd, setNewAtcd);
                         if (e.key === 'Escape') setShowAddAtcd(false);
                       }}
                     />
                     <button
                       onClick={() =>
+                        handleAddCustomSessionOnly('antecedents', newAtcd, setCustomAtcd, setShowAddAtcd, setNewAtcd)
+                      }
+                      title="Ajouter pour cette session uniquement"
+                      className="bg-indigo-400 text-white px-4 py-3 rounded-xl text-sm font-bold hover:bg-indigo-500 transition-colors whitespace-nowrap"
+                    >
+                      Session
+                    </button>
+                    <button
+                      onClick={() =>
                         handleAddCustom('antecedents', newAtcd, setCustomAtcd, setShowAddAtcd, setNewAtcd)
                       }
-                      className="bg-indigo-500 text-white px-4 py-3 rounded-xl text-sm font-bold hover:bg-indigo-600 transition-colors"
+                      title="Ajouter et enregistrer pour les prochaines sessions"
+                      className="bg-indigo-600 text-white px-4 py-3 rounded-xl text-sm font-bold hover:bg-indigo-700 transition-colors whitespace-nowrap flex items-center gap-1.5"
                     >
-                      OK
+                      <Save className="w-4 h-4" /> Garder
                     </button>
                     <button
                       onClick={() => setShowAddAtcd(false)}
@@ -395,7 +444,7 @@ export default function Accueil() {
                     onChange={(e) => setNewDoc(e.target.value)}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter')
-                        handleAddCustom(
+                        handleAddCustomSessionOnly(
                           'medecinPrescripteur',
                           newDoc,
                           setCustomDoctors,
@@ -407,6 +456,21 @@ export default function Accueil() {
                   />
                   <button
                     onClick={() =>
+                      handleAddCustomSessionOnly(
+                        'medecinPrescripteur',
+                        newDoc,
+                        setCustomDoctors,
+                        setShowAddDoc,
+                        setNewDoc
+                      )
+                    }
+                    title="Pour cette session uniquement"
+                    className="bg-indigo-400 text-white px-4 py-3 rounded-xl text-sm font-bold hover:bg-indigo-500 whitespace-nowrap"
+                  >
+                    Session
+                  </button>
+                  <button
+                    onClick={() =>
                       handleAddCustom(
                         'medecinPrescripteur',
                         newDoc,
@@ -415,9 +479,10 @@ export default function Accueil() {
                         setNewDoc
                       )
                     }
-                    className="bg-indigo-500 text-white px-4 py-3 rounded-xl text-sm font-bold hover:bg-indigo-600"
+                    title="Enregistrer pour les prochaines sessions"
+                    className="bg-indigo-600 text-white px-4 py-3 rounded-xl text-sm font-bold hover:bg-indigo-700 whitespace-nowrap flex items-center gap-1.5"
                   >
-                    OK
+                    <Save className="w-4 h-4" /> Garder
                   </button>
                   <button
                     onClick={() => setShowAddDoc(false)}
