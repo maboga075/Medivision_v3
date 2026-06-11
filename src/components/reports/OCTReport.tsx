@@ -13,6 +13,7 @@
 import * as React from "react";
 import "./OCTReport.css";
 import type { PillVariant, ParamRow, EyeData, OCTReportData } from "../../types/report";
+import VisualClinicalSection from "./visual/VisualClinicalSection";
 
 // Ré-exports pour la compatibilité des imports existants
 export type { PillVariant, ParamRow, EyeData, OCTReportData };
@@ -66,151 +67,6 @@ function resolveConseil(d: OCTReportData): string {
   if (d.prevention && d.prevention.length > 0) return stripItem(d.prevention[0]);
   return '';
 }
-
-/* ─── Tableau fusionné OD | Catégorie | OG ─────────────────────────
-   Objectif : afficher les catégories une seule fois au centre,
-   et un résultat compact (texte coloré, pas de badge) de chaque côté. */
-
-interface MergedRow {
-  label: string;
-  hint?: string;
-  od?: ParamRow;
-  og?: ParamRow;
-}
-
-/* Rassemble toutes les lignes d'un œil dans l'ordre d'affichage :
-   morphologie → biométrie → Rapport C/D → Surface discale. */
-function collectEyeRows(eye: EyeData): ParamRow[] {
-  const rows: ParamRow[] = [...eye.morphology, ...eye.biometrics];
-  if (eye.cupDisc) {
-    rows.push({ label: 'Rapport C/D', hint: 'vertical', value: eye.cupDisc, flag: eye.cupDiscFlag });
-  }
-  if (eye.discSurface) {
-    rows.push({ label: 'Surface discale', value: `${eye.discSurface} mm²` });
-  }
-  return rows;
-}
-
-/* Fusionne OD et OG par libellé de catégorie.
-   Ordre : suit OD, puis ajoute les catégories présentes uniquement à gauche (OG). */
-function buildMergedRows(od: EyeData, og: EyeData): MergedRow[] {
-  const odRows = collectEyeRows(od);
-  const ogRows = collectEyeRows(og);
-  const ogByLabel = new Map(ogRows.map((r) => [r.label, r]));
-  const odLabels = new Set(odRows.map((r) => r.label));
-
-  const merged: MergedRow[] = odRows.map((r) => ({
-    label: r.label,
-    hint: r.hint ?? ogByLabel.get(r.label)?.hint,
-    od: r,
-    og: ogByLabel.get(r.label),
-  }));
-
-  for (const r of ogRows) {
-    if (!odLabels.has(r.label)) {
-      merged.push({ label: r.label, hint: r.hint, og: r });
-    }
-  }
-  return merged;
-}
-
-/* Cellule compacte : texte simple coloré, virgules entre symptômes, sans encadré.
-   Couleur appliquée à toute la cellule : rouge si au moins une anomalie, vert sinon. */
-const CompactCell: React.FC<{ row?: ParamRow; impossible?: boolean }> = ({ row, impossible }) => {
-  if (impossible) {
-    return <span className="compact-impossible">Analyse impossible</span>;
-  }
-  if (!row) {
-    return <span className="compact-empty">—</span>;
-  }
-  if (row.pills && row.pills.length > 0) {
-    const hasAnomaly = row.pills.some((p) => p.variant !== 'normal');
-    const text = row.pills.map((p) => p.text).join(', ');
-    return (
-      <span
-        className={`compact-val ${hasAnomaly ? 'is-alert' : 'is-normal'}`}
-        contentEditable="true"
-        suppressContentEditableWarning={true}
-      >
-        {text}
-      </span>
-    );
-  }
-  if (row.value) {
-    const style =
-      row.customColor ? { color: row.customColor }
-      : row.flag === 'alert' ? { color: 'var(--amber)' }
-      : row.flag === 'critical' ? { color: 'var(--crimson)' }
-      : undefined;
-    return (
-      <span className="compact-val" style={style} contentEditable="true" suppressContentEditableWarning={true}>
-        {row.value}
-      </span>
-    );
-  }
-  return <span className="compact-empty">—</span>;
-};
-
-/* En-tête d'un œil dans le tableau fusionné (code + nom + qualité d'acquisition). */
-const EyeHead: React.FC<{ eye: EyeData; side: 'od' | 'og' }> = ({ eye, side }) => (
-  <div className={`cm-eye ${side}`}>
-    <span className="cm-eye-code">{eye.code}</span>
-    <span className="cm-eye-name">{eye.name}</span>
-    {eye.acquisitionQuality && (
-      <span className={`pill-acquisition pill-${eye.acquisitionQuality}`}>
-        {eye.acquisitionQuality === 'bon' ? '✓ Bon'
-         : eye.acquisitionQuality === 'faible' ? '⚠ Faible'
-         : '✗ Impossible'}
-      </span>
-    )}
-  </div>
-);
-
-const MergedClinicalTable: React.FC<{ od: EyeData; og: EyeData }> = ({ od, og }) => {
-  const rows = buildMergedRows(od, og);
-  const odImpossible = od.acquisitionQuality === 'impossible';
-  const ogImpossible = og.acquisitionQuality === 'impossible';
-
-  return (
-    <div className="clinical-merged">
-      <div className="cm-row cm-head">
-        <EyeHead eye={od} side="od" />
-        <div className="cm-cat-head">Catégorie</div>
-        <EyeHead eye={og} side="og" />
-      </div>
-
-      {rows.length === 0 ? (
-        <div className="cm-empty-state">Analyse impossible des deux côtés.</div>
-      ) : (
-        rows.map((r, i) => (
-          <div className="cm-row" key={i}>
-            <div className="cm-cell cm-od">
-              <CompactCell row={r.od} impossible={odImpossible} />
-            </div>
-            <div className="cm-cat">
-              <span className="cm-cat-label">{r.label}</span>
-              {r.hint && <span className="cm-hint">{r.hint}</span>}
-            </div>
-            <div className="cm-cell cm-og">
-              <CompactCell row={r.og} impossible={ogImpossible} />
-            </div>
-          </div>
-        ))
-      )}
-
-      {(odImpossible || ogImpossible) && (
-        <div className="cm-reasons">
-          {odImpossible && od.acquisitionQualityReasons && od.acquisitionQualityReasons.length > 0 && (
-            <div><strong>OD :</strong> {od.acquisitionQualityReasons.join(' · ')}</div>
-          )}
-          {ogImpossible && og.acquisitionQualityReasons && og.acquisitionQualityReasons.length > 0 && (
-            <div><strong>OG :</strong> {og.acquisitionQualityReasons.join(' · ')}</div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-};
 
 /* ───────────────────────── Main component ───────────────────────── */
 
@@ -276,9 +132,9 @@ const OCTReport: React.FC<{ data: OCTReportData }> = ({ data }) => {
         </div>
       </section>
 
-      {/* ══ CLINICAL GRID — tableau fusionné OD | Catégorie | OG ══ */}
+      {/* ══ CLINICAL — bloc visuel : schéma rétine + anneaux RNFL/GCL (V3) ══ */}
       <section className="clinical">
-        <MergedClinicalTable od={d.eyes.od} og={d.eyes.og} />
+        <VisualClinicalSection od={d.eyes.od} og={d.eyes.og} />
       </section>
 
       {/* ══ 4 BLOCS CLINIQUES ══ */}

@@ -1,5 +1,6 @@
 import type { EyeState, ImageData, RNFLGCLStatus } from '../types/clinical';
 import { NORMAL_VALUES } from './constants';
+import { createDefaultRnflSectors, createDefaultGclSectors } from './rnflGcl';
 
 export const createEyeState = (): EyeState => ({
   acquisitionStatus: 'Bon',
@@ -12,6 +13,9 @@ export const createEyeState = (): EyeState => ({
   gclEvolution: '',
   rnfl: { status: 'normal' },
   gcl: { status: 'normal' },
+  rnflSectors: createDefaultRnflSectors(),
+  gclSectors: createDefaultGclSectors(),
+  retinaAnnotations: [],
   cornealThickness: '',
   obsAnterieur: [],
   discSurface: '',

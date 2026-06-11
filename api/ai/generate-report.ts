@@ -4,6 +4,16 @@ import { resolve } from 'node:path';
 
 // ─── Types locaux (miroir de src/types/ai.ts) ────────────────────────────────
 
+interface PatientSummaryAI {
+  titre?: string;
+  observe?: string;
+  signification?: string;
+  suite?: string;
+  rassurance?: string;
+  od_etat?: 'ok' | 'watch' | 'alert';
+  og_etat?: 'ok' | 'watch' | 'alert';
+}
+
 interface AIResult {
   analyse_clinique: string;
   conclusion: string;
@@ -11,6 +21,7 @@ interface AIResult {
   suivi: string[];
   conseil_patient: string;
   severite: 'normal' | 'surveillance' | 'alerte';
+  resume_patient?: PatientSummaryAI;
 }
 
 interface ValidationResult {
@@ -42,7 +53,16 @@ RÈGLES ABSOLUES :
   "prevention": ["item 1", "item 2"],
   "suivi": ["item 1", "item 2"],
   "conseil_patient": "Une seule phrase de conseil au patient, liée à sa pathologie.",
-  "severite": "normal | surveillance | alerte"
+  "severite": "normal | surveillance | alerte",
+  "resume_patient": {
+    "titre": "Titre court et rassurant (ex: « Un œil à surveiller, l'autre en bon état »).",
+    "observe": "Ce qu'on a observé, en mots simples — sans jargon médical.",
+    "signification": "Ce que ça veut dire pour le patient, avec prudence et sans alarmer.",
+    "suite": "La suite concrète (prochain contrôle, gestes utiles).",
+    "rassurance": "Une phrase de réassurance honnête.",
+    "od_etat": "ok | watch | alert",
+    "og_etat": "ok | watch | alert"
+  }
 }
 
 **DIRECTIVES ANALYSE_CLINIQUE — CRITIQUES, à respecter impérativement :**
@@ -79,7 +99,14 @@ LOGIQUE DE RÉDACTION :
   recommandations alimentaires pertinentes, et surveillance de l'apparition ou de l'évolution de symptômes
 - Adapter au profil : ne mentionner que ce qui est pertinent pour la/les pathologie(s) du patient
 - Formulation prudente et factuelle — n'invente aucune donnée
-- Si aucune pathologie n'est identifiée, donner un conseil d'hygiène visuelle générale et de surveillance`;
+- Si aucune pathologie n'est identifiée, donner un conseil d'hygiène visuelle générale et de surveillance
+
+**DIRECTIVES RESUME_PATIENT (langage simple, OBLIGATOIRE) :**
+- Destiné AU PATIENT, pas au médecin : phrases courtes, vocabulaire courant, aucun terme technique
+  (pas de « RNFL », « GCL », « C/D », « œdème maculaire » sans explication simple entre parenthèses)
+- Ton bienveillant, honnête et rassurant — ne jamais minimiser une atteinte réelle ni dramatiser
+- "od_etat"/"og_etat" : "ok" (rien à signaler), "watch" (à surveiller), "alert" (suivi rapproché)
+- Rester strictement cohérent avec l'analyse et la conclusion ci-dessus — n'invente aucune donnée`;
 
 // ─── Parsing / validation ────────────────────────────────────────────────────
 
@@ -116,6 +143,9 @@ function parseAndValidate(raw: string): { result: AIResult | null; validation: V
     suivi: Array.isArray(obj['suivi']) ? (obj['suivi'] as string[]) : [],
     conseil_patient: typeof obj['conseil_patient'] === 'string' ? obj['conseil_patient'] : '',
     severite: (['normal', 'surveillance', 'alerte'].includes(String(severite)) ? severite : 'normal') as AIResult['severite'],
+    ...(obj['resume_patient'] && typeof obj['resume_patient'] === 'object'
+      ? { resume_patient: obj['resume_patient'] as PatientSummaryAI }
+      : {}),
   };
 
   return {

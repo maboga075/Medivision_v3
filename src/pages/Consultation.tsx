@@ -21,6 +21,8 @@ import { normalizeClinicalData } from '../utils/clinicalPayload';
 import { buildClinicalSummary } from '../utils/clinicalSummary';
 import { buildAIPayload } from '../utils/aiPayload';
 import OCTReport, { type OCTReportData } from '../components/reports/OCTReport';
+import PatientReport from '../components/reports/PatientReport';
+import ReportAudienceToggle, { type ReportAudience } from '../components/reports/ReportAudienceToggle';
 import ValidationBadge from '../components/shared/ValidationBadge';
 import { mapAIResultToOCTReportData, DEFAULT_PRACTITIONER } from '../utils/reportDataMapper';
 import { useSettings } from '../hooks/useSettings';
@@ -77,6 +79,7 @@ export default function Consultation() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [jsonValidation, setJsonValidation] = useState<ValidationResult | null>(null);
   const [octReportData, setOctReportData] = useState<OCTReportData | null>(null);
+  const [reportAudience, setReportAudience] = useState<ReportAudience>('medecin');
   const reportRef = useRef<HTMLDivElement>(null);
 
   // ── Formulaire clinique ────────────────────────────────────────────────────
@@ -527,11 +530,16 @@ export default function Consultation() {
               {/* Vue rapport */}
               {view === 'report' && octReportData && (
                 <div className="animate-in slide-in-from-bottom-8">
-                  <div className="mb-6 no-print">
+                  <div className="mb-6 no-print flex items-center justify-between gap-4 flex-wrap">
                     <ValidationBadge validation={jsonValidation} />
+                    <ReportAudienceToggle value={reportAudience} onChange={setReportAudience} />
                   </div>
                   <div ref={reportRef}>
-                    <OCTReport data={octReportData} />
+                    {reportAudience === 'medecin' ? (
+                      <OCTReport data={octReportData} />
+                    ) : (
+                      <PatientReport data={octReportData} />
+                    )}
                   </div>
                 </div>
               )}

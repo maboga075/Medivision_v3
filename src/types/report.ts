@@ -2,6 +2,8 @@
 
 import type { AIProviderKey, AIResultLegacy, AISeverite } from './ai';
 import type { EyeState } from './clinical';
+import type { RnflSectors, GclSectors } from '../utils/rnflGcl';
+import type { Annotation } from '../features/retinasketch/lib/types';
 
 export type ExamenType = 'OCT' | 'Retinographie' | 'OCTA' | 'Pachymetrie' | 'Segment_Anterieur';
 export type SeveriteReport = 'normal' | 'surveillance' | 'alerte';
@@ -32,6 +34,22 @@ export interface EyeData {
   cupDiscFlag?: 'alert' | 'critical';
   morphology: ParamRow[];
   biometrics: ParamRow[];
+  // V3 — données du rendu visuel (schéma rétine + anneaux neuro-rétiniens).
+  // Optionnels : les rapports d'avant la V3 retombent sur l'affichage texte.
+  annotations?: Annotation[];
+  rnflSectors?: RnflSectors;
+  gclSectors?: GclSectors;
+}
+
+// V3 — compte rendu en langage simple (vue patient).
+export interface PatientSummary {
+  titre: string;
+  observe: string;
+  signification: string;
+  suite: string;
+  rassurance: string;
+  odEtat?: 'ok' | 'watch' | 'alert';
+  ogEtat?: 'ok' | 'watch' | 'alert';
 }
 
 export interface OCTReportData {
@@ -60,6 +78,8 @@ export interface OCTReportData {
   conseilPatient?: string;        // conseil unique lié à la pathologie
   severite: AISeverite;
   badge?: { label: string; variant: 'surveillance' | 'alerte' };
+  // V3 — résumé patient en langage simple (vue patient). Optionnel.
+  resumePatient?: PatientSummary;
   signature: {
     city: string;
     dateLabel: string;

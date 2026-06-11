@@ -12,6 +12,8 @@ import {
 } from 'lucide-react';
 import { useReports } from '../features/reports/hooks/useReports';
 import OCTReport from '../components/reports/OCTReport';
+import PatientReport from '../components/reports/PatientReport';
+import ReportAudienceToggle, { type ReportAudience } from '../components/reports/ReportAudienceToggle';
 import ValidationBadge from '../components/shared/ValidationBadge';
 import { printReport } from '../services/printService';
 import { exportReportToPDF } from '../services/pdfExportService';
@@ -22,6 +24,7 @@ export default function ComptesRendus() {
   const navigate = useNavigate();
 
   const [selected, setSelected] = useState<SavedReport | null>(null);
+  const [reportAudience, setReportAudience] = useState<ReportAudience>('medecin');
   const [search, setSearch] = useState('');
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
@@ -172,11 +175,16 @@ export default function ComptesRendus() {
 
         {/* Rapport */}
         <div className="flex-1 overflow-y-auto p-6">
-          <div className="mb-4 no-print">
+          <div className="mb-4 no-print flex items-center justify-between gap-4 flex-wrap">
             <ValidationBadge validation={null} />
+            <ReportAudienceToggle value={reportAudience} onChange={setReportAudience} />
           </div>
           <div ref={reportRef}>
-            <OCTReport data={selected.data} />
+            {reportAudience === 'medecin' ? (
+              <OCTReport data={selected.data} />
+            ) : (
+              <PatientReport data={selected.data} />
+            )}
           </div>
         </div>
       </div>

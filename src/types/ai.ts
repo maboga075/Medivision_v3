@@ -56,6 +56,16 @@ export interface AIResult {
   suivi: string[];           // items suivi & examens complémentaires (tableau)
   conseil_patient?: string;  // conseil unique lié à la pathologie (facteurs de risque, alimentation, surveillance)
   severite: AISeverite;
+  // V3 — résumé en langage simple pour la vue patient (optionnel).
+  resume_patient?: {
+    titre?: string;
+    observe?: string;
+    signification?: string;
+    suite?: string;
+    rassurance?: string;
+    od_etat?: 'ok' | 'watch' | 'alert';
+    og_etat?: 'ok' | 'watch' | 'alert';
+  };
 }
 
 // Résultat de validation de la réponse IA

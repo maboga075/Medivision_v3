@@ -38,6 +38,13 @@ export interface EyeState {
   rnfl?: RNFLGCLData;
   gcl?: RNFLGCLData;
 
+  // Saisie par secteurs (V3) — source de vérité ; `rnfl`/`gcl` en sont dérivés.
+  rnflSectors?: import('../utils/rnflGcl').RnflSectors;
+  gclSectors?: import('../utils/rnflGcl').GclSectors;
+
+  // Annotations RetinaSketch de cet œil (V3, module 1).
+  retinaAnnotations?: import('../features/retinasketch/lib/types').Annotation[];
+
   cornealThickness: string;
   obsAnterieur: string[];
 

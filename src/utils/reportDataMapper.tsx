@@ -1,6 +1,6 @@
 import type { RawConsultationData, EyeState } from '../types/clinical';
 import type { AIResult } from '../types/ai';
-import type { OCTReportData, EyeData, ParamRow, PillVariant } from '../types/report';
+import type { OCTReportData, EyeData, ParamRow, PillVariant, PatientSummary } from '../types/report';
 import { formatRNFLGCL } from './biometricFormatter';
 
 /* ─── Praticien par défaut ─────────────────────────────────────── */
@@ -262,6 +262,13 @@ function buildEyeData(
     return undefined;
   })();
 
+  // Données du rendu visuel (V3) — recopiées telles quelles depuis la saisie.
+  const visual = {
+    annotations: eye.retinaAnnotations ?? [],
+    rnflSectors: eye.rnflSectors,
+    gclSectors: eye.gclSectors,
+  };
+
   // Acquisition impossible : sections morpho/biométrie vides, raisons transmises
   if (acquisitionQuality === 'impossible') {
     return {
@@ -275,6 +282,7 @@ function buildEyeData(
       cupDiscFlag,
       morphology: [],
       biometrics: [],
+      ...visual,
     };
   }
 
@@ -288,9 +296,78 @@ function buildEyeData(
     cupDiscFlag,
     morphology: buildMorphologyRows(eye, anteriorSegmentDone, octaDone),
     biometrics: buildBiometricRows(eye),
+    ...visual,
   };
 }
 
+
+/* ─── Vue patient (langage simple) ────────────────────────────── */
+
+type EyeEtat = 'ok' | 'watch' | 'alert';
+
+function deriveEyeEtat(eye: EyeData): EyeEtat {
+  if (eye.acquisitionQuality === 'impossible') return 'watch';
+  const lesions = (eye.annotations ?? []).filter((a) => a.status === 'validated').length;
+  const biomCritical = eye.biometrics.some((r) => r.customColor === 'var(--crimson)');
+  const morphoAnomaly = eye.morphology.some((r) => r.pills?.some((p) => p.variant !== 'normal'));
+  const biomLimit = eye.biometrics.some((r) => r.customColor === 'var(--amber)');
+
+  if (eye.cupDiscFlag === 'critical' || biomCritical || lesions >= 3) return 'alert';
+  if (lesions > 0 || morphoAnomaly || biomLimit || eye.cupDiscFlag === 'alert') return 'watch';
+  return 'ok';
+}
+
+const ETAT_RANK: Record<EyeEtat, number> = { ok: 0, watch: 1, alert: 2 };
+
+/** Construit le résumé patient : champ IA si présent, sinon repli déterministe. */
+function buildPatientSummary(
+  aiResult: AIResult,
+  od: EyeData,
+  og: EyeData,
+): PatientSummary {
+  const ai = aiResult.resume_patient;
+  const odEtat: EyeEtat = ai?.od_etat ?? deriveEyeEtat(od);
+  const ogEtat: EyeEtat = ai?.og_etat ?? deriveEyeEtat(og);
+  const worst = ETAT_RANK[odEtat] >= ETAT_RANK[ogEtat] ? odEtat : ogEtat;
+
+  // Repli déterministe — formulations prudentes, sans donnée inventée.
+  const fallbackTitre =
+    worst === 'ok'
+      ? 'Vos yeux sont en bon état'
+      : worst === 'watch'
+        ? 'Un point à surveiller'
+        : 'Un suivi rapproché est conseillé';
+
+  const lesionsOD = (od.annotations ?? []).filter((a) => a.status === 'validated').length;
+  const lesionsOG = (og.annotations ?? []).filter((a) => a.status === 'validated').length;
+  const fallbackObserve =
+    lesionsOD + lesionsOG === 0
+      ? "L'examen du fond de vos yeux n'a pas montré de signe particulier nécessitant une action immédiate."
+      : `Nous avons repéré ${lesionsOD > 0 ? `${lesionsOD} élément${lesionsOD > 1 ? 's' : ''} sur votre œil droit` : 'aucun élément sur votre œil droit'}${
+          lesionsOG > 0 ? ` et ${lesionsOG} sur votre œil gauche` : ''
+        }. Votre médecin vous explique chaque point en détail.`;
+
+  return {
+    titre: ai?.titre?.trim() || fallbackTitre,
+    observe: ai?.observe?.trim() || fallbackObserve,
+    signification:
+      ai?.signification?.trim() ||
+      (worst === 'ok'
+        ? 'Ces résultats sont rassurants. Une surveillance régulière reste utile pour suivre votre vue dans le temps.'
+        : 'Repérés tôt, ces signes se surveillent et se prennent en charge sereinement avec votre médecin.'),
+    suite:
+      ai?.suite?.trim() ||
+      (worst === 'ok'
+        ? 'Poursuivez un suivi ophtalmologique régulier selon les recommandations de votre médecin.'
+        : 'Un prochain contrôle est prévu pour suivre l’évolution. Respecter le rendez-vous protège votre vue.'),
+    rassurance:
+      ai?.rassurance?.trim() ||
+      (aiResult.conseil_patient?.trim() ||
+        'Votre médecin reste disponible pour répondre à toutes vos questions.'),
+    odEtat,
+    ogEtat,
+  };
+}
 
 /* ─── Point d'entrée principal ────────────────────────────────── */
 
@@ -343,6 +420,23 @@ export function mapAIResultToOCTReportData(
     hasRetinography: consultation.reportType === 'Compte rendu Rétinographie',
   });
 
+  const odEye = buildEyeData(
+    'OD',
+    consultation.oeil_droit,
+    consultation.anteriorSegmentDone,
+    consultation.octaDone,
+    consultation.acquisitionQualityOD
+  );
+  const ogEye = buildEyeData(
+    'OG',
+    consultation.oeil_gauche,
+    consultation.anteriorSegmentDone,
+    consultation.octaDone,
+    consultation.acquisitionQualityOG
+  );
+
+  const resumePatient = buildPatientSummary(aiResult, odEye, ogEye);
+
   return {
     reportNumber: folderId || generateReportNumber(dateExamen),
 
@@ -370,22 +464,9 @@ export function mapAIResultToOCTReportData(
     history,
 
     // A5/A6 : passer les flags d'acquisition aux builders
-    eyes: {
-      od: buildEyeData(
-        'OD',
-        consultation.oeil_droit,
-        consultation.anteriorSegmentDone,
-        consultation.octaDone,
-        consultation.acquisitionQualityOD
-      ),
-      og: buildEyeData(
-        'OG',
-        consultation.oeil_gauche,
-        consultation.anteriorSegmentDone,
-        consultation.octaDone,
-        consultation.acquisitionQualityOG
-      ),
-    },
+    eyes: { od: odEye, og: ogEye },
+
+    resumePatient,
 
     analyseClinic: aiResult.analyse_clinique || "Données d'analyse insuffisantes.",
     conclusion: aiResult.conclusion || 'Résultat non exploitable — vérifier les données cliniques.',

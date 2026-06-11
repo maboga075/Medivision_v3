@@ -1,14 +1,23 @@
 import { useState } from 'react';
+import { Pencil, X } from 'lucide-react';
 import BubblePicker from './BubblePicker';
+import RnflGclPicker from './RnflGclPicker';
+import RetinaEditor from '../../features/retinasketch/components/RetinaEditor';
+import type { Annotation } from '../../features/retinasketch/lib/types';
 import {
   BUBBLE_PICKER_SUGGESTIONS,
-  RNFL_STATUSES,
-  RNFL_LOCATIONS,
   EVOLUTION_OPTIONS,
 } from '../../utils/constants';
-import { needsLocalisation } from '../../utils/clinicalData';
+import {
+  createDefaultRnflSectors,
+  createDefaultGclSectors,
+  deriveRnflStatus,
+  deriveGclStatus,
+  type RnflSectors,
+  type GclSectors,
+} from '../../utils/rnflGcl';
 import { useSuggestions } from '../../hooks/useSuggestions';
-import type { EyeState, RNFLGCLStatus } from '../../types/clinical';
+import type { EyeState } from '../../types/clinical';
 
 const PREDEFINED_CAUSES = [
   'Cataracte',
@@ -47,8 +56,10 @@ export default function EyeExamSection({
   const [showMesures, setShowMesures] = useState(false);
   const [customCause, setCustomCause] = useState('');
   const [showCustomInput, setShowCustomInput] = useState(false);
+  const [showRetinaEditor, setShowRetinaEditor] = useState(false);
 
   const isImpossible = eye.acquisitionQuality === 'impossible';
+  const annotationCount = (eye.retinaAnnotations ?? []).filter((a) => a.status === 'validated').length;
 
   const update = <K extends keyof EyeState>(k: K, v: EyeState[K]) =>
     onUpdate({ ...eye, [k]: v });
@@ -239,6 +250,21 @@ export default function EyeExamSection({
             Observations morphologiques
           </div>
 
+          {/* RetinaSketch — annotation du schéma rétinien */}
+          <button
+            type="button"
+            onClick={() => setShowRetinaEditor(true)}
+            disabled={isImpossible}
+            className="w-full flex items-center justify-between gap-3 px-4 py-3 rounded-xl border-2 border-dashed border-teal-200 bg-teal-50/40 text-teal-700 font-bold text-sm hover:border-teal-400 hover:bg-teal-50 transition-all active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <span className="flex items-center gap-2">
+              <Pencil className="w-4 h-4" /> Annoter la rétine
+            </span>
+            <span className={`px-2 py-0.5 rounded-full text-xs ${annotationCount > 0 ? 'bg-teal-600 text-white' : 'bg-slate-200 text-slate-500'}`}>
+              {annotationCount > 0 ? `${annotationCount} lésion${annotationCount > 1 ? 's' : ''}` : 'aucune'}
+            </span>
+          </button>
+
           <BubblePicker
             title="Macula"
             selectedItems={eye.observationsMacula}
@@ -345,89 +371,27 @@ export default function EyeExamSection({
 
             {showMesures && (
               <div className={`p-4 border-t border-slate-100 space-y-4 animate-in slide-in-from-top-2 ${isImpossible ? 'opacity-50 pointer-events-none select-none' : ''}`}>
-                {/* RNFL — OCT uniquement */}
+                {/* RNFL & GCL+ par secteurs — OCT uniquement */}
                 {isOCT && (
                   <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2">RNFL</label>
-                    <select
-                      className="w-full p-2.5 border-2 border-slate-200 rounded-xl text-sm font-bold outline-none focus:border-teal-500 bg-white"
-                      value={eye.rnfl?.status ?? 'normal'}
-                      onChange={(e) =>
+                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2">
+                      RNFL &amp; GCL+ <span className="text-slate-400 normal-case font-medium">— cliquer un secteur</span>
+                    </label>
+                    <RnflGclPicker
+                      side={side}
+                      rnfl={eye.rnflSectors ?? createDefaultRnflSectors()}
+                      gcl={eye.gclSectors ?? createDefaultGclSectors()}
+                      disabled={isImpossible}
+                      onChange={({ rnflSectors, gclSectors }: { rnflSectors: RnflSectors; gclSectors: GclSectors }) =>
                         onUpdate({
                           ...eye,
-                          rnfl: {
-                            status: e.target.value as RNFLGCLStatus,
-                            location: needsLocalisation(e.target.value as RNFLGCLStatus)
-                              ? (eye.rnfl?.location ?? '')
-                              : undefined,
-                          },
+                          rnflSectors,
+                          gclSectors,
+                          rnfl: deriveRnflStatus(rnflSectors),
+                          gcl: deriveGclStatus(gclSectors),
                         })
                       }
-                    >
-                      {RNFL_STATUSES.map((o) => (
-                        <option key={o.value} value={o.value}>{o.label}</option>
-                      ))}
-                    </select>
-                    {needsLocalisation(eye.rnfl?.status) && (
-                      <select
-                        className="w-full p-2.5 mt-2 border-2 border-slate-200 rounded-xl text-sm font-bold bg-white"
-                        value={eye.rnfl?.location ?? ''}
-                        onChange={(e) =>
-                          onUpdate({
-                            ...eye,
-                            rnfl: { status: eye.rnfl!.status, location: e.target.value },
-                          })
-                        }
-                      >
-                        <option value="">— Localisation RNFL —</option>
-                        {RNFL_LOCATIONS.map((o) => (
-                          <option key={o.value} value={o.value}>{o.label}</option>
-                        ))}
-                      </select>
-                    )}
-                  </div>
-                )}
-
-                {/* GCL++ — OCT uniquement */}
-                {isOCT && (
-                  <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2">GCL++</label>
-                    <select
-                      className="w-full p-2.5 border-2 border-slate-200 rounded-xl text-sm font-bold outline-none focus:border-teal-500 bg-white"
-                      value={eye.gcl?.status ?? 'normal'}
-                      onChange={(e) =>
-                        onUpdate({
-                          ...eye,
-                          gcl: {
-                            status: e.target.value as RNFLGCLStatus,
-                            location: needsLocalisation(e.target.value as RNFLGCLStatus)
-                              ? (eye.gcl?.location ?? '')
-                              : undefined,
-                          },
-                        })
-                      }
-                    >
-                      {RNFL_STATUSES.map((o) => (
-                        <option key={o.value} value={o.value}>{o.label}</option>
-                      ))}
-                    </select>
-                    {needsLocalisation(eye.gcl?.status) && (
-                      <select
-                        className="w-full p-2.5 mt-2 border-2 border-slate-200 rounded-xl text-sm font-bold bg-white"
-                        value={eye.gcl?.location ?? ''}
-                        onChange={(e) =>
-                          onUpdate({
-                            ...eye,
-                            gcl: { status: eye.gcl!.status, location: e.target.value },
-                          })
-                        }
-                      >
-                        <option value="">— Localisation GCL —</option>
-                        {RNFL_LOCATIONS.map((o) => (
-                          <option key={o.value} value={o.value}>{o.label}</option>
-                        ))}
-                      </select>
-                    )}
+                    />
                   </div>
                 )}
 
@@ -535,6 +499,33 @@ export default function EyeExamSection({
         </div>
       </div>
 
+      {/* Modale RetinaSketch */}
+      {showRetinaEditor && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
+          <div className="relative flex flex-col w-full max-w-5xl h-[85vh] bg-white rounded-2xl shadow-2xl overflow-hidden border border-slate-200">
+            <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200 bg-slate-50">
+              <h3 className="font-black text-slate-800 flex items-center gap-2">
+                <Pencil className="w-5 h-5 text-teal-600" />
+                Annotation de la rétine — {side === 'OD' ? 'Œil droit' : 'Œil gauche'}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowRetinaEditor(false)}
+                className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl flex items-center gap-2 transition-all active:scale-95"
+              >
+                <X className="w-4 h-4" /> Terminer
+              </button>
+            </div>
+            <div className="flex-1 min-h-0">
+              <RetinaEditor
+                side={side}
+                value={eye.retinaAnnotations ?? []}
+                onChange={(annotations: Annotation[]) => update('retinaAnnotations', annotations)}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
