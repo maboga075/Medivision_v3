@@ -16,7 +16,6 @@ import {
   type RnflSectors,
   type GclSectors,
 } from '../../utils/rnflGcl';
-import { useSuggestions } from '../../hooks/useSuggestions';
 import type { EyeState } from '../../types/clinical';
 
 const PREDEFINED_CAUSES = [
@@ -50,9 +49,7 @@ export default function EyeExamSection({
   showOpticNerve = false,
   showAnterior = false,
   octaDone = false,
-  onNewSuggestion,
 }: EyeExamSectionProps) {
-  const suggestions = useSuggestions();
   const [showMesures, setShowMesures] = useState(false);
   const [customCause, setCustomCause] = useState('');
   const [showCustomInput, setShowCustomInput] = useState(false);
@@ -265,36 +262,6 @@ export default function EyeExamSection({
             </span>
           </button>
 
-          <BubblePicker
-            title="Macula"
-            selectedItems={eye.observationsMacula}
-            suggestions={suggestions.macula}
-            onAdd={(item) => handleAddObs('observationsMacula', item)}
-            onRemove={(item) => handleRemoveObs('observationsMacula', item)}
-            onNewSuggestion={onNewSuggestion ? (item) => onNewSuggestion('macula', item) : undefined}
-            disabled={isImpossible}
-          />
-
-          <BubblePicker
-            title="Papille"
-            selectedItems={eye.observationsPapille}
-            suggestions={suggestions.papille}
-            onAdd={(item) => handleAddObs('observationsPapille', item)}
-            onRemove={(item) => handleRemoveObs('observationsPapille', item)}
-            onNewSuggestion={onNewSuggestion ? (item) => onNewSuggestion('papille', item) : undefined}
-            disabled={isImpossible}
-          />
-
-          <BubblePicker
-            title="Périphérie"
-            selectedItems={eye.observationsPeripherie}
-            suggestions={suggestions.peripherie}
-            onAdd={(item) => handleAddObs('observationsPeripherie', item)}
-            onRemove={(item) => handleRemoveObs('observationsPeripherie', item)}
-            onNewSuggestion={onNewSuggestion ? (item) => onNewSuggestion('peripherie', item) : undefined}
-            disabled={isImpossible}
-          />
-
           {/* Segment Antérieur — si activé au niveau consultation */}
           {showAnterior && (
             <div className="space-y-3 pt-2 border-t border-indigo-100">
@@ -485,18 +452,6 @@ export default function EyeExamSection({
           </div>
         )}
 
-        {/* Notes additionnelles */}
-        <div className="border-t border-slate-100 pt-4">
-          <label className="block text-xs font-bold text-slate-500 uppercase mb-2">
-            Notes additionnelles
-          </label>
-          <textarea
-            className="w-full p-3 border-2 border-slate-200 rounded-xl text-sm h-20 outline-none focus:border-teal-500 bg-slate-50 focus:bg-white transition-all"
-            placeholder="Ex: Patient peu coopératif, suivi difficile…"
-            value={eye.obsFree}
-            onChange={(e) => update('obsFree', e.target.value)}
-          />
-        </div>
       </div>
 
       {/* Modale RetinaSketch */}

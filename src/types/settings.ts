@@ -33,6 +33,14 @@ export interface ExportSettings {
   useFilePicker?: boolean;
 }
 
+export interface CustomLesion {
+  id: string;
+  name: string;
+  color: string;
+  category: string;
+  terms: string[];
+}
+
 export interface AppSettings {
   clinic: ClinicSettings;
   doctors: Doctor[];
@@ -40,5 +48,6 @@ export interface AppSettings {
   medecinPrescripteurParDefaut?: string;
   formulario: FormulaireSettings;
   export: ExportSettings;
+  customLesions?: CustomLesion[];
   updatedAt?: unknown;
 }

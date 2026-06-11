@@ -30,8 +30,22 @@ export const LESIONS: Lesion[] = [
 ];
 
 const LESION_MAP = new Map(LESIONS.map((l) => [l.id, l]));
-export const getLesion = (id: string | null) =>
-  id ? LESION_MAP.get(id) : undefined;
+
+// Registre des lésions personnalisées — mis à jour via setCustomLesions()
+let _customLesions: Lesion[] = [];
+
+export function setCustomLesions(lesions: Lesion[]): void {
+  _customLesions = lesions;
+}
+
+export function getAllLesions(): Lesion[] {
+  return [...LESIONS, ..._customLesions];
+}
+
+export const getLesion = (id: string | null): Lesion | undefined => {
+  if (!id) return undefined;
+  return LESION_MAP.get(id) ?? _customLesions.find((l) => l.id === id);
+};
 
 /** Normalise (minuscule, sans accents, sans tirets) pour la recherche. */
 function norm(s: string): string {
@@ -52,11 +66,12 @@ function isSubsequence(q: string, h: string): boolean {
   return i === q.length;
 }
 
-/** Recherche tolérante : exact > préfixe > sous-chaîne > sous-séquence floue. */
+/** Recherche tolérante dans toutes les lésions (built-in + custom). */
 export function searchLesions(query: string, limit = 6): Lesion[] {
   const q = norm(query).replace(/\s+/g, "");
   if (!q) return [];
-  const scored = LESIONS.map((l) => {
+  const all = getAllLesions();
+  const scored = all.map((l) => {
     const haystacks = [l.name, l.category, ...l.terms].map((h) =>
       norm(h).replace(/\s+/g, ""),
     );

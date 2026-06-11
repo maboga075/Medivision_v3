@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { db, doc, getDoc, setDoc, serverTimestamp } from '../services/firebase';
-import type { AppSettings, Doctor } from '../types/settings';
+import type { AppSettings, Doctor, CustomLesion } from '../types/settings';
+import { setCustomLesions } from '../features/retinasketch/lib/ontology/lesions';
 
 const SETTINGS_DOC_ID = 'clinic';
 const LOCAL_CACHE_KEY = 'medivision_settings_cache';
@@ -64,6 +65,7 @@ export function useSettings() {
           const data = stripTimestamps(snap.data()) as AppSettings;
           const merged = { ...DEFAULT_SETTINGS, ...data };
           setSettings(merged);
+          if (merged.customLesions) setCustomLesions(merged.customLesions);
           localStorage.setItem(LOCAL_CACHE_KEY, JSON.stringify(merged));
         } else {
           await setDoc(ref, cleanUndefined({ ...DEFAULT_SETTINGS, updatedAt: serverTimestamp() }) as Record<string, unknown>);
@@ -88,6 +90,7 @@ export function useSettings() {
     const clean = cleanUndefined({ ...next, updatedAt: serverTimestamp() }) as Record<string, unknown>;
     await setDoc(ref, clean);
     setSettings(next);
+    if (next.customLesions) setCustomLesions(next.customLesions);
     localStorage.setItem(LOCAL_CACHE_KEY, JSON.stringify(next));
   }, []);
 
@@ -182,6 +185,14 @@ export function useSettings() {
     [settings, persist]
   );
 
+  const updateCustomLesions = useCallback(
+    async (lesions: CustomLesion[]) => {
+      if (!settings) return;
+      await persist({ ...settings, customLesions: lesions });
+    },
+    [settings, persist]
+  );
+
   return {
     settings,
     loading,
@@ -196,5 +207,6 @@ export function useSettings() {
     updateBulles,
     updatePrescripteurs,
     updateExport,
+    updateCustomLesions,
   };
 }

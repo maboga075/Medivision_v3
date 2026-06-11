@@ -1,8 +1,7 @@
 /**
  * VisualClinicalSection — bloc clinique visuel du compte rendu (V3).
- * Remplace le tableau fusionné : schéma rétine + anneaux RNFL/GCL + jauge C/D
- * par œil. Repli : si un œil n'a ni secteurs ni annotations (rapports d'avant
- * la V3), les valeurs RNFL/GCL sont affichées en texte.
+ * Schéma rétine + anneaux RNFL/GCL + barre C/D par œil.
+ * Légendes repositionnées : lésions sous le schéma, sévérité sous les anneaux.
  */
 
 import type { EyeData } from '../../../types/report';
@@ -38,6 +37,7 @@ function EyeColumn({ eye }: { eye: EyeData }) {
   const finding = eyeFinding(eye);
   const rnflTxt = biomValue(eye, 'RNFL');
   const gclTxt = biomValue(eye, 'GCL++');
+  const legend = lesionLegend(eye.annotations);
 
   return (
     <div className="vc-col">
@@ -60,11 +60,23 @@ function EyeColumn({ eye }: { eye: EyeData }) {
         </div>
       ) : (
         <>
+          {/* Schéma rétinien */}
           <div className="vc-schema">
             <RetinaSchemaSvg side={eye.code} annotations={eye.annotations} />
           </div>
+
+          {/* Légende des lésions dessinées — sous le schéma, par œil */}
+          {legend.length > 0 && (
+            <div className="vc-lesion-legend">
+              {legend.map((l) => (
+                <span key={l.id}><i style={{ background: l.color }} />{l.name}</span>
+              ))}
+            </div>
+          )}
+
           <div className={`vc-finding ${finding.clear ? 'clear' : ''}`}>{finding.text}</div>
 
+          {/* Bloc neuro : anneaux + barre C/D */}
           <div className="vc-neuro">
             {hasRings ? (
               <NeuroRings side={eye.code} rnfl={eye.rnflSectors} gcl={eye.gclSectors} />
@@ -83,9 +95,6 @@ function EyeColumn({ eye }: { eye: EyeData }) {
 }
 
 export default function VisualClinicalSection({ od, og }: { od: EyeData; og: EyeData }) {
-  const legend = [...lesionLegend(od.annotations), ...lesionLegend(og.annotations)]
-    .filter((l, i, arr) => arr.findIndex((x) => x.id === l.id) === i);
-
   return (
     <div className="visual-clinical">
       <div className="vc-pair">
@@ -93,19 +102,11 @@ export default function VisualClinicalSection({ od, og }: { od: EyeData; og: Eye
         <EyeColumn eye={og} />
       </div>
 
-      <div className="vc-legends">
-        {legend.length > 0 && (
-          <div className="vc-lesion-legend">
-            {legend.map((l) => (
-              <span key={l.id}><i style={{ background: l.color }} />{l.name}</span>
-            ))}
-          </div>
-        )}
-        <div className="vc-sev-legend">
-          {SEV_LEGEND.map((s) => (
-            <span key={s.label}><i style={{ background: s.color }} />{s.label}</span>
-          ))}
-        </div>
+      {/* Légende de sévérité RNFL/GCL — partagée, sous les deux colonnes */}
+      <div className="vc-sev-legend">
+        {SEV_LEGEND.map((s) => (
+          <span key={s.label}><i style={{ background: s.color }} />{s.label}</span>
+        ))}
       </div>
     </div>
   );

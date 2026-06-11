@@ -3,12 +3,9 @@ import { Plus, X, RotateCcw, Layers, Lock } from 'lucide-react';
 import { useSettings } from '../../hooks/useSettings';
 import { DEFAULT_SUGGESTIONS } from '../../constants/defaultSuggestions';
 
-type CategoryKey = 'macula' | 'papille' | 'peripherie' | 'motifs' | 'antecedents' | 'diagnostics';
+type CategoryKey = 'motifs' | 'antecedents' | 'diagnostics';
 
 const CATEGORIES: { key: CategoryKey; label: string; description: string }[] = [
-  { key: 'macula',      label: 'Macula',               description: 'Observations maculaires OCT' },
-  { key: 'papille',     label: 'Papille',               description: 'Observations papillaires OCT' },
-  { key: 'peripherie',  label: 'Périphérie',            description: 'Observations de la périphérie rétinienne' },
   { key: 'motifs',      label: 'Motifs médicaux',       description: 'Motifs d\'examen proposés à la création du dossier' },
   { key: 'antecedents', label: 'Antécédents',           description: 'Antécédents proposés à la création du dossier' },
   { key: 'diagnostics', label: 'Diagnostics fréquents', description: 'Diagnostics proposés dans le formulaire de consultation' },

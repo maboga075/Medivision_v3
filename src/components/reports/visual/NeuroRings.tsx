@@ -1,7 +1,7 @@
 /**
  * NeuroRings — anneaux sectoriels RNFL (4 quadrants) et GCL+ (6 secteurs)
- * pour le compte rendu. Lecture seule, colorés depuis les grilles de secteurs.
- * Miroir nasal/temporal selon l'œil.
+ * pour le compte rendu. Labels de localisation S / I / T / N selon l'œil.
+ * Lecture seule, miroir nasal/temporal selon l'œil.
  */
 
 import {
@@ -52,15 +52,25 @@ function RnflRing({ side, s }: { side: 'OD' | 'OG'; s: RnflSectors }) {
     { k: 'N', a0: Nside - 42, a1: Nside + 42 },
     { k: 'T', a0: Tside - 42, a1: Tside + 42 },
   ];
+
+  // Positions des étiquettes directionnelles à l'extérieur du ring (rayon 44)
+  const [nLx, nLy] = polar(44, Nside);
+  const [tLx, tLy] = polar(44, Tside);
+  const nAnchor = Nside === 90 ? 'start' : 'end';
+  const tAnchor = Tside === 90 ? 'start' : 'end';
+
   return (
     <div className="ring">
       <svg viewBox="0 0 100 100">
         {geom.map(({ k, a0, a1 }) => (
           <path key={k} d={sectorPath(40, 23, a0, a1)} fill={RNFL_COLORS[s[k]]} stroke={s[k] === 3 ? '#9aa6ab' : '#fff'} strokeWidth={1.2} />
         ))}
-        <text x={50} y={50} textAnchor="middle" dominantBaseline="middle" fontSize={9.5} fontWeight={600} fontFamily="monospace" fill="#3d5660">RNFL</text>
-        <text x={50} y={11} textAnchor="middle" fontSize={7.5} fill="#9aa6ab">S</text>
-        <text x={50} y={94} textAnchor="middle" fontSize={7.5} fill="#9aa6ab">I</text>
+        <text x={50} y={50} textAnchor="middle" dominantBaseline="middle" fontSize={8.5} fontWeight={600} fontFamily="monospace" fill="#3d5660">RNFL</text>
+        {/* Labels directionnels */}
+        <text x={50} y={6} textAnchor="middle" fontSize={6.5} fontWeight={700} fill="#6b7b8a">S</text>
+        <text x={50} y={97} textAnchor="middle" fontSize={6.5} fontWeight={700} fill="#6b7b8a">I</text>
+        <text x={nLx} y={nLy + 2.5} textAnchor={nAnchor} fontSize={6.5} fontWeight={700} fill="#6b7b8a">N</text>
+        <text x={tLx} y={tLy + 2.5} textAnchor={tAnchor} fontSize={6.5} fontWeight={700} fill="#6b7b8a">T</text>
       </svg>
       <span>RNFL</span>
     </div>
@@ -70,13 +80,27 @@ function RnflRing({ side, s }: { side: 'OD' | 'OG'; s: RnflSectors }) {
 function GclRing({ side, s }: { side: 'OD' | 'OG'; s: GclSectors }) {
   const f = side === 'OG' ? 1 : -1;
   const angle: Record<GclSectorKey, number> = { S: 0, ST: 60 * f, IT: 120 * f, I: 180, IN: 240 * f, SN: 300 * f };
+
+  // Temporal = sens de ST/IT, nasal = sens de SN/IN
+  const Tside = side === 'OG' ? 90 : 270;
+  const Nside = side === 'OG' ? 270 : 90;
+  const [nLx, nLy] = polar(44, Nside);
+  const [tLx, tLy] = polar(44, Tside);
+  const nAnchor = Nside === 90 ? 'start' : 'end';
+  const tAnchor = Tside === 90 ? 'start' : 'end';
+
   return (
     <div className="ring">
       <svg viewBox="0 0 100 100">
         {GCL_SECTOR_ORDER.map((k) => (
           <path key={k} d={sectorPath(40, 21, angle[k] - 28, angle[k] + 28)} fill={GCL_COLORS[s[k]]} stroke="#fff" strokeWidth={1.2} />
         ))}
-        <text x={50} y={50} textAnchor="middle" dominantBaseline="middle" fontSize={9} fontWeight={600} fontFamily="monospace" fill="#3d5660">GCL+</text>
+        <text x={50} y={50} textAnchor="middle" dominantBaseline="middle" fontSize={8} fontWeight={600} fontFamily="monospace" fill="#3d5660">GCL+</text>
+        {/* Labels directionnels */}
+        <text x={50} y={6} textAnchor="middle" fontSize={6.5} fontWeight={700} fill="#6b7b8a">S</text>
+        <text x={50} y={97} textAnchor="middle" fontSize={6.5} fontWeight={700} fill="#6b7b8a">I</text>
+        <text x={nLx} y={nLy + 2.5} textAnchor={nAnchor} fontSize={6.5} fontWeight={700} fill="#6b7b8a">N</text>
+        <text x={tLx} y={tLy + 2.5} textAnchor={tAnchor} fontSize={6.5} fontWeight={700} fill="#6b7b8a">T</text>
       </svg>
       <span>GCL+</span>
     </div>

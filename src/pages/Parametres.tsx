@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Settings, Key, Shield, Building2, Users, Layers, FileDown } from 'lucide-react';
+import { Settings, Key, Shield, Building2, Users, Layers, FileDown, Palette } from 'lucide-react';
 import { useSettings } from '../hooks/useSettings';
 import ClinicTab from '../components/settings/ClinicTab';
 import DoctorsTab from '../components/settings/DoctorsTab';
 import FormulaireTab from '../components/settings/FormulaireTab';
 import ExportTab from '../components/settings/ExportTab';
+import LesionsTab from '../components/settings/LesionsTab';
 
 /* ─── IA Config ──────────────────────────────────────────────────── */
 
@@ -131,7 +132,7 @@ function IATab() {
 
 /* ─── Page principale ────────────────────────────────────────────── */
 
-type TabKey = 'ia' | 'clinic' | 'doctors' | 'formulaire' | 'export';
+type TabKey = 'ia' | 'clinic' | 'doctors' | 'formulaire' | 'lesions' | 'export';
 
 interface TabMeta { label: string; icon: React.ReactNode }
 
@@ -140,6 +141,7 @@ const TABS: Record<TabKey, TabMeta> = {
   clinic:     { label: 'Clinique',    icon: <Building2 className="w-4 h-4" /> },
   doctors:    { label: 'Médecins',    icon: <Users className="w-4 h-4" /> },
   formulaire: { label: 'Formulaire',  icon: <Layers className="w-4 h-4" /> },
+  lesions:    { label: 'Lésions',     icon: <Palette className="w-4 h-4" /> },
   export:     { label: 'Export',      icon: <FileDown className="w-4 h-4" /> },
 };
 
@@ -201,6 +203,7 @@ export default function Parametres() {
               {activeTab === 'clinic'     && <ClinicTab     settings={settings} />}
               {activeTab === 'doctors'    && <DoctorsTab />}
               {activeTab === 'formulaire' && <FormulaireTab />}
+              {activeTab === 'lesions'    && <LesionsTab />}
               {activeTab === 'export'     && <ExportTab />}
             </>
           )}
