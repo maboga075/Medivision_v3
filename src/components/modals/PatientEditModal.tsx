@@ -22,7 +22,7 @@ const calculateAge = (dob: string): number => {
 };
 
 const INITIAL_FORM: PatientFormData = {
-  folderId: '', nom: '', dateNaissance: '', motifs: [], antecedents: [],
+  folderId: '', nom: '', sexe: '', dateNaissance: '', motifs: [], antecedents: [],
   tel: '', email: '', hasTraitement: false, traitementTexte: '',
   medecinPrescripteur: '', dateExamen: '',
 };
@@ -59,6 +59,7 @@ export default function PatientEditModal({ isOpen, onClose, patient, onUpdate }:
       setFormData({
         folderId: patient.folderId ?? '',
         nom: patient.nom ?? '',
+        sexe: patient.sexe ?? '',
         dateNaissance: patient.dateNaissance ?? '',
         motifs: patient.motifs ?? [],
         antecedents: patient.antecedents ?? [],
@@ -154,7 +155,11 @@ export default function PatientEditModal({ isOpen, onClose, patient, onUpdate }:
       return;
     }
     try {
-      const updatedData = { ...formData, age: calculateAge(formData.dateNaissance) };
+      const updatedData = {
+        ...formData,
+        sexe: formData.sexe || undefined, // '' → undefined pour rester compatible PatientFirestore
+        age: calculateAge(formData.dateNaissance),
+      };
       const pRef = doc(db, 'patients', patient.id);
       await updateDoc(pRef, updatedData as Record<string, unknown>);
       setIsSuccess(true);
@@ -201,6 +206,25 @@ export default function PatientEditModal({ isOpen, onClose, patient, onUpdate }:
                 />
               </div>
             ))}
+            <div className="border-2 border-slate-100 p-4 rounded-3xl bg-slate-50/50">
+              <label className="block text-sm font-bold text-slate-700 mb-2">Sexe</label>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, sexe: 'M' })}
+                  className={`flex-1 px-4 py-4 rounded-2xl text-lg font-bold border-2 transition-all active:scale-95 ${formData.sexe === 'M' ? 'bg-indigo-500 border-indigo-500 text-white shadow-md' : 'bg-white border-slate-200 text-slate-600 hover:border-indigo-300'}`}
+                >
+                  Homme
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, sexe: 'F' })}
+                  className={`flex-1 px-4 py-4 rounded-2xl text-lg font-bold border-2 transition-all active:scale-95 ${formData.sexe === 'F' ? 'bg-indigo-500 border-indigo-500 text-white shadow-md' : 'bg-white border-slate-200 text-slate-600 hover:border-indigo-300'}`}
+                >
+                  Femme
+                </button>
+              </div>
+            </div>
           </section>
 
           {/* Motifs */}

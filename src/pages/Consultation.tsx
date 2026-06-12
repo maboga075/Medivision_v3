@@ -135,6 +135,7 @@ export default function Consultation() {
       const rawInputJson: RawConsultationData = {
         patient: {
           nom: selectedPatient.nom,
+          sexe: selectedPatient.sexe,
           age: selectedPatient.age,
           date_naissance: selectedPatient.dateNaissance ?? null,
         },

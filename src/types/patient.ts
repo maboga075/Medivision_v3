@@ -2,10 +2,13 @@
 
 import { Timestamp } from 'firebase/firestore';
 
+export type Sexe = 'M' | 'F';
+
 export interface PatientFirestore {
   id: string;
   folderId?: string;
   nom: string;
+  sexe?: Sexe;
   age: number | string;
   dateNaissance: string;
   motifs: string[];
@@ -24,6 +27,7 @@ export interface PatientFirestore {
 export interface PatientFormData {
   folderId: string;
   nom: string;
+  sexe: '' | Sexe;
   dateNaissance: string;
   motifs: string[];
   antecedents: string[];

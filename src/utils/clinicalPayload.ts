@@ -11,6 +11,8 @@ import type {
   RNFLGCLData,
 } from '../types/clinical';
 import type { RawConsultationData } from '../types/clinical';
+import { generateReport } from '../features/retinasketch/lib/report/generate';
+import type { Annotation } from '../features/retinasketch/lib/types';
 
 const cleanString = (str: unknown): string => {
   if (typeof str !== 'string') return '';
@@ -66,8 +68,8 @@ function removeEmptyFields<T>(obj: T): T {
   return obj;
 }
 
-// Mappe les champs bubble-picker vers l'objet observations imbriqué
-const buildObservations = (eye: EyeState): ObservationsNormalisees => {
+// Mappe les champs bubble-picker + annotations RSK vers l'objet observations imbriqué
+const buildObservations = (eye: EyeState, laterality: 'OD' | 'OG'): ObservationsNormalisees => {
   const obs: ObservationsNormalisees = {};
 
   const assign = (key: keyof ObservationsNormalisees, arr: string[]) => {
@@ -77,7 +79,6 @@ const buildObservations = (eye: EyeState): ObservationsNormalisees => {
 
   assign('papille', eye.observationsPapille ?? []);
   assign('macula', eye.observationsMacula ?? []);
-  // vasculaire supprimé (Session 2 A4)
   assign('peripherie', eye.observationsPeripherie ?? []);
   assign('anterieur', eye.obsAnterieur ?? []);
 
@@ -89,11 +90,27 @@ const buildObservations = (eye: EyeState): ObservationsNormalisees => {
     assign('octa', eye.obsOCTA ?? []);
   }
 
+  // Annotations RetinaSketch — converties en texte clinique structuré
+  const annotations = (eye.retinaAnnotations ?? []) as Annotation[];
+  const validated = annotations.filter((a) => a.status === 'validated');
+  if (validated.length > 0) {
+    const reportText = generateReport(annotations, laterality);
+    // On extrait les lignes de lésions (format "• Présence de…")
+    const lesionLines = reportText
+      .split('\n')
+      .filter((l) => l.startsWith('•'))
+      .map((l) => l.replace(/^•\s*/, '').trim())
+      .filter(Boolean);
+    if (lesionLines.length > 0) {
+      obs.retina = lesionLines;
+    }
+  }
+
   return obs;
 };
 
-const normalizeEyeData = (eye: EyeState): EyeDataNormalisee => {
-  const observations = buildObservations(eye);
+const normalizeEyeData = (eye: EyeState, laterality: 'OD' | 'OG'): EyeDataNormalisee => {
+  const observations = buildObservations(eye, laterality);
 
   // acquisitionStatus : n'inclure que si anormal (Faible/Impossible) — 'Bon' est implicite
   // octaPerformed     : n'inclure que si true — false est implicite (absence = non réalisé, à ne pas mentionner)
@@ -160,8 +177,8 @@ export const normalizeClinicalData = (
         : {}),
     },
     donnees_cliniques: {
-      oeil_droit: rawInputJson.oeil_droit ? normalizeEyeData(rawInputJson.oeil_droit) : null,
-      oeil_gauche: rawInputJson.oeil_gauche ? normalizeEyeData(rawInputJson.oeil_gauche) : null,
+      oeil_droit:  rawInputJson.oeil_droit  ? normalizeEyeData(rawInputJson.oeil_droit,  'OD') : null,
+      oeil_gauche: rawInputJson.oeil_gauche ? normalizeEyeData(rawInputJson.oeil_gauche, 'OG') : null,
     },
   };
 

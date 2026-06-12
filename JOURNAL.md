@@ -40,6 +40,66 @@ src/
 
 ---
 
+### Session 2026-06-12 — Mise à jour V3 (rapport visuel + sexe patient)
+
+**Demandé par :** Yoan
+**Statut :** ✅ Terminé, build OK (0 erreurs introduites)
+
+#### Rapport visuel (NeuroRings / CDGauge / VisualClinicalSection + CSS)
+- [x] **Espacement des anneaux** RNFL ↔ GCL : `gap` 8 → 18px (`.neuro-rings`)
+- [x] **Cadre bleu supprimé** : c'était la **sélection de texte native** sur les `<text>` SVG des anneaux → `user-select: none` sur `.neuro-rings`, `.cd-bar-block`, `.vc-neuro-center`
+- [x] **Repositionnement barre C/D** : valeur C/D **au-dessus** de la barre, surface discale **en dessous** (CDGauge), labels « C/D vertical » (haut) / « Cup area » (bas) alignés via `justify-content: space-between` + `align-self: stretch`
+- [x] **C/D arrondi au dixième** : `toFixed(2)` → `toFixed(1)`
+- [x] **Barre C/D « intelligente »** : seuils de couleur calculés selon la surface discale. Limite haute de normalité interpolée 0,5 (≤1,5 mm²) → 0,6 (~2,0 mm²) → 0,7 (≥2,8 mm²). Fondé sur la biblio : González de la Rosa 2025 (percentiles C/D vs surface discale), Jonas 2000 & Quigley 1991 (correction du C/D par la taille du disque)
+- [x] **Légende des symptômes RetinaSketch** encadrée par **2 lignes de démarcation** (`border-top`/`border-bottom` sur `.vc-lesion-legend`)
+- [x] **Suppression de la répétition rouge** : `eyeFinding` ne répète plus les lésions déjà listées dans la légende (retourne `null` si seules des lésions sont présentes) → fin de la redondance
+- [x] **Définitions des sigles** RNFL et GCL ajoutées sous la légende code-couleur (`.vc-sev-defs`)
+
+#### Sexe patient (formulaire d'accueil)
+- [x] **`types/patient.ts`** : type `Sexe = 'M' | 'F'`, champ `sexe` ajouté à `PatientFirestore` (optionnel) et `PatientFormData`
+- [x] **`Accueil.tsx`** : sélecteur Homme/Femme obligatoire (validation) dans la section identité
+- [x] **`PatientEditModal.tsx`** : sélecteur sexe ajouté (corriger les anciens dossiers)
+- [x] **Propagation** : `RawConsultationData.patient.sexe` → `Consultation.tsx` → `reportDataMapper` (remplace le `sex: 'M'` codé en dur, repli `'M'` pour les anciens dossiers)
+
+---
+
+### Session 2026-06-11 (suite) — Mise à jour V2
+
+**Demandé par :** Yoan  
+**Statut :** ✅ Terminé, build OK (0 erreurs)
+
+#### RetinaSketch — corrections
+
+- [x] **Touche Espace** : la touche Espace est maintenant bloquée uniquement hors champ input/textarea. L'utilisateur peut saisir des noms de lésions avec plusieurs mots (ex : "déchirure rétinienne")
+- [x] **Clic hors rétine** : les clics en dehors de l'ellipse rétinienne ne déclenchent plus de création d'annotation (test par équation elliptique `x²/rx² + y²/ry² > 1`)
+- [x] **Annotations → payload IA** : `clinicalPayload.ts` inclut désormais les annotations RSK validées via `generateReport()` → `obs.retina: string[]`. Bug critique corrigé.
+- [x] **Avertissement sortie sans validation** : si des annotations sont en statut `draft` lors du clic "Terminer", une confirmation est demandée (`window.confirm`)
+
+#### Module RGB (compte rendu visuel)
+
+- [x] **Cadre bleu supprimé** définitivement sur les anneaux RNFL et GCL (stroke `#fff` uniforme, même grade 3)
+- [x] **Anneaux agrandis** : 80px → 96px (CSS `.neuro-rings .ring svg`)
+- [x] **Paramètres biométriques** sans toggle (section toujours visible)
+- [x] **Layout 3 colonnes** :  
+  - Col gauche : anneaux OD + barre C/D (barre à droite des anneaux, côté centre)  
+  - Col centre : labels "C/D vertical" / "Cup area (mm²)" une seule fois pour les 2 yeux  
+  - Col droite : barre C/D + anneaux OG (barre à gauche des anneaux, côté centre)
+- [x] CSS : nouvelles classes `.vc-neuro-row`, `.vc-neuro-half`, `.vc-neuro-od/og`, `.vc-neuro-center`, `.vc-nc-label`
+
+#### Paramètres — Formes cliniques (nouveau module)
+
+- [x] **`types/settings.ts`** : interface `ClinicalPattern` (id, name, type RNFL/GCL/RNFL+GCL, rnflSectors, gclSectors, description) + `SeverityGrade` + champ `clinicalPatterns?` dans `AppSettings`
+- [x] **`useSettings.ts`** : callback `updateClinicalPatterns()` exposé
+- [x] **`PatternsTab.tsx`** (nouveau composant) :  
+  - CRUD complet : ajout, édition inline, suppression avec confirmation  
+  - Sélecteur de secteurs interactif : boutons S/I/N/T (RNFL) et S/ST/IT/I/IN/SN (GCL) qui cyclent entre les grades (Normal → Limite → Hors norme → Critique)  
+  - Couleurs cohérentes avec les anneaux du compte rendu (`GRADE_COLORS`)  
+  - Carte de résumé avec badges colorés par secteur affecté  
+  - Note clinique libre par forme  
+- [x] **`Parametres.tsx`** : onglet "Formes clin." ajouté (icône `Activity`)
+
+---
+
 ### Session 2026-06-11 — Mise à jour V1
 
 **Demandé par :** Yoan  
@@ -92,21 +152,21 @@ src/
 > Mettre à jour cette section à chaque session
 
 ### Priorité haute
-- [ ] **Vérifier visuellement** le rendu de la barre C/D verticale et des anneaux agrandis  
-  (démarrer le dev server et screenshot)
+- [ ] Vérifier visuellement le layout 3 colonnes (OD rings + barre C/D | labels | barre C/D + OG rings)
 - [ ] Tester la création de lésion en live dans RetinaSketch (CommandPalette)
-- [ ] Vérifier que les lésions custom apparaissent bien dans la palette de recherche après rechargement
+- [ ] Vérifier que les formes cliniques se créent et se sauvegardent bien (onglet Formes clin.)
 
 ### Priorité normale
-- [ ] Le formulaire "Divers" → vérifier que son contenu est bien transmis à l'IA dans le payload
-- [ ] OCTA et Segment antérieur : tester les toggles dans le formulaire consultation
-- [ ] Export PDF : vérifier que les nouveaux styles CSS (barre C/D, anneaux 80px) s'impriment correctement
+- [ ] Export PDF : vérifier que les nouveaux styles CSS (3 colonnes, anneaux 96px) s'impriment correctement
 - [ ] Tester la compatibilité des anciens rapports sauvegardés (sans secteurs RNFL/GCL)
+- [ ] Connecter les formes cliniques à l'interprétation IA (future V3 : détection automatique du pattern)
+- [ ] Le formulaire "Divers" → vérifier que son contenu est bien transmis à l'IA dans le payload
 
 ### Idées à discuter
 - [ ] Ajouter un indicateur "%" de remplissage sur les secteurs RNFL/GCL (ex: 3/4 secteurs hors norme)
 - [ ] Mode comparaison : afficher côte à côte deux visites pour le même patient
 - [ ] Export image du schéma rétinien seul (PNG) pour intégration dans d'autres CR
+- [ ] Utiliser les formes cliniques comme aide à l'interprétation : mettre en évidence si le pattern observé correspond à une forme connue
 
 ---
 

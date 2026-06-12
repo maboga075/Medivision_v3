@@ -452,7 +452,8 @@ export function mapAIResultToOCTReportData(
     patient: {
       surname: consultation.patient.nom.toUpperCase(),
       age: patientAge,
-      sex: 'M',
+      // Sexe saisi à l'accueil ; repli sur 'M' pour les anciens dossiers sans sexe.
+      sex: consultation.patient.sexe ?? 'M',
     },
 
     prescriber,

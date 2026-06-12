@@ -41,6 +41,17 @@ export interface CustomLesion {
   terms: string[];
 }
 
+export type SeverityGrade = 1 | 2 | 3;
+
+export interface ClinicalPattern {
+  id: string;
+  name: string;
+  type: 'RNFL' | 'GCL' | 'RNFL+GCL';
+  rnflSectors?: Partial<Record<'S' | 'I' | 'N' | 'T', SeverityGrade>>;
+  gclSectors?: Partial<Record<'S' | 'ST' | 'IT' | 'I' | 'IN' | 'SN', SeverityGrade>>;
+  description?: string;
+}
+
 export interface AppSettings {
   clinic: ClinicSettings;
   doctors: Doctor[];
@@ -49,5 +60,6 @@ export interface AppSettings {
   formulario: FormulaireSettings;
   export: ExportSettings;
   customLesions?: CustomLesion[];
+  clinicalPatterns?: ClinicalPattern[];
   updatedAt?: unknown;
 }

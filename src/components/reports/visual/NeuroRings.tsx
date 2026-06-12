@@ -63,7 +63,7 @@ function RnflRing({ side, s }: { side: 'OD' | 'OG'; s: RnflSectors }) {
     <div className="ring">
       <svg viewBox="0 0 100 100">
         {geom.map(({ k, a0, a1 }) => (
-          <path key={k} d={sectorPath(40, 23, a0, a1)} fill={RNFL_COLORS[s[k]]} stroke={s[k] === 3 ? '#9aa6ab' : '#fff'} strokeWidth={1.2} />
+          <path key={k} d={sectorPath(40, 23, a0, a1)} fill={RNFL_COLORS[s[k]]} stroke="#fff" strokeWidth={1.2} />
         ))}
         <text x={50} y={50} textAnchor="middle" dominantBaseline="middle" fontSize={8.5} fontWeight={600} fontFamily="monospace" fill="#3d5660">RNFL</text>
         {/* Labels directionnels */}

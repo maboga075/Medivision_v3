@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Pencil, X } from 'lucide-react';
+import { useStore } from '../../features/retinasketch/store/useStore';
 import BubblePicker from './BubblePicker';
 import RnflGclPicker from './RnflGclPicker';
 import RetinaEditor from '../../features/retinasketch/components/RetinaEditor';
@@ -50,7 +51,6 @@ export default function EyeExamSection({
   showAnterior = false,
   octaDone = false,
 }: EyeExamSectionProps) {
-  const [showMesures, setShowMesures] = useState(false);
   const [customCause, setCustomCause] = useState('');
   const [showCustomInput, setShowCustomInput] = useState(false);
   const [showRetinaEditor, setShowRetinaEditor] = useState(false);
@@ -325,19 +325,14 @@ export default function EyeExamSection({
           </div>
         </div>
 
-        {/* Paramètres biométriques / nerf optique — section dépliable */}
+        {/* Module RGB — Paramètres biométriques / nerf optique — toujours visible */}
         {(isOCT || showOpticNerve) && (
           <div className="border border-slate-200 rounded-2xl overflow-hidden">
-            <button
-              onClick={() => setShowMesures(!showMesures)}
-              className="w-full flex items-center justify-between p-4 text-xs font-black text-teal-600 uppercase tracking-widest hover:bg-slate-50 transition-colors"
-            >
+            <div className="w-full flex items-center p-4 text-xs font-black text-teal-600 uppercase tracking-widest bg-slate-50 border-b border-slate-100">
               <span>{isOCT ? 'Paramètres biométriques (OCT)' : 'Paramètres nerf optique'}</span>
-              <span className="text-slate-400 text-sm font-bold">{showMesures ? '▲' : '▼'}</span>
-            </button>
+            </div>
 
-            {showMesures && (
-              <div className={`p-4 border-t border-slate-100 space-y-4 animate-in slide-in-from-top-2 ${isImpossible ? 'opacity-50 pointer-events-none select-none' : ''}`}>
+            <div className={`p-4 space-y-4 ${isImpossible ? 'opacity-50 pointer-events-none select-none' : ''}`}>
                 {/* RNFL & GCL+ par secteurs — OCT uniquement */}
                 {isOCT && (
                   <div>
@@ -447,8 +442,7 @@ export default function EyeExamSection({
                     )}
                   </div>
                 )}
-              </div>
-            )}
+            </div>
           </div>
         )}
 
@@ -465,7 +459,18 @@ export default function EyeExamSection({
               </h3>
               <button
                 type="button"
-                onClick={() => setShowRetinaEditor(false)}
+                onClick={() => {
+                  const drafts = useStore.getState().annotations.filter(
+                    (a) => a.status === 'draft'
+                  );
+                  if (drafts.length > 0) {
+                    const ok = window.confirm(
+                      `${drafts.length} annotation${drafts.length > 1 ? 's' : ''} non validée${drafts.length > 1 ? 's' : ''} sera perdue${drafts.length > 1 ? 's' : ''}.\nTerminer quand même ?`
+                    );
+                    if (!ok) return;
+                  }
+                  setShowRetinaEditor(false);
+                }}
                 className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl flex items-center gap-2 transition-all active:scale-95"
               >
                 <X className="w-4 h-4" /> Terminer

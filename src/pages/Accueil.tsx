@@ -44,6 +44,7 @@ const calculateAge = (dob: string): number => {
 const EMPTY_FORM: PatientFormData = {
   folderId: '',
   nom: '',
+  sexe: '',
   dateNaissance: '',
   motifs: [],
   antecedents: ['Sans particularité'],
@@ -147,11 +148,12 @@ export default function Accueil() {
   const handleSave = async () => {
     if (
       !formData.nom ||
+      !formData.sexe ||
       !formData.dateNaissance ||
       formData.motifs.length === 0 ||
       formData.antecedents.length === 0
     ) {
-      alert('Veuillez remplir les champs obligatoires (Nom, Date de naissance, Motifs, Antécédents).');
+      alert('Veuillez remplir les champs obligatoires (Nom, Sexe, Date de naissance, Motifs, Antécédents).');
       return;
     }
 
@@ -216,6 +218,35 @@ export default function Accueil() {
                 className="w-full px-5 py-4 rounded-2xl border-2 border-slate-200 focus:ring-0 focus:border-teal-500 outline-none transition-all text-lg bg-white"
                 placeholder="Ex: Jean Dupont"
               />
+            </div>
+            <div className="md:col-span-1 border-2 border-slate-100 p-4 rounded-3xl bg-slate-50/50">
+              <label className="block text-sm font-bold text-slate-700 mb-2">
+                Sexe <span className="text-red-500">*</span>
+              </label>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, sexe: 'M' })}
+                  className={`flex-1 px-4 py-4 rounded-2xl text-lg font-bold border-2 transition-all active:scale-95 ${
+                    formData.sexe === 'M'
+                      ? 'bg-teal-500 border-teal-500 text-white shadow-md'
+                      : 'bg-white border-slate-200 text-slate-600 hover:border-teal-300'
+                  }`}
+                >
+                  Homme
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, sexe: 'F' })}
+                  className={`flex-1 px-4 py-4 rounded-2xl text-lg font-bold border-2 transition-all active:scale-95 ${
+                    formData.sexe === 'F'
+                      ? 'bg-teal-500 border-teal-500 text-white shadow-md'
+                      : 'bg-white border-slate-200 text-slate-600 hover:border-teal-300'
+                  }`}
+                >
+                  Femme
+                </button>
+              </div>
             </div>
             <div className="md:col-span-1 border-2 border-slate-100 p-4 rounded-3xl bg-slate-50/50">
               <label className="block text-sm font-bold text-slate-700 mb-2">
