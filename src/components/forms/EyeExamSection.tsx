@@ -396,7 +396,17 @@ export default function EyeExamSection({
                         {([true, false] as const).map((v) => (
                           <button
                             key={String(v)}
-                            onClick={() => update('hasFollowUp', v)}
+                            onClick={() =>
+                              v
+                                ? onUpdate({
+                                    ...eye,
+                                    hasFollowUp: true,
+                                    // Défaut « Stable » pour que l'affichage corresponde au select
+                                    rnflEvolution: eye.rnflEvolution || 'Stable',
+                                    gclEvolution: eye.gclEvolution || 'Stable',
+                                  })
+                                : update('hasFollowUp', false)
+                            }
                             className={`px-3 py-1 rounded-lg text-xs font-black border transition-all active:scale-95 ${
                               eye.hasFollowUp === v
                                 ? v

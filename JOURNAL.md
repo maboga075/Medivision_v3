@@ -40,6 +40,27 @@ src/
 
 ---
 
+### Session 2026-06-13 (suite) — Cadres bleus, suivi, mise en page 1 page
+
+**Demandé par :** Yoan (avec screenshot + 2 PDF : export direct & impression navigateur)
+**Statut :** ✅ Terminé, `tsc --noEmit` 0 erreur, build OK
+
+#### Cadres bleus + incohérence navigateur/PDF (cause racine trouvée)
+- [x] Les « cadres bleus » autour des anneaux = **collision de la classe CSS `ring` avec l'utilitaire Tailwind `.ring`** (halo bleu de focus). Visibles dans le navigateur ET le PDF d'impression (box-shadow préservé), absents du PDF export direct (html2canvas ignore les box-shadow) → exactement l'incohérence signalée. → classe renommée `ring` → `neuro-ring` dans `NeuroRings` + CSS.
+
+#### Suivi RNFL/GCL
+- [x] **Date saisie une seule fois** : `Consultation.tsx` propage la `followUpDate` d'un œil à l'autre (sync bidirectionnel, sans écraser).
+- [x] **Évolution centrée sous chaque cercle** : le badge RNFL est sous le cercle RNFL, le badge GCL sous le cercle GCL (déplacé dans `NeuroRings`). La date reste centrée entre les deux yeux.
+- [x] **« Stable » désormais affiché** : la valeur par défaut était `''` (le select montrait « Stable » sans que l'état le soit). À l'activation du suivi, `EyeExamSection` initialise `rnflEvolution`/`gclEvolution` à « Stable ».
+
+#### Mise en page — tenir sur une seule page
+- [x] **Pied de page épuré** : suppression de « Fait à … » + ligne clinique (déjà en en-tête). E-mail + téléphone affichés en petit sous le nom du praticien.
+- [x] **En-tête compacté** : logo 46→38px, titres 22→19px, paddings réduits (page 14/12mm → 9/8mm, méta, masthead).
+- [x] **`.page` : `overflow: hidden` → `visible` + `min-height`** : le navigateur ne tronque plus le bas → cohérence avec PDF/impression.
+- [x] Anneaux du compte rendu légèrement réduits (96 → 90px).
+
+---
+
 ### Session 2026-06-13 — Mise à jour V3 v3 (correctifs RSK/IA, suivi, légendes, PDF)
 
 **Demandé par :** Yoan

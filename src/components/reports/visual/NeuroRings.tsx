@@ -2,6 +2,12 @@
  * NeuroRings — anneaux sectoriels RNFL (4 quadrants) et GCL+ (6 secteurs)
  * pour le compte rendu. Labels de localisation S / I / T / N selon l'œil.
  * Lecture seule, miroir nasal/temporal selon l'œil.
+ *
+ * NB : la classe CSS des anneaux est `neuro-ring` (et non `ring`) pour éviter
+ * la collision avec l'utilitaire Tailwind `.ring` qui dessine un halo bleu.
+ *
+ * Le badge d'évolution de suivi (« Diminué »/« Stable »…) est affiché centré
+ * sous le cercle correspondant (RNFL sous RNFL, GCL sous GCL).
  */
 
 import {
@@ -14,10 +20,17 @@ import {
   type RnflSectorKey,
 } from '../../../utils/rnflGcl';
 
+export interface Evo {
+  word: string;
+  cls: 'down' | 'stable' | 'up' | 'warn';
+}
+
 interface Props {
   side: 'OD' | 'OG';
   rnfl?: RnflSectors;
   gcl?: GclSectors;
+  rnflEvo?: Evo | null;
+  gclEvo?: Evo | null;
 }
 
 function polar(r: number, deg: number): [number, number] {
@@ -34,16 +47,21 @@ function sectorPath(rO: number, rI: number, a0: number, a1: number): string {
   return `M${ox0} ${oy0} A${rO} ${rO} 0 ${large} 1 ${ox1} ${oy1} L${ix1} ${iy1} A${rI} ${rI} 0 ${large} 0 ${ix0} ${iy0} Z`;
 }
 
-export default function NeuroRings({ side, rnfl, gcl }: Props) {
+function EvoBadge({ evo }: { evo?: Evo | null }) {
+  if (!evo) return null;
+  return <span className={`nr-evo nr-evo-${evo.cls}`}>{evo.word}</span>;
+}
+
+export default function NeuroRings({ side, rnfl, gcl, rnflEvo, gclEvo }: Props) {
   return (
     <div className="neuro-rings">
-      {rnfl && <RnflRing side={side} s={rnfl} />}
-      {gcl && <GclRing side={side} s={gcl} />}
+      {rnfl && <RnflRing side={side} s={rnfl} evo={rnflEvo} />}
+      {gcl && <GclRing side={side} s={gcl} evo={gclEvo} />}
     </div>
   );
 }
 
-function RnflRing({ side, s }: { side: 'OD' | 'OG'; s: RnflSectors }) {
+function RnflRing({ side, s, evo }: { side: 'OD' | 'OG'; s: RnflSectors; evo?: Evo | null }) {
   const Nside = side === 'OG' ? 270 : 90;
   const Tside = side === 'OG' ? 90 : 270;
   const geom: { k: RnflSectorKey; a0: number; a1: number }[] = [
@@ -60,7 +78,7 @@ function RnflRing({ side, s }: { side: 'OD' | 'OG'; s: RnflSectors }) {
   const tAnchor = Tside === 90 ? 'start' : 'end';
 
   return (
-    <div className="ring">
+    <div className="neuro-ring">
       <svg viewBox="0 0 100 100">
         {geom.map(({ k, a0, a1 }) => (
           <path key={k} d={sectorPath(40, 23, a0, a1)} fill={RNFL_COLORS[s[k]]} stroke="#fff" strokeWidth={1.2} />
@@ -72,11 +90,12 @@ function RnflRing({ side, s }: { side: 'OD' | 'OG'; s: RnflSectors }) {
         <text x={nLx} y={nLy + 2.5} textAnchor={nAnchor} fontSize={6.5} fontWeight={700} fill="#6b7b8a">N</text>
         <text x={tLx} y={tLy + 2.5} textAnchor={tAnchor} fontSize={6.5} fontWeight={700} fill="#6b7b8a">T</text>
       </svg>
+      <EvoBadge evo={evo} />
     </div>
   );
 }
 
-function GclRing({ side, s }: { side: 'OD' | 'OG'; s: GclSectors }) {
+function GclRing({ side, s, evo }: { side: 'OD' | 'OG'; s: GclSectors; evo?: Evo | null }) {
   const f = side === 'OG' ? 1 : -1;
   const angle: Record<GclSectorKey, number> = { S: 0, ST: 60 * f, IT: 120 * f, I: 180, IN: 240 * f, SN: 300 * f };
 
@@ -89,7 +108,7 @@ function GclRing({ side, s }: { side: 'OD' | 'OG'; s: GclSectors }) {
   const tAnchor = Tside === 90 ? 'start' : 'end';
 
   return (
-    <div className="ring">
+    <div className="neuro-ring">
       <svg viewBox="0 0 100 100">
         {GCL_SECTOR_ORDER.map((k) => (
           <path key={k} d={sectorPath(40, 21, angle[k] - 28, angle[k] + 28)} fill={GCL_COLORS[s[k]]} stroke="#fff" strokeWidth={1.2} />
@@ -101,6 +120,7 @@ function GclRing({ side, s }: { side: 'OD' | 'OG'; s: GclSectors }) {
         <text x={nLx} y={nLy + 2.5} textAnchor={nAnchor} fontSize={6.5} fontWeight={700} fill="#6b7b8a">N</text>
         <text x={tLx} y={tLy + 2.5} textAnchor={tAnchor} fontSize={6.5} fontWeight={700} fill="#6b7b8a">T</text>
       </svg>
+      <EvoBadge evo={evo} />
     </div>
   );
 }

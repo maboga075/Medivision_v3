@@ -8,7 +8,7 @@
 
 import type { EyeData } from '../../../types/report';
 import RetinaSchemaSvg, { lesionLegend } from './RetinaSchemaSvg';
-import NeuroRings from './NeuroRings';
+import NeuroRings, { type Evo } from './NeuroRings';
 import CDGauge from './CDGauge';
 
 const SEV_LEGEND = [
@@ -18,7 +18,7 @@ const SEV_LEGEND = [
 ];
 
 /** Traduit une option d'évolution de suivi en mot + classe couleur (ou null si non significatif). */
-function evoDisplay(evo?: string): { word: string; cls: 'down' | 'stable' | 'up' | 'warn' } | null {
+function evoDisplay(evo?: string): Evo | null {
   if (!evo) return null;
   const e = evo.toLowerCase();
   if (e.includes('diminu') || e.includes('amincis')) return { word: 'Diminué', cls: 'down' };
@@ -33,18 +33,6 @@ function fmtFollowUpDate(d?: string): string {
   if (!d) return '';
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(d);
   return m ? `${m[3]}/${m[2]}/${m[1]}` : d;
-}
-
-function EvoBadges({ followUp }: { followUp?: EyeData['followUp'] }) {
-  const rnfl = evoDisplay(followUp?.rnflEvolution);
-  const gcl = evoDisplay(followUp?.gclEvolution);
-  if (!rnfl && !gcl) return null;
-  return (
-    <div className="vc-fu-badges">
-      {rnfl && <span className={`vc-fu-badge vc-fu-${rnfl.cls}`}>RNFL {rnfl.word}</span>}
-      {gcl && <span className={`vc-fu-badge vc-fu-${gcl.cls}`}>GCL {gcl.word}</span>}
-    </div>
-  );
 }
 
 /**
@@ -130,10 +118,10 @@ export default function VisualClinicalSection({ od, og }: { od: EyeData; og: Eye
   const showSurface = !!(od.discSurface || og.discSurface);
 
   const followUpDate = fmtFollowUpDate(od.followUp?.date || og.followUp?.date);
-  const hasEvo =
-    !!evoDisplay(od.followUp?.rnflEvolution) || !!evoDisplay(od.followUp?.gclEvolution) ||
-    !!evoDisplay(og.followUp?.rnflEvolution) || !!evoDisplay(og.followUp?.gclEvolution);
-  const hasFollowUp = !!followUpDate || hasEvo;
+  const odRnflEvo = evoDisplay(od.followUp?.rnflEvolution);
+  const odGclEvo = evoDisplay(od.followUp?.gclEvolution);
+  const ogRnflEvo = evoDisplay(og.followUp?.rnflEvolution);
+  const ogGclEvo = evoDisplay(og.followUp?.gclEvolution);
 
   return (
     <div className="visual-clinical">
@@ -151,7 +139,7 @@ export default function VisualClinicalSection({ od, og }: { od: EyeData; og: Eye
           {od.acquisitionQuality !== 'impossible' && (
             <>
               {odHasRings ? (
-                <NeuroRings side="OD" rnfl={od.rnflSectors} gcl={od.gclSectors} />
+                <NeuroRings side="OD" rnfl={od.rnflSectors} gcl={od.gclSectors} rnflEvo={odRnflEvo} gclEvo={odGclEvo} />
               ) : (
                 <div className="vc-neuro-text">
                   {odRnflTxt && <div><span>RNFL</span><b style={odRnflTxt.color ? { color: odRnflTxt.color } : undefined}>{odRnflTxt.text}</b></div>}
@@ -179,7 +167,7 @@ export default function VisualClinicalSection({ od, og }: { od: EyeData; og: Eye
             <>
               <CDGauge cupDisc={og.cupDisc} cupDiscFlag={og.cupDiscFlag} discSurface={og.discSurface} />
               {ogHasRings ? (
-                <NeuroRings side="OG" rnfl={og.rnflSectors} gcl={og.gclSectors} />
+                <NeuroRings side="OG" rnfl={og.rnflSectors} gcl={og.gclSectors} rnflEvo={ogRnflEvo} gclEvo={ogGclEvo} />
               ) : (
                 <div className="vc-neuro-text">
                   {ogRnflTxt && <div><span>RNFL</span><b style={ogRnflTxt.color ? { color: ogRnflTxt.color } : undefined}>{ogRnflTxt.text}</b></div>}
@@ -191,15 +179,9 @@ export default function VisualClinicalSection({ od, og }: { od: EyeData; og: Eye
         </div>
       </div>
 
-      {/* Suivi RNFL/GCL : évolution par œil, date au centre */}
-      {hasFollowUp && (
-        <div className="vc-followup">
-          <div className="vc-fu-side"><EvoBadges followUp={od.followUp} /></div>
-          <div className="vc-fu-center">
-            {followUpDate && <span className="vc-fu-date">Suivi · {followUpDate}</span>}
-          </div>
-          <div className="vc-fu-side"><EvoBadges followUp={og.followUp} /></div>
-        </div>
+      {/* Date du suivi, centrée entre les deux yeux (l'évolution est sous chaque cercle) */}
+      {followUpDate && (
+        <div className="vc-fu-date-row"><span className="vc-fu-date">Suivi · {followUpDate}</span></div>
       )}
 
       {/* Légende sévérité + définitions des sigles — sur une seule ligne */}

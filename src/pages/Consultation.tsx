@@ -456,7 +456,15 @@ export default function Consultation() {
                     <EyeExamSection
                       side="OD"
                       eye={form.eyeOD}
-                      onUpdate={form.setEyeOD}
+                      onUpdate={(next) => {
+                        form.setEyeOD(next);
+                        // La date de suivi est saisie une seule fois : on la propage à l'OG.
+                        if (next.followUpDate) {
+                          form.setEyeOG((prev) =>
+                            prev.followUpDate === next.followUpDate ? prev : { ...prev, followUpDate: next.followUpDate }
+                          );
+                        }
+                      }}
                       isOCT={form.reportType.includes('OCT')}
                       showOpticNerve={form.reportType === 'Compte rendu Rétinographie'}
                       showAnterior={form.showAnterior}
@@ -470,7 +478,15 @@ export default function Consultation() {
                     <EyeExamSection
                       side="OG"
                       eye={form.eyeOG}
-                      onUpdate={form.setEyeOG}
+                      onUpdate={(next) => {
+                        form.setEyeOG(next);
+                        // Sync inverse : une date saisie sur l'OG se reporte sur l'OD.
+                        if (next.followUpDate) {
+                          form.setEyeOD((prev) =>
+                            prev.followUpDate === next.followUpDate ? prev : { ...prev, followUpDate: next.followUpDate }
+                          );
+                        }
+                      }}
                       isOCT={form.reportType.includes('OCT')}
                       showOpticNerve={form.reportType === 'Compte rendu Rétinographie'}
                       showAnterior={form.showAnterior}
