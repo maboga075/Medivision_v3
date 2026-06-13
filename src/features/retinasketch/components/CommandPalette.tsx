@@ -31,7 +31,15 @@ export default function CommandPalette() {
   const [saving, setSaving] = useState(false);
 
   const results = useMemo(() => searchLesions(query), [query]);
-  const showCreateOption = query.length >= 2 && results.length === 0;
+  // La recherche est tolérante (sous-séquences) : elle renvoie souvent des
+  // correspondances approximatives. On propose donc la création dès qu'aucune
+  // lésion ne correspond EXACTEMENT au terme saisi, même si des résultats
+  // approchants existent — sinon le bouton « Créer » n'apparaîtrait quasi jamais.
+  const trimmedQuery = query.trim();
+  const exactMatch = results.some(
+    (l) => l.name.toLowerCase() === trimmedQuery.toLowerCase(),
+  );
+  const showCreateOption = trimmedQuery.length >= 2 && !exactMatch;
   const target = draftCount;
 
   useEffect(() => {

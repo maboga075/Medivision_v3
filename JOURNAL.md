@@ -40,6 +40,15 @@ src/
 
 ---
 
+### Session 2026-06-13 (suite 2) — Création de lésion RSK rétablie
+
+**Demandé par :** Yoan
+**Statut :** ✅ Terminé, `tsc --noEmit` 0 erreur, build OK
+
+- [x] **Bouton « Créer « x » » de RetinaSketch quasi invisible** : `CommandPalette` ne l'affichait que si `searchLesions` ne renvoyait **aucun** résultat — or la recherche est tolérante (repli par sous-séquence, score 20), donc elle trouve presque toujours une correspondance approximative. → Le bouton « Créer » apparaît désormais dès qu'aucune lésion ne correspond **exactement** au terme saisi (même si des résultats approchants existent). Limitation présente depuis l'origine (3ecc530/3ea03aa), pas une régression récente.
+
+---
+
 ### Session 2026-06-13 (suite) — Cadres bleus, suivi, mise en page 1 page
 
 **Demandé par :** Yoan (avec screenshot + 2 PDF : export direct & impression navigateur)
