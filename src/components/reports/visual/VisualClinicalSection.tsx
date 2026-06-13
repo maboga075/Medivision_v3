@@ -17,6 +17,36 @@ const SEV_LEGEND = [
   { label: 'Hors norme', color: '#d98b7e' },
 ];
 
+/** Traduit une option d'évolution de suivi en mot + classe couleur (ou null si non significatif). */
+function evoDisplay(evo?: string): { word: string; cls: 'down' | 'stable' | 'up' | 'warn' } | null {
+  if (!evo) return null;
+  const e = evo.toLowerCase();
+  if (e.includes('diminu') || e.includes('amincis')) return { word: 'Diminué', cls: 'down' };
+  if (e.includes('stable')) return { word: 'Stable', cls: 'stable' };
+  if (e.includes('augment') || e.includes('épaiss') || e.includes('epaiss')) return { word: 'Augmenté', cls: 'up' };
+  if (e.includes('fluctu')) return { word: 'Fluctuant', cls: 'warn' };
+  return null; // « Non évaluable » ou vide : rien à afficher
+}
+
+/** Formate une date ISO (yyyy-mm-dd) en jj/mm/aaaa. */
+function fmtFollowUpDate(d?: string): string {
+  if (!d) return '';
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(d);
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : d;
+}
+
+function EvoBadges({ followUp }: { followUp?: EyeData['followUp'] }) {
+  const rnfl = evoDisplay(followUp?.rnflEvolution);
+  const gcl = evoDisplay(followUp?.gclEvolution);
+  if (!rnfl && !gcl) return null;
+  return (
+    <div className="vc-fu-badges">
+      {rnfl && <span className={`vc-fu-badge vc-fu-${rnfl.cls}`}>RNFL {rnfl.word}</span>}
+      {gcl && <span className={`vc-fu-badge vc-fu-${gcl.cls}`}>GCL {gcl.word}</span>}
+    </div>
+  );
+}
+
 /**
  * Synthèse par œil. Les lésions RetinaSketch sont déjà listées dans la légende
  * (chips colorés) : on ne les répète donc PAS ici pour éviter la redondance.
@@ -68,15 +98,18 @@ function EyeSchemaColumn({ eye }: { eye: EyeData }) {
           <div className="vc-schema">
             <RetinaSchemaSvg side={eye.code} annotations={eye.annotations} />
           </div>
-          {legend.length > 0 && (
+          {legend.length > 0 ? (
             <div className="vc-lesion-legend">
               {legend.map((l) => (
                 <span key={l.id}><i style={{ background: l.color }} />{l.name}</span>
               ))}
             </div>
-          )}
-          {finding && (
-            <div className={`vc-finding ${finding.clear ? 'clear' : ''}`}>{finding.text}</div>
+          ) : finding && finding.clear ? (
+            /* « Sans particularité » : encadré par 2 barres, même police que la légende */
+            <div className="vc-lesion-legend vc-lesion-legend-ras"><span>{finding.text}</span></div>
+          ) : null}
+          {finding && !finding.clear && (
+            <div className="vc-finding">{finding.text}</div>
           )}
         </>
       )}
@@ -95,6 +128,12 @@ export default function VisualClinicalSection({ od, og }: { od: EyeData; og: Eye
   const ogGclTxt = biomValue(og, 'GCL++');
 
   const showSurface = !!(od.discSurface || og.discSurface);
+
+  const followUpDate = fmtFollowUpDate(od.followUp?.date || og.followUp?.date);
+  const hasEvo =
+    !!evoDisplay(od.followUp?.rnflEvolution) || !!evoDisplay(od.followUp?.gclEvolution) ||
+    !!evoDisplay(og.followUp?.rnflEvolution) || !!evoDisplay(og.followUp?.gclEvolution);
+  const hasFollowUp = !!followUpDate || hasEvo;
 
   return (
     <div className="visual-clinical">
@@ -152,15 +191,24 @@ export default function VisualClinicalSection({ od, og }: { od: EyeData; og: Eye
         </div>
       </div>
 
-      {/* Légende sévérité RNFL/GCL + définitions des sigles */}
+      {/* Suivi RNFL/GCL : évolution par œil, date au centre */}
+      {hasFollowUp && (
+        <div className="vc-followup">
+          <div className="vc-fu-side"><EvoBadges followUp={od.followUp} /></div>
+          <div className="vc-fu-center">
+            {followUpDate && <span className="vc-fu-date">Suivi · {followUpDate}</span>}
+          </div>
+          <div className="vc-fu-side"><EvoBadges followUp={og.followUp} /></div>
+        </div>
+      )}
+
+      {/* Légende sévérité + définitions des sigles — sur une seule ligne */}
       <div className="vc-sev-legend">
         {SEV_LEGEND.map((s) => (
           <span key={s.label}><i style={{ background: s.color }} />{s.label}</span>
         ))}
-      </div>
-      <div className="vc-sev-defs">
-        <span><b>RNFL</b> — couche des fibres nerveuses rétiniennes péripapillaires</span>
-        <span><b>GCL+</b> — complexe des cellules ganglionnaires maculaires</span>
+        <span className="vc-sev-def"><b>RNFL</b> : fibres nerveuses péripapillaires</span>
+        <span className="vc-sev-def"><b>GCL</b> : complexe cellules ganglionnaires</span>
       </div>
     </div>
   );

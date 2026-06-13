@@ -267,6 +267,15 @@ function buildEyeData(
     annotations: eye.retinaAnnotations ?? [],
     rnflSectors: eye.rnflSectors,
     gclSectors: eye.gclSectors,
+    ...(eye.hasFollowUp
+      ? {
+          followUp: {
+            date: eye.followUpDate || undefined,
+            rnflEvolution: eye.rnflEvolution || undefined,
+            gclEvolution: eye.gclEvolution || undefined,
+          },
+        }
+      : {}),
   };
 
   // Acquisition impossible : sections morpho/biométrie vides, raisons transmises

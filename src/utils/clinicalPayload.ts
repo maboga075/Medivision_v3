@@ -90,11 +90,14 @@ const buildObservations = (eye: EyeState, laterality: 'OD' | 'OG'): Observations
     assign('octa', eye.obsOCTA ?? []);
   }
 
-  // Annotations RetinaSketch — converties en texte clinique structuré
+  // Annotations RetinaSketch — converties en texte clinique structuré.
+  // L'éditeur tague l'œil gauche en 'OS' (convention latine Konva) ; on convertit
+  // 'OG' → 'OS' pour que le filtre de latéralité de generateReport corresponde.
   const annotations = (eye.retinaAnnotations ?? []) as Annotation[];
   const validated = annotations.filter((a) => a.status === 'validated');
   if (validated.length > 0) {
-    const reportText = generateReport(annotations, laterality);
+    const rskLaterality = laterality === 'OG' ? 'OS' : 'OD';
+    const reportText = generateReport(annotations, rskLaterality);
     // On extrait les lignes de lésions (format "• Présence de…")
     const lesionLines = reportText
       .split('\n')

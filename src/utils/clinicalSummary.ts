@@ -27,6 +27,29 @@ const analyzeEye = (eye: EyeDataNormalisee | null, contexteStr: string): Analyse
   const ctxLow = contexteStr.toLowerCase();
   const obs = eye.observations ?? {};
 
+  // 0. LÉSIONS RETINASKETCH — les symptômes dessinés sont des constats objectifs :
+  // on les remonte comme anomalies significatives pour que l'IA les exploite.
+  if (obs.retina && obs.retina.length > 0) {
+    for (const lesion of obs.retina) {
+      const clean = lesion.replace(/\.$/, '').trim();
+      if (clean) anomalies.push(clean.charAt(0).toUpperCase() + clean.slice(1));
+    }
+  }
+
+  // 0bis. SUIVI RNFL/GCL — l'évolution renseignée oriente l'interprétation.
+  if (eye.hasFollowUp) {
+    const rnflEvo = (eye.rnflEvolution ?? '').toLowerCase();
+    const gclEvo = (eye.gclEvolution ?? '').toLowerCase();
+    if (rnflEvo.includes('diminution') || rnflEvo.includes('amincissement')) {
+      anomalies.push('Diminution du RNFL au suivi (aggravation)');
+      patterns.push('aggravation_suivi');
+    }
+    if (gclEvo.includes('diminution') || gclEvo.includes('amincissement')) {
+      anomalies.push('Diminution du complexe ganglionnaire (GCL) au suivi (aggravation)');
+      patterns.push('aggravation_suivi');
+    }
+  }
+
   // 1. GLAUCOME / NEUROPATHIE OPTIQUE
   const isCupDiscHigh =
     eye.cup_disc_vertical !== undefined &&
@@ -55,8 +78,10 @@ const analyzeEye = (eye: EyeDataNormalisee | null, contexteStr: string): Analyse
 
   // 2. RÉTINOPATHIE DIABÉTIQUE
   const isDiabeticContext = ctxLow.includes('diabète') || ctxLow.includes('diabete');
+  const diabeticVascularKw = ['micro-anévrisme', 'microanévrisme', 'néovaisseau', 'neovaisseau', 'hémorragie', 'hemorragie', 'exsudat', 'nodule cotonneux'];
   const hasDiabeticSigns =
-    hasSign(obs, 'vasculaire', ['micro-anévrisme', 'microanévrisme', 'néovaisseau', 'neovaisseau', 'hémorragie', 'hemorragie', 'exsudat', 'nodule cotonneux']) ||
+    hasSign(obs, 'vasculaire', diabeticVascularKw) ||
+    hasSign(obs, 'retina', diabeticVascularKw) ||
     hasSign(obs, 'macula', ['exsudat', 'oedème', 'oedeme', 'œdème']) ||
     hasSign(obs, 'favoris', ['micro-anévrisme', 'hémorragie', 'exsudat']);
 
@@ -66,9 +91,9 @@ const analyzeEye = (eye: EyeDataNormalisee | null, contexteStr: string): Analyse
       ? `${suspicion} et Rétinopathie diabétique`
       : 'Rétinopathie diabétique';
 
-    if (hasSign(obs, 'vasculaire', ['hémorragie', 'hemorragie'])) anomalies.push('Hémorragies rétiniennes');
-    if (hasSign(obs, 'vasculaire', ['micro-anévrisme', 'microanévrisme'])) anomalies.push('Micro-anévrismes');
-    if (hasSign(obs, 'vasculaire', ['néovaisseau', 'neovaisseau'])) anomalies.push('Néovaisseaux');
+    if (hasSign(obs, 'vasculaire', ['hémorragie', 'hemorragie']) || hasSign(obs, 'retina', ['hémorragie', 'hemorragie'])) anomalies.push('Hémorragies rétiniennes');
+    if (hasSign(obs, 'vasculaire', ['micro-anévrisme', 'microanévrisme']) || hasSign(obs, 'retina', ['micro-anévrisme', 'microanévrisme'])) anomalies.push('Micro-anévrismes');
+    if (hasSign(obs, 'vasculaire', ['néovaisseau', 'neovaisseau']) || hasSign(obs, 'retina', ['néovaisseau', 'neovaisseau'])) anomalies.push('Néovaisseaux');
     if (hasSign(obs, 'macula', ['exsudat'])) anomalies.push('Exsudats maculaires');
     if (hasSign(obs, 'macula', ['oedème', 'oedeme', 'œdème'])) anomalies.push('Œdème maculaire');
   }

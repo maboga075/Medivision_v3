@@ -40,6 +40,34 @@ src/
 
 ---
 
+### Session 2026-06-13 — Mise à jour V3 v3 (correctifs RSK/IA, suivi, légendes, PDF)
+
+**Demandé par :** Yoan
+**Statut :** ✅ Terminé, `tsc --noEmit` 0 erreur, build OK
+
+#### Correctifs IA (bugs critiques)
+- [x] **Symptômes RetinaSketch ignorés par l'IA** : `clinicalPayload.ts` passait `'OG'` à `generateReport`, qui filtre `a.laterality === laterality` — or l'œil gauche est tagué `'OS'` ([`RetinaEditor.tsx:35`](src/features/retinasketch/components/RetinaEditor.tsx)). → mapping `OG→OS`. C'était l'erreur `tsc` historique.
+- [x] **Lésions RSK intégrées à l'analyse** : `clinicalSummary.ts` remonte désormais `obs.retina` dans les anomalies + détection diabète/DMLA étendue aux lésions dessinées.
+- [x] **Suivi RNFL/GCL interprété par l'IA** : `clinicalSummary.ts` détecte « Diminution/amincissement » → anomalie « aggravation au suivi » + pattern `aggravation_suivi`.
+
+#### Affichage du suivi (compte rendu)
+- [x] `EyeData.followUp` ({ date, rnflEvolution, gclEvolution }) renseigné par `reportDataMapper`.
+- [x] `VisualClinicalSection` : bandeau de suivi sous les anneaux — « Diminué » (rouge) / « Stable » (vert) / « Augmenté »/« Fluctuant » (ambre) par œil, **date au centre des 2 yeux**.
+
+#### Anneaux & légendes
+- [x] **Double libellé supprimé** : `NeuroRings` n'affiche plus le `<span>` RNFL/GCL sous le cercle (le `<text>` dans le cercle suffit).
+- [x] **Légende sur une seule ligne** : sévérité (Normal/Limite/Hors norme) + définitions simplifiées (« RNFL : fibres nerveuses péripapillaires », « GCL : complexe cellules ganglionnaires ») fusionnées dans `.vc-sev-legend`.
+- [x] **« Sans particularité » encadré** par 2 barres, même police que la légende des symptômes (`.vc-lesion-legend-ras`).
+- [x] **2 cadres bleus** du module de saisie RNFL/GCL retirés (`RnflGclPicker` : cartes `border` → sans bordure).
+
+#### Export PDF
+- [x] **Rapport coupé / >1 page corrigé** : `pdfExportService` passe `margin:0` (les marges + 297mm débordaient sur une 2e page), neutralise `overflow:hidden`/ombre/décor `::before` via `<style>` injecté dans le clone, capture la `.page` seule, et ajoute `pagebreak.avoid` pour ne jamais couper un bloc.
+
+#### Divers
+- [x] Bug `tsc` résiduel corrigé : `FormulaireTab` ouvrait une catégorie inexistante (`'macula'` → `'motifs'`).
+
+---
+
 ### Session 2026-06-12 — Mise à jour V3 (rapport visuel + sexe patient)
 
 **Demandé par :** Yoan

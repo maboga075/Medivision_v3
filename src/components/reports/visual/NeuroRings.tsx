@@ -72,7 +72,6 @@ function RnflRing({ side, s }: { side: 'OD' | 'OG'; s: RnflSectors }) {
         <text x={nLx} y={nLy + 2.5} textAnchor={nAnchor} fontSize={6.5} fontWeight={700} fill="#6b7b8a">N</text>
         <text x={tLx} y={tLy + 2.5} textAnchor={tAnchor} fontSize={6.5} fontWeight={700} fill="#6b7b8a">T</text>
       </svg>
-      <span>RNFL</span>
     </div>
   );
 }
@@ -102,7 +101,6 @@ function GclRing({ side, s }: { side: 'OD' | 'OG'; s: GclSectors }) {
         <text x={nLx} y={nLy + 2.5} textAnchor={nAnchor} fontSize={6.5} fontWeight={700} fill="#6b7b8a">N</text>
         <text x={tLx} y={tLy + 2.5} textAnchor={tAnchor} fontSize={6.5} fontWeight={700} fill="#6b7b8a">T</text>
       </svg>
-      <span>GCL+</span>
     </div>
   );
 }
