@@ -2,6 +2,8 @@ import { useState, type Dispatch, type SetStateAction } from 'react';
 import { UserPlus, FileText, Activity, Plus, X, Pill, CheckCircle, Save } from 'lucide-react';
 import { db, collection, addDoc, serverTimestamp } from '../services/firebase';
 import { useSettings } from '../hooks/useSettings';
+import { useToast } from '../components/shared/ToastProvider';
+import TagAutocomplete from '../components/forms/TagAutocomplete';
 import type { PatientFormData } from '../types/patient';
 
 const COMMON_MOTIFS = [
@@ -58,6 +60,7 @@ const EMPTY_FORM: PatientFormData = {
 
 export default function Accueil() {
   const { settings, updatePrescripteurs, updateBulles } = useSettings();
+  const { notify } = useToast();
   const availableDoctors = settings?.prescripteurs ?? INITIAL_DOCTORS;
   const availableMotifs = settings?.formulario?.motifs ?? COMMON_MOTIFS;
   const availableAntecedents = settings?.formulario?.antecedents ?? COMMON_ANTECEDENTS;
@@ -65,28 +68,20 @@ export default function Accueil() {
   const [formData, setFormData] = useState<PatientFormData>(EMPTY_FORM);
   const [isSuccess, setIsSuccess] = useState(false);
 
-  const [customMotifs, setCustomMotifs] = useState<string[]>([]);
-  const [showAddMotif, setShowAddMotif] = useState(false);
-  const [newMotif, setNewMotif] = useState('');
-
-  const [customAtcd, setCustomAtcd] = useState<string[]>([]);
-  const [showAddAtcd, setShowAddAtcd] = useState(false);
-  const [newAtcd, setNewAtcd] = useState('');
-
   const [customDoctors, setCustomDoctors] = useState<string[]>([]);
   const [showAddDoc, setShowAddDoc] = useState(false);
   const [newDoc, setNewDoc] = useState('');
 
   const SP = 'Sans particularité';
 
-  const toggleArrayItem = (field: 'motifs' | 'antecedents', item: string) => {
-    setFormData((prev) => {
-      const arr = prev[field];
-      if (arr.includes(item)) return { ...prev, [field]: arr.filter((i) => i !== item) };
-      // "Sans particularité" est mutuellement exclusif avec les autres choix
-      if (item === SP) return { ...prev, [field]: [SP] };
-      return { ...prev, [field]: [...arr.filter((i) => i !== SP), item] };
-    });
+  // Persiste une nouvelle suggestion (motif / antécédent) pour les prochaines sessions.
+  const persistMotif = (item: string) => {
+    if (!availableMotifs.some((m) => m.toLowerCase() === item.toLowerCase()))
+      updateBulles('motifs', [...availableMotifs, item]).catch(console.error);
+  };
+  const persistAtcd = (item: string) => {
+    if (!availableAntecedents.some((a) => a.toLowerCase() === item.toLowerCase()))
+      updateBulles('antecedents', [...availableAntecedents, item]).catch(console.error);
   };
 
   // Ajoute à la session courante uniquement (pas de sauvegarde dans les suggestions)
@@ -153,7 +148,7 @@ export default function Accueil() {
       formData.motifs.length === 0 ||
       formData.antecedents.length === 0
     ) {
-      alert('Veuillez remplir les champs obligatoires (Nom, Sexe, Date de naissance, Motifs, Antécédents).');
+      notify('Veuillez remplir les champs obligatoires (Nom, Sexe, Date de naissance, Motifs, Antécédents).', 'error');
       return;
     }
 
@@ -167,14 +162,12 @@ export default function Accueil() {
       setIsSuccess(true);
     } catch (e) {
       console.error('Erreur Firebase:', e);
-      alert("Erreur lors de l'enregistrement. L'application synchronisera lors du retour réseau.");
+      notify("Erreur lors de l'enregistrement. L'application synchronisera lors du retour réseau.", 'error');
     }
   };
 
   const handleReset = () => {
     setFormData({ ...EMPTY_FORM, dateExamen: new Date().toISOString().split('T')[0] });
-    setCustomMotifs([]);
-    setCustomAtcd([]);
     setCustomDoctors([]);
     setIsSuccess(false);
   };
@@ -269,145 +262,28 @@ export default function Accueil() {
 
           {/* Clinique */}
           <section className="space-y-8 border-t border-slate-100 pt-8">
-            <div>
-              <label className="block text-sm font-bold text-slate-700 mb-4 flex items-center gap-2">
-                <Activity className="w-5 h-5 text-teal-600" /> Motif(s) principal(aux){' '}
-                <span className="text-red-500">*</span>
-              </label>
-              <div className="flex flex-wrap gap-4 items-center">
-                {[...availableMotifs, ...customMotifs.filter((m) => !availableMotifs.includes(m))].map((m) => (
-                  <button
-                    key={m}
-                    onClick={() => toggleArrayItem('motifs', m)}
-                    className={`px-5 py-4 rounded-2xl text-[15px] font-bold transition-all active:scale-95 border-2 ${
-                      formData.motifs.includes(m)
-                        ? 'bg-teal-500 text-white shadow-md border-teal-500'
-                        : 'bg-white border-slate-200 text-slate-600 hover:border-teal-300'
-                    }`}
-                  >
-                    {m}
-                  </button>
-                ))}
+            <TagAutocomplete
+              label={<><Activity className="w-5 h-5 text-teal-600" /> Motif(s) principal(aux)</>}
+              required
+              accent="teal"
+              selectedItems={formData.motifs}
+              suggestions={availableMotifs}
+              onChange={(motifs) => setFormData((prev) => ({ ...prev, motifs }))}
+              onPersistNew={persistMotif}
+              placeholder="Rechercher ou saisir un motif…"
+            />
 
-                {showAddMotif ? (
-                  <div className="flex items-center gap-2 bg-teal-50 p-2 rounded-2xl border border-teal-100">
-                    <input
-                      autoFocus
-                      className="px-4 py-3 border-2 border-teal-300 rounded-xl text-sm font-bold outline-none focus:border-teal-500"
-                      placeholder="Nouveau motif..."
-                      value={newMotif}
-                      onChange={(e) => setNewMotif(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter')
-                          handleAddCustomSessionOnly('motifs', newMotif, setCustomMotifs, setShowAddMotif, setNewMotif);
-                        if (e.key === 'Escape') setShowAddMotif(false);
-                      }}
-                    />
-                    <button
-                      onClick={() =>
-                        handleAddCustomSessionOnly('motifs', newMotif, setCustomMotifs, setShowAddMotif, setNewMotif)
-                      }
-                      title="Ajouter pour cette session uniquement"
-                      className="bg-teal-400 text-white px-4 py-3 rounded-xl text-sm font-bold hover:bg-teal-500 transition-colors whitespace-nowrap"
-                    >
-                      Session
-                    </button>
-                    <button
-                      onClick={() =>
-                        handleAddCustom('motifs', newMotif, setCustomMotifs, setShowAddMotif, setNewMotif)
-                      }
-                      title="Ajouter et enregistrer pour les prochaines sessions"
-                      className="bg-teal-600 text-white px-4 py-3 rounded-xl text-sm font-bold hover:bg-teal-700 transition-colors whitespace-nowrap flex items-center gap-1.5"
-                    >
-                      <Save className="w-4 h-4" /> Garder
-                    </button>
-                    <button
-                      onClick={() => setShowAddMotif(false)}
-                      className="text-slate-400 hover:text-slate-600 p-2"
-                    >
-                      <X className="w-5 h-5" />
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => setShowAddMotif(true)}
-                    className="px-5 py-4 rounded-2xl text-[15px] font-bold border-2 border-dashed border-slate-300 text-slate-500 hover:bg-slate-50 transition-all flex items-center gap-2"
-                  >
-                    <Plus className="w-5 h-5" /> Autre
-                  </button>
-                )}
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-bold text-slate-700 mb-4 flex items-center gap-2">
-                <FileText className="w-5 h-5 text-indigo-600" /> Antécédents{' '}
-                <span className="text-red-500">*</span>
-              </label>
-              <div className="flex flex-wrap gap-4 items-center">
-                {[...availableAntecedents, ...customAtcd.filter((a) => !availableAntecedents.includes(a))].map((a) => (
-                  <button
-                    key={a}
-                    onClick={() => toggleArrayItem('antecedents', a)}
-                    className={`px-5 py-4 rounded-2xl text-[15px] font-bold transition-all active:scale-95 border-2 ${
-                      formData.antecedents.includes(a)
-                        ? 'bg-indigo-500 text-white shadow-md border-indigo-500'
-                        : 'bg-white border-slate-200 text-slate-600 hover:border-indigo-300'
-                    }`}
-                  >
-                    {a}
-                  </button>
-                ))}
-
-                {showAddAtcd ? (
-                  <div className="flex items-center gap-2 bg-indigo-50 p-2 rounded-2xl border border-indigo-100">
-                    <input
-                      autoFocus
-                      className="px-4 py-3 border-2 border-indigo-300 rounded-xl text-sm font-bold outline-none focus:border-indigo-500"
-                      placeholder="Nouvel antécédent..."
-                      value={newAtcd}
-                      onChange={(e) => setNewAtcd(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter')
-                          handleAddCustomSessionOnly('antecedents', newAtcd, setCustomAtcd, setShowAddAtcd, setNewAtcd);
-                        if (e.key === 'Escape') setShowAddAtcd(false);
-                      }}
-                    />
-                    <button
-                      onClick={() =>
-                        handleAddCustomSessionOnly('antecedents', newAtcd, setCustomAtcd, setShowAddAtcd, setNewAtcd)
-                      }
-                      title="Ajouter pour cette session uniquement"
-                      className="bg-indigo-400 text-white px-4 py-3 rounded-xl text-sm font-bold hover:bg-indigo-500 transition-colors whitespace-nowrap"
-                    >
-                      Session
-                    </button>
-                    <button
-                      onClick={() =>
-                        handleAddCustom('antecedents', newAtcd, setCustomAtcd, setShowAddAtcd, setNewAtcd)
-                      }
-                      title="Ajouter et enregistrer pour les prochaines sessions"
-                      className="bg-indigo-600 text-white px-4 py-3 rounded-xl text-sm font-bold hover:bg-indigo-700 transition-colors whitespace-nowrap flex items-center gap-1.5"
-                    >
-                      <Save className="w-4 h-4" /> Garder
-                    </button>
-                    <button
-                      onClick={() => setShowAddAtcd(false)}
-                      className="text-slate-400 hover:text-slate-600 p-2"
-                    >
-                      <X className="w-5 h-5" />
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => setShowAddAtcd(true)}
-                    className="px-5 py-4 rounded-2xl text-[15px] font-bold border-2 border-dashed border-slate-300 text-slate-500 hover:bg-slate-50 transition-all flex items-center gap-2"
-                  >
-                    <Plus className="w-5 h-5" /> Autre
-                  </button>
-                )}
-              </div>
-            </div>
+            <TagAutocomplete
+              label={<><FileText className="w-5 h-5 text-indigo-600" /> Antécédents</>}
+              required
+              accent="indigo"
+              selectedItems={formData.antecedents}
+              suggestions={availableAntecedents}
+              onChange={(antecedents) => setFormData((prev) => ({ ...prev, antecedents }))}
+              onPersistNew={persistAtcd}
+              exclusiveItem="Sans particularité"
+              placeholder="Rechercher ou saisir un antécédent…"
+            />
 
             {/* Traitement */}
             <div className="bg-slate-50 rounded-3xl p-6 border border-slate-200">

@@ -19,6 +19,7 @@ import {
   query,
   orderBy,
   where,
+  limit,
 } from 'firebase/firestore';
 
 const requiredVars = [
@@ -75,4 +76,5 @@ export {
   query,
   orderBy,
   where,
+  limit,
 };

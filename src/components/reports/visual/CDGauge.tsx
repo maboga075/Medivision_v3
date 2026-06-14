@@ -23,7 +23,7 @@ interface Props {
 }
 
 /** Extrait le 1er nombre décimal d'une chaîne ("0,70 ⚠" → 0.7, "2.0 mm²" → 2). */
-function parseNum(s?: string): number {
+export function parseNum(s?: string): number {
   if (!s) return NaN;
   const m = s.replace(',', '.').match(/-?\d+(\.\d+)?/);
   return m ? parseFloat(m[0]) : NaN;
@@ -33,7 +33,7 @@ function parseNum(s?: string): number {
  * Limite haute de normalité du C/D vertical selon la surface discale (mm²).
  * Interpolation linéaire bornée 0,5 → 0,7.
  */
-function normalCDLimit(discAreaMm2: number): number {
+export function normalCDLimit(discAreaMm2: number): number {
   if (!isFinite(discAreaMm2) || discAreaMm2 <= 0) return 0.6; // taille moyenne par défaut
   if (discAreaMm2 <= 1.5) return 0.5;                          // petit disque (microdisque)
   if (discAreaMm2 <= 2.0) return 0.5 + (discAreaMm2 - 1.5) * 0.2;  // 1,5→2,0 : 0,5→0,6
@@ -42,7 +42,7 @@ function normalCDLimit(discAreaMm2: number): number {
 }
 
 /** Gradient vertical vert→ambre→rouge dont les seuils suivent la limite de normalité. */
-function gaugeGradient(limit: number): string {
+export function gaugeGradient(limit: number): string {
   const greenEnd = Math.round(Math.max(0, limit - 0.1) * 100); // fin du vert franc
   const amber = Math.round(limit * 100);                        // zone limite
   const redStart = Math.round(Math.min(1, limit + 0.1) * 100);  // début du rouge franc

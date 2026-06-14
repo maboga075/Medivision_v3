@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Users, Clock, UserPlus, Trash2 } from 'lucide-react';
 import { archiveAllWaitingPatients } from '../../../services/waitingRoomService';
+import { useToast } from '../../../components/shared/ToastProvider';
 import type { PatientFirestore } from '../../../types/patient';
 
 interface WaitingQueueProps {
@@ -21,6 +22,7 @@ export default function WaitingQueue({
   const [showModal, setShowModal] = useState(false);
   const [isPurging, setIsPurging] = useState(false);
   const [toast, setToast] = useState('');
+  const { notify } = useToast();
 
   const handleConfirmNewDay = async () => {
     setIsPurging(true);
@@ -34,7 +36,7 @@ export default function WaitingQueue({
     } catch (err) {
       console.error('[WaitingQueue] Erreur nouvelle journée:', err);
       setShowModal(false);
-      alert("Erreur lors de l'archivage des patients.");
+      notify("Erreur lors de l'archivage des patients.", 'error');
     } finally {
       setIsPurging(false);
     }

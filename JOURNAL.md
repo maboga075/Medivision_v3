@@ -40,6 +40,39 @@ src/
 
 ---
 
+### Session 2026-06-14 — Audit + combobox motifs/antécédents + fiabilisation + tests
+
+**Demandé par :** Yoan
+**Statut :** ✅ Terminé — `tsc --noEmit` 0 erreur, build OK, **18 tests Vitest verts**
+
+#### Combobox motifs / antécédents (nouveau composant)
+- [x] **`TagAutocomplete`** ([components/forms/TagAutocomplete.tsx](src/components/forms/TagAutocomplete.tsx)) : champ de saisie + liste déroulante filtrée (façon RetinaSketch), chips supprimables, navigation clavier (↑↓ ↵ échap), création « Ajouter / garder », exclusivité « Sans particularité ».
+- [x] Intégré dans **`Accueil`** et **`PatientEditModal`** (remplace le mur de boutons + « Autre », supprime la duplication de logique). États morts retirés (customMotifs/showAddMotif/…).
+
+#### Audit — nettoyage
+- [x] **Code mort supprimé** : `Medivision_Monolith.jsx` (1477 l.) + `hooks/useSuggestions.ts`.
+- [x] Note : les champs `signature.dateLabel/clinicLine/city` ne sont **pas** morts (utilisés par `PatientReport` + `ComptesRendus`) → conservés.
+
+#### Fiabilisation erreurs + Firestore
+- [x] **Toast global** ([components/shared/ToastProvider.tsx](src/components/shared/ToastProvider.tsx)) wired dans `App` ; les **7 `alert()`** remplacés par `notify(..., 'error')` (Accueil, PatientEditModal, Consultation, Patients, WaitingQueue).
+- [x] **Requête patients bornée** : `Patients.tsx` ajoute `limit(300)` (évite de lire toute la collection).
+
+#### Tests (Vitest — mise en place)
+- [x] `vitest` + scripts `test`/`test:watch`. 4 fichiers, 18 tests :
+  - `cdGauge` : `normalCDLimit` (seuils 0,5/0,6/0,7), `parseNum`, `gaugeGradient`
+  - `lesions` : `searchLesions` (exact, fuzzy, limite)
+  - `clinicalSummary` : interprétation du suivi (aggravation) + lésions RSK → anomalies
+  - `clinicalPayload` : **régression latéralité** OG→OS (symptômes RSK transmis à l'IA)
+- [x] `normalCDLimit`/`gaugeGradient`/`parseNum` exportés depuis `CDGauge` pour testabilité.
+
+#### Audit — pistes restantes (non traitées, pour mémoire)
+- Bundle ~2 Mo monolithique → code-splitting (`manualChunks` + `React.lazy` par route).
+- Validation métier : borner le C/D (0–1) et la surface à la saisie.
+- Vérifier les **règles Firestore** côté console (sécurité données patient).
+- Découper les gros composants (`Consultation`, `EyeExamSection`, `reportDataMapper`).
+
+---
+
 ### Session 2026-06-13 (suite 2) — Création de lésion RSK rétablie
 
 **Demandé par :** Yoan

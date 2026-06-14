@@ -26,6 +26,7 @@ import ReportAudienceToggle, { type ReportAudience } from '../components/reports
 import ValidationBadge from '../components/shared/ValidationBadge';
 import { mapAIResultToOCTReportData, DEFAULT_PRACTITIONER } from '../utils/reportDataMapper';
 import { useSettings } from '../hooks/useSettings';
+import { useToast } from '../components/shared/ToastProvider';
 import { DEFAULT_SUGGESTIONS } from '../constants/defaultSuggestions';
 import { useReports } from '../features/reports/hooks/useReports';
 import { useConsultationForm } from '../features/consultation/hooks/useConsultationForm';
@@ -43,6 +44,7 @@ type ConsultationView = 'form' | 'report';
 
 export default function Consultation() {
   const { settings, updateBulles } = useSettings();
+  const { notify } = useToast();
   const { saveReport } = useReports();
 
   // ── Sélection du médecin examinateur ──────────────────────────────────────
@@ -223,7 +225,7 @@ export default function Consultation() {
       window.scrollTo(0, 0);
     } catch (e) {
       console.error('[IA] Erreur pipeline:', e);
-      alert(e instanceof Error ? e.message : 'Erreur réseau pendant la génération IA.');
+      notify(e instanceof Error ? e.message : 'Erreur réseau pendant la génération IA.', 'error');
     } finally {
       setIsAnalyzing(false);
     }
