@@ -40,7 +40,7 @@ export default function RetinaStage({ width, height }: Props) {
   const adjustSpotRadius = useStore((s) => s.adjustSpotRadius);
 
   const vp = useMemo(
-    () => createViewport(width, height, laterality === "OD" ? 1 : -1),
+    () => createViewport(width, height, laterality === "OD" ? -1 : 1),
     [width, height, laterality],
   );
 
