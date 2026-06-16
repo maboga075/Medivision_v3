@@ -203,21 +203,17 @@ const OCTReport: React.FC<{ data: OCTReportData }> = ({ data }) => {
 
       </section>
 
-      {/* ══ SIGNATURE ══ */}
+      {/* ══ SIGNATURE ══ (date + clinique déjà en en-tête → non répétés ici) */}
       <footer className="sign-block">
-        <div className="sign-left">
-          <div className="city" contentEditable="true" suppressContentEditableWarning={true}>{d.signature.dateLabel}</div>
-          <div className="contact" contentEditable="true" suppressContentEditableWarning={true}>
-            {d.signature.clinicLine}<br />
-            {d.signature.email} · {d.signature.phone}
-          </div>
-        </div>
         <div className="sign-right">
           <div className="sign-doctor">
             <span className="dr">{d.signature.doctorTitle}</span>{' '}
             <span contentEditable="true" suppressContentEditableWarning={true}>{d.signature.doctorName}</span>
           </div>
           <div className="sign-spec" contentEditable="true" suppressContentEditableWarning={true}>{d.signature.specialty}</div>
+          <div className="sign-contact" contentEditable="true" suppressContentEditableWarning={true}>
+            {d.signature.email} · {d.signature.phone}
+          </div>
           <div className="sign-line" />
         </div>
       </footer>

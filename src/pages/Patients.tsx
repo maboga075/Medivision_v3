@@ -1,9 +1,13 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, UserRound, Clock, CheckCircle, Stethoscope, FolderOpen } from 'lucide-react';
-import { db, collection, query, orderBy, getDocs, doc, updateDoc, serverTimestamp } from '../services/firebase';
+import { db, collection, query, orderBy, limit, getDocs, doc, updateDoc, serverTimestamp } from '../services/firebase';
 import { useConsultationDrafts } from '../hooks/useConsultationDrafts';
+import { useToast } from '../components/shared/ToastProvider';
 import type { PatientFirestore } from '../types/patient';
+
+// Plafond de lecture pour éviter de charger toute la collection (coût/latence).
+const PATIENTS_FETCH_LIMIT = 300;
 
 const calculateAge = (dob: string): number => {
   if (!dob) return 0;
@@ -14,6 +18,7 @@ const calculateAge = (dob: string): number => {
 export default function Patients() {
   const navigate = useNavigate();
   const { deleteDraft } = useConsultationDrafts();
+  const { notify } = useToast();
 
   const [patients, setPatients] = useState<PatientFirestore[]>([]);
   const [loading, setLoading] = useState(true);
@@ -23,7 +28,7 @@ export default function Patients() {
   useEffect(() => {
     async function fetchAll() {
       try {
-        const q = query(collection(db, 'patients'), orderBy('createdAt', 'desc'));
+        const q = query(collection(db, 'patients'), orderBy('createdAt', 'desc'), limit(PATIENTS_FETCH_LIMIT));
         const snap = await getDocs(q);
         const list: PatientFirestore[] = snap.docs.map((d) => ({
           id: d.id,
@@ -67,7 +72,7 @@ export default function Patients() {
       navigate('/consultation');
     } catch (err) {
       console.error('[Patients] Erreur nouvelle consultation:', err);
-      alert('Erreur lors de la mise à jour du patient.');
+      notify('Erreur lors de la mise à jour du patient.', 'error');
     } finally {
       setActionLoading(null);
     }

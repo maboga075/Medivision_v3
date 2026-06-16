@@ -267,6 +267,15 @@ function buildEyeData(
     annotations: eye.retinaAnnotations ?? [],
     rnflSectors: eye.rnflSectors,
     gclSectors: eye.gclSectors,
+    ...(eye.hasFollowUp
+      ? {
+          followUp: {
+            date: eye.followUpDate || undefined,
+            rnflEvolution: eye.rnflEvolution || undefined,
+            gclEvolution: eye.gclEvolution || undefined,
+          },
+        }
+      : {}),
   };
 
   // Acquisition impossible : sections morpho/biométrie vides, raisons transmises
@@ -452,7 +461,8 @@ export function mapAIResultToOCTReportData(
     patient: {
       surname: consultation.patient.nom.toUpperCase(),
       age: patientAge,
-      sex: 'M',
+      // Sexe saisi à l'accueil ; repli sur 'M' pour les anciens dossiers sans sexe.
+      sex: consultation.patient.sexe ?? 'M',
     },
 
     prescriber,

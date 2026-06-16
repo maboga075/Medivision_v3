@@ -2,7 +2,8 @@
  * RetinaSchemaSvg — rendu SVG statique du fond d'œil et des annotations
  * RetinaSketch, pour le compte rendu (impression / PDF / Word — aucune
  * dépendance Konva ici). Projette les annotations (mm, repère fovéal, convention
- * OD) vers un SVG fixe ; l'œil gauche est obtenu par miroir horizontal.
+ * OD) vers un SVG fixe ; l'œil droit est obtenu par miroir horizontal (papille
+ * à droite pour OD, à gauche pour OG).
  */
 
 import { TEMPLATE } from '../../../features/retinasketch/lib/geometry/template';
@@ -28,7 +29,7 @@ const PX = Math.min(
 const DRAFT = '#94a3b8';
 
 export default function RetinaSchemaSvg({ side, annotations = [] }: Props) {
-  const mirror = side === 'OG' ? -1 : 1;
+  const mirror = side === 'OD' ? -1 : 1;
   const toX = (mx: number) => CX + mx * PX * mirror;
   const toY = (my: number) => CY + my * PX;
 

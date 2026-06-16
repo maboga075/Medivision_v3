@@ -40,7 +40,7 @@ export default function RetinaStage({ width, height }: Props) {
   const adjustSpotRadius = useStore((s) => s.adjustSpotRadius);
 
   const vp = useMemo(
-    () => createViewport(width, height, laterality === "OD" ? 1 : -1),
+    () => createViewport(width, height, laterality === "OD" ? -1 : 1),
     [width, height, laterality],
   );
 
@@ -55,9 +55,14 @@ export default function RetinaStage({ width, height }: Props) {
   const [preview, setPreview] = useState<{ x: number; y: number } | null>(null);
 
   // Touche Espace = mode ajustement du diamètre du spot.
+  // Ne pas intercepter si l'utilisateur tape dans un champ texte (création de lésion, etc.)
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
       if (e.code === "Space") {
+        const typing =
+          e.target instanceof HTMLElement &&
+          ["INPUT", "TEXTAREA", "SELECT"].includes(e.target.tagName);
+        if (typing) return;
         e.preventDefault();
         setSpaceHeld(true);
       }
@@ -83,6 +88,10 @@ export default function RetinaStage({ width, height }: Props) {
       if (e.target !== e.target.getStage()) return; // un objet gère le clic
       const p = modelPos();
       if (!p) return;
+      // Bloquer les clics hors de l'ellipse rétinienne
+      const rx = TEMPLATE.retina.halfWidthMm;
+      const ry = TEMPLATE.retina.halfHeightMm;
+      if ((p.x * p.x) / (rx * rx) + (p.y * p.y) / (ry * ry) > 1) return;
       active.current = true;
       moved.current = false;
       buffer.current = [p.x, p.y];

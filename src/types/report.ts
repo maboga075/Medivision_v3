@@ -39,6 +39,12 @@ export interface EyeData {
   annotations?: Annotation[];
   rnflSectors?: RnflSectors;
   gclSectors?: GclSectors;
+  // V3 — suivi RNFL/GCL (affiché près des anneaux : « Diminué » / « Stable »).
+  followUp?: {
+    date?: string;
+    rnflEvolution?: string;
+    gclEvolution?: string;
+  };
 }
 
 // V3 — compte rendu en langage simple (vue patient).

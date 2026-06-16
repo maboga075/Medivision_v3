@@ -19,7 +19,7 @@ export default function FormulaireTab() {
   const { settings, updateBulles } = useSettings();
   const [newItems, setNewItems] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState<string | null>(null);
-  const [openCategory, setOpenCategory] = useState<CategoryKey | null>('macula');
+  const [openCategory, setOpenCategory] = useState<CategoryKey | null>('motifs');
   const [toast, setToast] = useState('');
 
   // Calcule les items depuis CE settings — pas un hook séparé

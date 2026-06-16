@@ -140,7 +140,7 @@ export default function RnflGclPicker({ side, rnfl, gcl, onChange, disabled }: R
     <div className={disabled ? 'opacity-50 pointer-events-none select-none' : ''}>
       <div className="grid grid-cols-2 gap-3">
         {/* RNFL */}
-        <div className="bg-white border border-slate-200 rounded-xl p-3 text-center">
+        <div className="p-2 text-center">
           <div className="text-[11px] font-mono font-bold text-slate-700">RNFL</div>
           <div className="text-[10px] text-slate-400 mb-1">fibres péripapillaires · 4 quadrants</div>
           <svg viewBox="0 0 100 100" className="w-full max-w-[150px] mx-auto block">
@@ -173,7 +173,7 @@ export default function RnflGclPicker({ side, rnfl, gcl, onChange, disabled }: R
         </div>
 
         {/* GCL+ */}
-        <div className="bg-white border border-slate-200 rounded-xl p-3 text-center">
+        <div className="p-2 text-center">
           <div className="text-[11px] font-mono font-bold text-slate-700">GCL+ <span className="text-slate-400">(GCIPL)</span></div>
           <div className="text-[10px] text-slate-400 mb-1">macula · 6 secteurs</div>
           <svg viewBox="0 0 100 100" className="w-full max-w-[150px] mx-auto block">

@@ -73,6 +73,8 @@ export interface ObservationsNormalisees {
   anterieur?: string[];
   octa?: string[];
   favoris?: string[];
+  /** Lésions dessinées dans RetinaSketch, converties en texte clinique structuré */
+  retina?: string[];
 }
 
 export interface EyeDataNormalisee {
@@ -109,6 +111,7 @@ export interface HypotheseDiagnostique {
 export interface RawConsultationData {
   patient: {
     nom: string;
+    sexe?: 'M' | 'F';
     age: number | string;
     date_naissance: string | null;
   };

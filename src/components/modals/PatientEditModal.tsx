@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { UserPlus, FileText, Activity, Plus, X, Pill, CheckCircle, Save } from 'lucide-react';
 import { db, doc, updateDoc } from '../../services/firebase';
 import { useSettings } from '../../hooks/useSettings';
+import { useToast } from '../shared/ToastProvider';
+import TagAutocomplete from '../forms/TagAutocomplete';
 import type { PatientFirestore, PatientFormData } from '../../types/patient';
 
 const DEFAULT_MOTIFS = ["Bilan visuel", "Suspicion de glaucome", "Baisse d'acuité visuelle", "Suivi diabétique", "DMLA", "Œil rouge"];
@@ -22,13 +24,14 @@ const calculateAge = (dob: string): number => {
 };
 
 const INITIAL_FORM: PatientFormData = {
-  folderId: '', nom: '', dateNaissance: '', motifs: [], antecedents: [],
+  folderId: '', nom: '', sexe: '', dateNaissance: '', motifs: [], antecedents: [],
   tel: '', email: '', hasTraitement: false, traitementTexte: '',
   medecinPrescripteur: '', dateExamen: '',
 };
 
 export default function PatientEditModal({ isOpen, onClose, patient, onUpdate }: PatientEditModalProps) {
   const { settings, updatePrescripteurs, updateBulles } = useSettings();
+  const { notify } = useToast();
 
   const availableMotifs = (() => {
     const custom = settings?.formulario?.motifs ?? [];
@@ -44,21 +47,25 @@ export default function PatientEditModal({ isOpen, onClose, patient, onUpdate }:
 
   const [formData, setFormData] = useState<PatientFormData>(INITIAL_FORM);
   const [isSuccess, setIsSuccess] = useState(false);
-  const [customMotifs, setCustomMotifs] = useState<string[]>([]);
-  const [showAddMotif, setShowAddMotif] = useState(false);
-  const [newMotif, setNewMotif] = useState('');
-  const [customAtcd, setCustomAtcd] = useState<string[]>([]);
-  const [showAddAtcd, setShowAddAtcd] = useState(false);
-  const [newAtcd, setNewAtcd] = useState('');
   const [customDoctors, setCustomDoctors] = useState<string[]>([]);
   const [showAddDoc, setShowAddDoc] = useState(false);
   const [newDoc, setNewDoc] = useState('');
+
+  const persistMotif = (item: string) => {
+    if (!availableMotifs.some((m) => m.toLowerCase() === item.toLowerCase()))
+      updateBulles('motifs', [...availableMotifs, item]).catch(console.error);
+  };
+  const persistAtcd = (item: string) => {
+    if (!availableAntecedents.some((a) => a.toLowerCase() === item.toLowerCase()))
+      updateBulles('antecedents', [...availableAntecedents, item]).catch(console.error);
+  };
 
   useEffect(() => {
     if (isOpen && patient) {
       setFormData({
         folderId: patient.folderId ?? '',
         nom: patient.nom ?? '',
+        sexe: patient.sexe ?? '',
         dateNaissance: patient.dateNaissance ?? '',
         motifs: patient.motifs ?? [],
         antecedents: patient.antecedents ?? [],
@@ -70,29 +77,11 @@ export default function PatientEditModal({ isOpen, onClose, patient, onUpdate }:
         dateExamen: patient.dateExamen ?? new Date().toISOString().split('T')[0],
       });
       setIsSuccess(false);
-      setCustomMotifs([]);
-      setCustomAtcd([]);
       setCustomDoctors([]);
     }
   }, [isOpen, patient]);
 
   if (!isOpen || !patient) return null;
-
-  const SP = 'Sans particularité';
-
-  const toggleArrayItem = (field: 'motifs' | 'antecedents', item: string) => {
-    setFormData((prev) => {
-      const arr = prev[field] as string[];
-      if (arr.includes(item)) {
-        return { ...prev, [field]: arr.filter((i) => i !== item) };
-      }
-      // "Sans particularité" est mutuellement exclusif avec les autres choix
-      if (item === SP) {
-        return { ...prev, [field]: [SP] };
-      }
-      return { ...prev, [field]: [...arr.filter((i) => i !== SP), item] };
-    });
-  };
 
   // Ajoute à la session courante uniquement (pas de sauvegarde dans les suggestions)
   const handleAddCustomSessionOnly = (
@@ -150,18 +139,23 @@ export default function PatientEditModal({ isOpen, onClose, patient, onUpdate }:
 
   const handleUpdate = async () => {
     if (!formData.nom || !formData.dateNaissance || !formData.motifs.length || !formData.antecedents.length) {
-      alert('Veuillez remplir les champs obligatoires (Nom, Date de naissance, Motifs, Antécédents).');
+      notify('Veuillez remplir les champs obligatoires (Nom, Date de naissance, Motifs, Antécédents).', 'error');
       return;
     }
     try {
-      const updatedData = { ...formData, age: calculateAge(formData.dateNaissance) };
+      const updatedData = {
+        ...formData,
+        sexe: formData.sexe || undefined, // '' → undefined pour rester compatible PatientFirestore
+        age: calculateAge(formData.dateNaissance),
+      };
       const pRef = doc(db, 'patients', patient.id);
       await updateDoc(pRef, updatedData as Record<string, unknown>);
       setIsSuccess(true);
       onUpdate({ ...patient, ...updatedData });
       setTimeout(() => onClose(), 1000);
-    } catch {
-      alert('Erreur lors de la mise à jour.');
+    } catch (e) {
+      console.error(e);
+      notify('Erreur lors de la mise à jour.', 'error');
     }
   };
 
@@ -201,66 +195,51 @@ export default function PatientEditModal({ isOpen, onClose, patient, onUpdate }:
                 />
               </div>
             ))}
+            <div className="border-2 border-slate-100 p-4 rounded-3xl bg-slate-50/50">
+              <label className="block text-sm font-bold text-slate-700 mb-2">Sexe</label>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, sexe: 'M' })}
+                  className={`flex-1 px-4 py-4 rounded-2xl text-lg font-bold border-2 transition-all active:scale-95 ${formData.sexe === 'M' ? 'bg-indigo-500 border-indigo-500 text-white shadow-md' : 'bg-white border-slate-200 text-slate-600 hover:border-indigo-300'}`}
+                >
+                  Homme
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, sexe: 'F' })}
+                  className={`flex-1 px-4 py-4 rounded-2xl text-lg font-bold border-2 transition-all active:scale-95 ${formData.sexe === 'F' ? 'bg-indigo-500 border-indigo-500 text-white shadow-md' : 'bg-white border-slate-200 text-slate-600 hover:border-indigo-300'}`}
+                >
+                  Femme
+                </button>
+              </div>
+            </div>
           </section>
 
           {/* Motifs */}
           <section className="space-y-8 border-t border-slate-100 pt-8">
-            <div>
-              <label className="block text-sm font-bold text-slate-700 mb-4 flex items-center gap-2">
-                <Activity className="w-5 h-5 text-indigo-600" /> Motif(s) *
-              </label>
-              <div className="flex flex-wrap gap-4 items-center">
-                {[...availableMotifs, ...customMotifs.filter((m) => !availableMotifs.includes(m))].map((m) => (
-                  <button key={m} onClick={() => toggleArrayItem('motifs', m)}
-                    className={`px-5 py-4 rounded-2xl text-[15px] font-bold transition-all active:scale-95 border-2 ${formData.motifs.includes(m) ? 'bg-indigo-500 text-white shadow-md border-indigo-500' : 'bg-white border-slate-200 text-slate-600 hover:border-indigo-300'}`}>
-                    {m}
-                  </button>
-                ))}
-                {showAddMotif ? (
-                  <div className="flex items-center gap-2 bg-indigo-50 p-2 rounded-2xl border border-indigo-100">
-                    <input autoFocus className="px-4 py-3 border-2 border-indigo-300 rounded-xl text-sm font-bold outline-none" placeholder="Motif..."
-                      value={newMotif} onChange={(e) => setNewMotif(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === 'Enter') handleAddCustomSessionOnly('motifs', newMotif, setCustomMotifs, setShowAddMotif, setNewMotif); if (e.key === 'Escape') setShowAddMotif(false); }} />
-                    <button onClick={() => handleAddCustomSessionOnly('motifs', newMotif, setCustomMotifs, setShowAddMotif, setNewMotif)} title="Ajouter pour cette session uniquement" className="bg-indigo-400 text-white px-4 py-3 rounded-xl text-sm font-bold whitespace-nowrap">Session</button>
-                    <button onClick={() => handleAddCustom('motifs', newMotif, setCustomMotifs, setShowAddMotif, setNewMotif)} title="Ajouter et enregistrer pour les prochaines sessions" className="bg-indigo-600 text-white px-4 py-3 rounded-xl text-sm font-bold whitespace-nowrap flex items-center gap-1"><Save className="w-4 h-4" /> Garder</button>
-                    <button onClick={() => setShowAddMotif(false)} className="text-slate-400 p-2"><X className="w-5 h-5"/></button>
-                  </div>
-                ) : (
-                  <button onClick={() => setShowAddMotif(true)} className="px-5 py-4 rounded-2xl text-[15px] font-bold border-2 border-dashed border-slate-300 text-slate-500 hover:bg-slate-50 flex items-center gap-2">
-                    <Plus className="w-5 h-5" /> Autre
-                  </button>
-                )}
-              </div>
-            </div>
+            <TagAutocomplete
+              label={<><Activity className="w-5 h-5 text-indigo-600" /> Motif(s)</>}
+              required
+              accent="indigo"
+              selectedItems={formData.motifs}
+              suggestions={availableMotifs}
+              onChange={(motifs) => setFormData((prev) => ({ ...prev, motifs }))}
+              onPersistNew={persistMotif}
+              placeholder="Rechercher ou saisir un motif…"
+            />
 
-            {/* Antécédents */}
-            <div>
-              <label className="block text-sm font-bold text-slate-700 mb-4 flex items-center gap-2">
-                <FileText className="w-5 h-5 text-orange-600" /> Antécédents *
-              </label>
-              <div className="flex flex-wrap gap-4 items-center">
-                {[...availableAntecedents, ...customAtcd.filter((a) => !availableAntecedents.includes(a))].map((a) => (
-                  <button key={a} onClick={() => toggleArrayItem('antecedents', a)}
-                    className={`px-5 py-4 rounded-2xl text-[15px] font-bold transition-all active:scale-95 border-2 ${formData.antecedents.includes(a) ? 'bg-orange-500 text-white shadow-md border-orange-500' : 'bg-white border-slate-200 text-slate-600 hover:border-orange-300'}`}>
-                    {a}
-                  </button>
-                ))}
-                {showAddAtcd ? (
-                  <div className="flex items-center gap-2 bg-orange-50 p-2 rounded-2xl border border-orange-100">
-                    <input autoFocus className="px-4 py-3 border-2 border-orange-300 rounded-xl text-sm font-bold outline-none" placeholder="Antécédent..."
-                      value={newAtcd} onChange={(e) => setNewAtcd(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === 'Enter') handleAddCustomSessionOnly('antecedents', newAtcd, setCustomAtcd, setShowAddAtcd, setNewAtcd); if (e.key === 'Escape') setShowAddAtcd(false); }} />
-                    <button onClick={() => handleAddCustomSessionOnly('antecedents', newAtcd, setCustomAtcd, setShowAddAtcd, setNewAtcd)} title="Ajouter pour cette session uniquement" className="bg-orange-400 text-white px-4 py-3 rounded-xl text-sm font-bold whitespace-nowrap">Session</button>
-                    <button onClick={() => handleAddCustom('antecedents', newAtcd, setCustomAtcd, setShowAddAtcd, setNewAtcd)} title="Ajouter et enregistrer pour les prochaines sessions" className="bg-orange-600 text-white px-4 py-3 rounded-xl text-sm font-bold whitespace-nowrap flex items-center gap-1"><Save className="w-4 h-4" /> Garder</button>
-                    <button onClick={() => setShowAddAtcd(false)} className="text-slate-400 p-2"><X className="w-5 h-5"/></button>
-                  </div>
-                ) : (
-                  <button onClick={() => setShowAddAtcd(true)} className="px-5 py-4 rounded-2xl text-[15px] font-bold border-2 border-dashed border-slate-300 text-slate-500 hover:bg-slate-50 flex items-center gap-2">
-                    <Plus className="w-5 h-5" /> Autre
-                  </button>
-                )}
-              </div>
-            </div>
+            <TagAutocomplete
+              label={<><FileText className="w-5 h-5 text-orange-600" /> Antécédents</>}
+              required
+              accent="indigo"
+              selectedItems={formData.antecedents}
+              suggestions={availableAntecedents}
+              onChange={(antecedents) => setFormData((prev) => ({ ...prev, antecedents }))}
+              onPersistNew={persistAtcd}
+              exclusiveItem="Sans particularité"
+              placeholder="Rechercher ou saisir un antécédent…"
+            />
 
             {/* Traitement */}
             <div className="bg-slate-50 rounded-3xl p-6 border border-slate-200">

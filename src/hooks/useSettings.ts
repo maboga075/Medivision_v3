@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { db, doc, getDoc, setDoc, serverTimestamp } from '../services/firebase';
-import type { AppSettings, Doctor, CustomLesion } from '../types/settings';
+import type { AppSettings, Doctor, CustomLesion, ClinicalPattern } from '../types/settings';
 import { setCustomLesions } from '../features/retinasketch/lib/ontology/lesions';
 
 const SETTINGS_DOC_ID = 'clinic';
@@ -193,6 +193,14 @@ export function useSettings() {
     [settings, persist]
   );
 
+  const updateClinicalPatterns = useCallback(
+    async (patterns: ClinicalPattern[]) => {
+      if (!settings) return;
+      await persist({ ...settings, clinicalPatterns: patterns });
+    },
+    [settings, persist]
+  );
+
   return {
     settings,
     loading,
@@ -208,5 +216,6 @@ export function useSettings() {
     updatePrescripteurs,
     updateExport,
     updateCustomLesions,
+    updateClinicalPatterns,
   };
 }

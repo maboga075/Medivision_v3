@@ -26,6 +26,7 @@ import ReportAudienceToggle, { type ReportAudience } from '../components/reports
 import ValidationBadge from '../components/shared/ValidationBadge';
 import { mapAIResultToOCTReportData, DEFAULT_PRACTITIONER } from '../utils/reportDataMapper';
 import { useSettings } from '../hooks/useSettings';
+import { useToast } from '../components/shared/ToastProvider';
 import { DEFAULT_SUGGESTIONS } from '../constants/defaultSuggestions';
 import { useReports } from '../features/reports/hooks/useReports';
 import { useConsultationForm } from '../features/consultation/hooks/useConsultationForm';
@@ -43,6 +44,7 @@ type ConsultationView = 'form' | 'report';
 
 export default function Consultation() {
   const { settings, updateBulles } = useSettings();
+  const { notify } = useToast();
   const { saveReport } = useReports();
 
   // ── Sélection du médecin examinateur ──────────────────────────────────────
@@ -135,6 +137,7 @@ export default function Consultation() {
       const rawInputJson: RawConsultationData = {
         patient: {
           nom: selectedPatient.nom,
+          sexe: selectedPatient.sexe,
           age: selectedPatient.age,
           date_naissance: selectedPatient.dateNaissance ?? null,
         },
@@ -222,7 +225,7 @@ export default function Consultation() {
       window.scrollTo(0, 0);
     } catch (e) {
       console.error('[IA] Erreur pipeline:', e);
-      alert(e instanceof Error ? e.message : 'Erreur réseau pendant la génération IA.');
+      notify(e instanceof Error ? e.message : 'Erreur réseau pendant la génération IA.', 'error');
     } finally {
       setIsAnalyzing(false);
     }
@@ -455,7 +458,15 @@ export default function Consultation() {
                     <EyeExamSection
                       side="OD"
                       eye={form.eyeOD}
-                      onUpdate={form.setEyeOD}
+                      onUpdate={(next) => {
+                        form.setEyeOD(next);
+                        // La date de suivi est saisie une seule fois : on la propage à l'OG.
+                        if (next.followUpDate) {
+                          form.setEyeOG((prev) =>
+                            prev.followUpDate === next.followUpDate ? prev : { ...prev, followUpDate: next.followUpDate }
+                          );
+                        }
+                      }}
                       isOCT={form.reportType.includes('OCT')}
                       showOpticNerve={form.reportType === 'Compte rendu Rétinographie'}
                       showAnterior={form.showAnterior}
@@ -469,7 +480,15 @@ export default function Consultation() {
                     <EyeExamSection
                       side="OG"
                       eye={form.eyeOG}
-                      onUpdate={form.setEyeOG}
+                      onUpdate={(next) => {
+                        form.setEyeOG(next);
+                        // Sync inverse : une date saisie sur l'OG se reporte sur l'OD.
+                        if (next.followUpDate) {
+                          form.setEyeOD((prev) =>
+                            prev.followUpDate === next.followUpDate ? prev : { ...prev, followUpDate: next.followUpDate }
+                          );
+                        }
+                      }}
                       isOCT={form.reportType.includes('OCT')}
                       showOpticNerve={form.reportType === 'Compte rendu Rétinographie'}
                       showAnterior={form.showAnterior}
