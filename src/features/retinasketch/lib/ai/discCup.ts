@@ -20,8 +20,9 @@ function getOrt(): Promise<OrtModule> {
   if (!ortPromise) {
     ortPromise = import("onnxruntime-web").then((ort) => {
       ort.env.wasm.numThreads = 1; // évite l'exigence COOP/COEP
+      // Doit correspondre à la version d'onnxruntime-web installée (package.json).
       ort.env.wasm.wasmPaths =
-        "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/";
+        "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.27.0/dist/";
       return ort;
     });
   }
