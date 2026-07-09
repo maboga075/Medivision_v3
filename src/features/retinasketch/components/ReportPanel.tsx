@@ -1,7 +1,7 @@
 
 import { useMemo, useState } from "react";
-import { useStore } from "../store/useStore";
-import { generateReport } from "../lib/report/generate";
+import { useStore } from "@/features/retinasketch/store/useStore";
+import { generateReport } from "@/features/retinasketch/lib/report/generate";
 
 export default function ReportPanel() {
   const annotations = useStore((s) => s.annotations);

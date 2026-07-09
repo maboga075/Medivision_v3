@@ -16,6 +16,12 @@ import { db, collection, onSnapshot, query, orderBy, where } from '../services/f
 import PatientEditModal from '../components/modals/PatientEditModal';
 import { callNativeAI } from '../services/aiManager';
 import EyeExamSection from '../components/forms/EyeExamSection';
+import RetinaEditor from '../features/retinasketch/components/RetinaEditor';
+import type { RetinaPrintInfo } from '../features/retinasketch/lib/printInfo';
+import type { CustomLesion } from '../types/settings';
+
+// Palette d'attribution automatique des couleurs pour les lésions créées à la volée.
+const RETINA_LESION_COLORS = ['#14B8A6', '#8B5CF6', '#EC4899', '#F5A524', '#3B82F6', '#E5484D', '#0EA5E9', '#A11D2B'];
 import { useConsultationDrafts } from '../hooks/useConsultationDrafts';
 import { normalizeClinicalData } from '../utils/clinicalPayload';
 import { buildClinicalSummary } from '../utils/clinicalSummary';
@@ -43,7 +49,7 @@ import type { RawConsultationData } from '../types/clinical';
 type ConsultationView = 'form' | 'report';
 
 export default function Consultation() {
-  const { settings, updateBulles } = useSettings();
+  const { settings, updateBulles, updateCustomLesions } = useSettings();
   const { notify } = useToast();
   const { saveReport } = useReports();
 
@@ -82,6 +88,7 @@ export default function Consultation() {
   const [jsonValidation, setJsonValidation] = useState<ValidationResult | null>(null);
   const [octReportData, setOctReportData] = useState<OCTReportData | null>(null);
   const [reportAudience, setReportAudience] = useState<ReportAudience>('medecin');
+  const [retinaOpen, setRetinaOpen] = useState(false);
   const reportRef = useRef<HTMLDivElement>(null);
 
   // ── Formulaire clinique ────────────────────────────────────────────────────
@@ -460,8 +467,22 @@ export default function Consultation() {
                       eye={form.eyeOD}
                       onUpdate={(next) => {
                         form.setEyeOD(next);
-                        // La date de suivi est saisie une seule fois : on la propage à l'OG.
-                        if (next.followUpDate) {
+                        // Activer le suivi RNFL/GCL sur un œil l'active automatiquement
+                        // sur l'autre (avec évolutions par défaut et date partagée).
+                        if (next.hasFollowUp) {
+                          form.setEyeOG((prev) =>
+                            prev.hasFollowUp && (!next.followUpDate || prev.followUpDate === next.followUpDate)
+                              ? prev
+                              : {
+                                  ...prev,
+                                  hasFollowUp: true,
+                                  rnflEvolution: prev.rnflEvolution || 'Stable',
+                                  gclEvolution: prev.gclEvolution || 'Stable',
+                                  followUpDate: next.followUpDate || prev.followUpDate,
+                                }
+                          );
+                        } else if (next.followUpDate) {
+                          // La date de suivi est saisie une seule fois : on la propage à l'OG.
                           form.setEyeOG((prev) =>
                             prev.followUpDate === next.followUpDate ? prev : { ...prev, followUpDate: next.followUpDate }
                           );
@@ -471,6 +492,7 @@ export default function Consultation() {
                       showOpticNerve={form.reportType === 'Compte rendu Rétinographie'}
                       showAnterior={form.showAnterior}
                       octaDone={form.octaDone}
+                      onOpenRetina={() => setRetinaOpen(true)}
                       onNewSuggestion={(category, item) => {
                         const stored = settings?.formulario?.[category];
                         const effective = stored ?? DEFAULT_SUGGESTIONS[category] ?? [];
@@ -482,8 +504,20 @@ export default function Consultation() {
                       eye={form.eyeOG}
                       onUpdate={(next) => {
                         form.setEyeOG(next);
-                        // Sync inverse : une date saisie sur l'OG se reporte sur l'OD.
-                        if (next.followUpDate) {
+                        // Sync inverse : activer le suivi sur l'OG l'active sur l'OD.
+                        if (next.hasFollowUp) {
+                          form.setEyeOD((prev) =>
+                            prev.hasFollowUp && (!next.followUpDate || prev.followUpDate === next.followUpDate)
+                              ? prev
+                              : {
+                                  ...prev,
+                                  hasFollowUp: true,
+                                  rnflEvolution: prev.rnflEvolution || 'Stable',
+                                  gclEvolution: prev.gclEvolution || 'Stable',
+                                  followUpDate: next.followUpDate || prev.followUpDate,
+                                }
+                          );
+                        } else if (next.followUpDate) {
                           form.setEyeOD((prev) =>
                             prev.followUpDate === next.followUpDate ? prev : { ...prev, followUpDate: next.followUpDate }
                           );
@@ -493,6 +527,7 @@ export default function Consultation() {
                       showOpticNerve={form.reportType === 'Compte rendu Rétinographie'}
                       showAnterior={form.showAnterior}
                       octaDone={form.octaDone}
+                      onOpenRetina={() => setRetinaOpen(true)}
                       onNewSuggestion={(category, item) => {
                         const stored = settings?.formulario?.[category];
                         const effective = stored ?? DEFAULT_SUGGESTIONS[category] ?? [];
@@ -573,6 +608,56 @@ export default function Consultation() {
         patient={selectedPatient}
         onUpdate={setSelectedPatient}
       />
+
+      {/* Éditeur RetinaSketch double-œil (OD + OG simultanés) — modale plein écran. */}
+      {retinaOpen && (
+        <RetinaEditor
+          odAnnotations={form.eyeOD.retinaAnnotations ?? []}
+          ogAnnotations={form.eyeOG.retinaAnnotations ?? []}
+          onChangeOD={(annotations) =>
+            form.setEyeOD((prev) => ({ ...prev, retinaAnnotations: annotations }))
+          }
+          onChangeOG={(annotations) =>
+            form.setEyeOG((prev) => ({ ...prev, retinaAnnotations: annotations }))
+          }
+          backgroundOD={form.eyeOD.retinaBackground}
+          backgroundOG={form.eyeOG.retinaBackground}
+          layers={form.eyeOD.retinaLayers ?? form.eyeOG.retinaLayers}
+          onCommit={(commit) => {
+            // Persiste l'image + les calques (partagés) sur chaque œil pour le CR.
+            form.setEyeOD((prev) => ({ ...prev, retinaBackground: commit.od, retinaLayers: commit.layers }));
+            form.setEyeOG((prev) => ({ ...prev, retinaBackground: commit.og, retinaLayers: commit.layers }));
+          }}
+          onClose={() => setRetinaOpen(false)}
+          onCreateLesion={async (name) => {
+            const existing = settings?.customLesions ?? [];
+            const dup = existing.find((l) => l.name.toLowerCase() === name.toLowerCase());
+            if (dup) return { id: dup.id };
+            const lesion: CustomLesion = {
+              id: `custom_${Date.now().toString(36)}`,
+              name,
+              color: RETINA_LESION_COLORS[existing.length % RETINA_LESION_COLORS.length],
+              category: 'Personnalisée',
+              terms: [name.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[-'\s]+/g, '_')],
+            };
+            await updateCustomLesions([...existing, lesion]);
+            return { id: lesion.id };
+          }}
+          printInfo={(() => {
+            const doc = settings?.doctors.find((d) => d.id === selectedDoctorId);
+            const info: RetinaPrintInfo = {
+              patientName: selectedPatient?.nom,
+              patientAge: selectedPatient ? String(selectedPatient.age) : undefined,
+              folderId: selectedPatient?.folderId,
+              date: new Date().toLocaleDateString('fr-FR'),
+              motifs: selectedPatient?.motifs?.join(', '),
+              doctor: doc ? `Dr. ${doc.prenom} ${doc.nom}` : undefined,
+              clinic: settings?.clinic?.nom,
+            };
+            return info;
+          })()}
+        />
+      )}
     </>
   );
 }

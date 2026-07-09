@@ -31,20 +31,48 @@ export const LESIONS: Lesion[] = [
 
 const LESION_MAP = new Map(LESIONS.map((l) => [l.id, l]));
 
+/** Vrai si l'id correspond à une lésion intégrée (par opposition aux personnalisées). */
+export function isBuiltinLesion(id: string): boolean {
+  return LESION_MAP.has(id);
+}
+
 // Registre des lésions personnalisées — mis à jour via setCustomLesions()
 let _customLesions: Lesion[] = [];
+
+// Surcharges des lésions intégrées : valeur = version modifiée, `null` = supprimée.
+// Permet de rendre TOUTES les lésions modifiables sans perdre les valeurs d'origine.
+let _lesionOverrides: Record<string, Lesion | null> = {};
 
 export function setCustomLesions(lesions: Lesion[]): void {
   _customLesions = lesions;
 }
 
+export function setLesionOverrides(overrides: Record<string, Lesion | null> | undefined): void {
+  _lesionOverrides = overrides ?? {};
+}
+
+/** Lésion intégrée effective (surcharge appliquée) ou `undefined` si supprimée. */
+function effectiveBuiltin(l: Lesion): Lesion | undefined {
+  if (Object.prototype.hasOwnProperty.call(_lesionOverrides, l.id)) {
+    const ov = _lesionOverrides[l.id];
+    if (ov === null) return undefined; // supprimée
+    return { ...l, ...ov };
+  }
+  return l;
+}
+
 export function getAllLesions(): Lesion[] {
-  return [...LESIONS, ..._customLesions];
+  const builtins = LESIONS
+    .map(effectiveBuiltin)
+    .filter((l): l is Lesion => !!l);
+  return [...builtins, ..._customLesions];
 }
 
 export const getLesion = (id: string | null): Lesion | undefined => {
   if (!id) return undefined;
-  return LESION_MAP.get(id) ?? _customLesions.find((l) => l.id === id);
+  const builtin = LESION_MAP.get(id);
+  if (builtin) return effectiveBuiltin(builtin);
+  return _customLesions.find((l) => l.id === id);
 };
 
 /** Normalise (minuscule, sans accents, sans tirets) pour la recherche. */

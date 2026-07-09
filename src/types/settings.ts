@@ -60,6 +60,8 @@ export interface AppSettings {
   formulario: FormulaireSettings;
   export: ExportSettings;
   customLesions?: CustomLesion[];
+  // Surcharges des lésions intégrées : version modifiée par id, ou `null` si supprimée.
+  lesionOverrides?: Record<string, CustomLesion | null>;
   clinicalPatterns?: ClinicalPattern[];
   updatedAt?: unknown;
 }

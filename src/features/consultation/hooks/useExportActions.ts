@@ -36,13 +36,15 @@ export function useExportActions({ selectedPatient, octReportData, reportRef }: 
 
   const handlePrint = useCallback(() => {
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+    // Rétinographie → paysage ; OCT → portrait.
+    const orientation = octReportData?.layout === 'landscape' ? 'landscape' : 'portrait';
     printReport(reportRef.current, {
       title: buildFilename('pdf').replace(/\.pdf$/, ''),
       paperSize: 'A4',
-      orientation: 'portrait',
-      margins: { top: 10, right: 10, bottom: 10, left: 10 },
+      orientation,
+      margins: { top: 8, right: 8, bottom: 8, left: 8 },
     });
-  }, [reportRef, buildFilename]);
+  }, [reportRef, buildFilename, octReportData]);
 
   const handleExportPDF = useCallback(async () => {
     setExportMenuOpen(false);

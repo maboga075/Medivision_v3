@@ -24,11 +24,42 @@ export interface ImageData {
   data: string; // base64 data URL
 }
 
+// Calques RetinaSketch (mémorise l'état activé/désactivé pour le compte rendu).
+export type RetinaLayers = Record<
+  'anatomy' | 'quadrants' | 'fovea' | 'etdrs' | 'periphery' | 'vessels',
+  boolean
+>;
+
+/**
+ * Instantané de l'image de rétinographie et de son réglage, persisté depuis
+ * l'éditeur RetinaSketch pour reproduire fidèlement l'affichage dans le compte
+ * rendu (image compressée JPEG + alignement + colorimétrie).
+ */
+export interface RetinaBackgroundSnapshot {
+  src: string;        // dataURL JPEG compressé
+  natW: number;
+  natH: number;
+  visible: boolean;
+  // Colorimétrie (appliquée en CSS)
+  opacity: number;     // 0..1
+  brightness: number;  // %, 100 = neutre
+  contrast: number;    // %, 100 = neutre
+  saturation: number;  // %, 100 = neutre
+  // Alignement
+  scale: number;       // multiplicateur, 1 = ajusté au contour
+  offsetXMm: number;
+  offsetYMm: number;
+  rotationDeg: number;
+}
+
 export interface EyeState {
   acquisitionStatus: AcquisitionStatus;
   acquisitionMotif: string;
   acquisitionQuality?: 'bon' | 'faible' | 'impossible';
   acquisitionQualityReasons?: string[];
+
+  // Acquisition difficile : exclut RNFL/GCL de l'interprétation et du compte rendu.
+  excludeRnflGcl?: boolean;
 
   hasFollowUp: boolean;
   followUpDate: string;
@@ -44,6 +75,10 @@ export interface EyeState {
 
   // Annotations RetinaSketch de cet œil (V3, module 1).
   retinaAnnotations?: import('../features/retinasketch/lib/types').Annotation[];
+
+  // Image de rétinographie + calques persistés depuis RetinaSketch (pour le CR).
+  retinaBackground?: RetinaBackgroundSnapshot | null;
+  retinaLayers?: RetinaLayers;
 
   cornealThickness: string;
   obsAnterieur: string[];
@@ -80,6 +115,13 @@ export interface ObservationsNormalisees {
 export interface EyeDataNormalisee {
   acquisitionStatus?: AcquisitionStatus;
   acquisitionMotif?: string;
+  // Indice d'acquisition dégradé (transmis à l'IA pour nuancer l'interprétation).
+  acquisitionQuality?: 'faible' | 'impossible';
+  acquisitionMotifs?: string[];
+  // Acquisition difficile : RNFL/GCL non interprétables (exclus par le praticien).
+  rnfl_gcl_non_interpretable?: boolean;
+  rnfl_localisation?: string;
+  gcl_localisation?: string;
   hasFollowUp?: boolean;
   followUpDate?: string;
   rnflEvolution?: string;

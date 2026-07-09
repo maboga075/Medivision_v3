@@ -1,91 +1,73 @@
+
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { useStore } from "../store/useStore";
-import { searchLesions, setCustomLesions } from "../lib/ontology/lesions";
-import { useSettings } from "../../../hooks/useSettings";
-import type { CustomLesion } from "../../../types/settings";
+import { useStore } from "@/features/retinasketch/store/useStore";
+import { searchLesions } from "@/features/retinasketch/lib/ontology/lesions";
 
-const CATEGORIES_PRESET = [
-  'Hémorragie', 'Vasculaire', 'Exsudat', 'Dégénératif',
-  'Œdème', 'Structurel', 'Traitement', 'Autre',
-];
+interface CommandPaletteProps {
+  /** Crée et enregistre une nouvelle lésion en mémoire ; retourne son id pour l'assigner. */
+  onCreateLesion?: (name: string) => Promise<{ id: string } | null>;
+}
 
-export default function CommandPalette() {
+export default function CommandPalette({ onCreateLesion }: CommandPaletteProps) {
   const open = useStore((s) => s.paletteOpen);
   const setOpen = useStore((s) => s.setPaletteOpen);
   const assignLesion = useStore((s) => s.assignLesion);
+  const setAnnotationLesion = useStore((s) => s.setAnnotationLesion);
+  const selectedId = useStore((s) => s.selectedAnnotationId);
+  const selectAnnotation = useStore((s) => s.selectAnnotation);
   const draftCount = useStore(
     (s) => s.annotations.filter((a) => a.status === "draft").length,
   );
 
-  const { settings, updateCustomLesions } = useSettings();
+  // Une lésion sélectionnée → on (ré)identifie CETTE lésion (édition de couche) ;
+  // sinon on valide tous les brouillons (flux d'identification habituel).
+  const editing = !!selectedId;
 
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
+  const [creating, setCreating] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Mode création en live
-  const [creating, setCreating] = useState(false);
-  const [newColor, setNewColor] = useState("#14B8A6");
-  const [newCategory, setNewCategory] = useState("Autre");
-  const [saving, setSaving] = useState(false);
-
   const results = useMemo(() => searchLesions(query), [query]);
-  // La recherche est tolérante (sous-séquences) : elle renvoie souvent des
-  // correspondances approximatives. On propose donc la création dès qu'aucune
-  // lésion ne correspond EXACTEMENT au terme saisi, même si des résultats
-  // approchants existent — sinon le bouton « Créer » n'apparaîtrait quasi jamais.
-  const trimmedQuery = query.trim();
-  const exactMatch = results.some(
-    (l) => l.name.toLowerCase() === trimmedQuery.toLowerCase(),
+  const target = editing ? 1 : draftCount;
+
+  // Proposition de création : nom suffisant, pas déjà présent à l'identique.
+  const trimmed = query.trim();
+  const exactExists = results.some(
+    (r) => r.name.toLowerCase() === trimmed.toLowerCase(),
   );
-  const showCreateOption = trimmedQuery.length >= 2 && !exactMatch;
-  const target = draftCount;
+  const canCreate = !!onCreateLesion && trimmed.length >= 2 && !exactExists;
+
+  const handleCreate = async () => {
+    if (!onCreateLesion || !trimmed || creating) return;
+    setCreating(true);
+    try {
+      const lesion = await onCreateLesion(trimmed);
+      if (lesion) choose(lesion.id);
+    } finally {
+      setCreating(false);
+    }
+  };
 
   useEffect(() => {
     if (open) {
       setQuery("");
       setActive(0);
-      setCreating(false);
-      setNewColor("#14B8A6");
-      setNewCategory("Autre");
       setTimeout(() => inputRef.current?.focus(), 10);
     }
   }, [open]);
 
-  useEffect(() => { setActive(0); setCreating(false); }, [query]);
+  useEffect(() => setActive(0), [query]);
 
   const choose = (id: string) => {
-    assignLesion(id);
-    setQuery("");
-  };
-
-  const handleCreate = async () => {
-    const name = query.trim();
-    if (!name) return;
-    setSaving(true);
-    try {
-      const existing: CustomLesion[] = settings?.customLesions ?? [];
-      const newLesion: CustomLesion = {
-        id: `custom_${Date.now().toString(36)}`,
-        name,
-        color: newColor,
-        category: newCategory,
-        terms: [name.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[-'\s]+/g, "_")],
-      };
-      const updated = [...existing, newLesion];
-      // Sync registre immédiat pour que assignLesion trouve la lésion
-      setCustomLesions(updated as Parameters<typeof setCustomLesions>[0]);
-      // Assigner la lésion aux annotations en brouillon
-      assignLesion(newLesion.id);
-      // Sauvegarder en async
-      await updateCustomLesions(updated);
-    } catch (e) {
-      console.error("[CommandPalette] création lésion", e);
-    } finally {
-      setSaving(false);
-      setCreating(false);
+    if (editing && selectedId) {
+      setAnnotationLesion(selectedId, id);
+      selectAnnotation(null);
+    } else {
+      assignLesion(id);
     }
+    setQuery("");
   };
 
   const onKey = (e: React.KeyboardEvent) => {
@@ -95,11 +77,12 @@ export default function CommandPalette() {
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       setActive((a) => Math.max(a - 1, 0));
-    } else if (e.key === "Enter" && results[active]) {
+    } else if (e.key === "Enter") {
       e.preventDefault();
-      choose(results[active].id);
+      if (results[active]) choose(results[active].id);
+      else if (canCreate) handleCreate();
     } else if (e.key === "Escape") {
-      if (creating) { setCreating(false); } else { setOpen(false); }
+      setOpen(false);
     }
   };
 
@@ -121,7 +104,6 @@ export default function CommandPalette() {
             transition={{ duration: 0.14 }}
             onMouseDown={(e) => e.stopPropagation()}
           >
-            {/* Champ de recherche */}
             <div className="flex items-center gap-3 border-b border-slate-100 px-4">
               <svg width="18" height="18" viewBox="0 0 24 24" className="text-slate-400">
                 <circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" strokeWidth="2" />
@@ -136,13 +118,12 @@ export default function CommandPalette() {
                 className="w-full bg-transparent py-3.5 text-[15px] text-slate-800 outline-none placeholder:text-slate-400"
               />
               <span className="shrink-0 rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">
-                {target} objet{target > 1 ? "s" : ""}
+                {editing ? "Modifier" : `${target} objet${target > 1 ? "s" : ""}`}
               </span>
             </div>
 
-            {/* Résultats */}
-            <ul className="max-h-[280px] overflow-y-auto p-1.5">
-              {results.length === 0 && !showCreateOption && (
+            <ul className="max-h-[320px] overflow-y-auto p-1.5">
+              {results.length === 0 && (
                 <li className="px-3 py-6 text-center text-sm text-slate-400">
                   {query ? "Aucune lésion correspondante" : "Saisissez un terme pour rechercher"}
                 </li>
@@ -156,77 +137,34 @@ export default function CommandPalette() {
                       i === active ? "bg-blue-50" : "hover:bg-slate-50"
                     }`}
                   >
-                    <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: l.color }} />
-                    <span className="flex-1 text-sm font-medium text-slate-800">{l.name}</span>
+                    <span
+                      className="h-3 w-3 shrink-0 rounded-full"
+                      style={{ backgroundColor: l.color }}
+                    />
+                    <span className="flex-1 text-sm font-medium text-slate-800">
+                      {l.name}
+                    </span>
                     <span className="text-xs text-slate-400">{l.category}</span>
                   </button>
                 </li>
               ))}
-
-              {/* Option de création en live */}
-              {showCreateOption && !creating && (
-                <li>
-                  <button
-                    onClick={() => setCreating(true)}
-                    className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left bg-teal-50 hover:bg-teal-100 transition border border-teal-200 mx-0.5 mt-0.5"
-                  >
-                    <span className="h-6 w-6 shrink-0 rounded-full bg-teal-600 text-white flex items-center justify-center text-sm font-bold">+</span>
-                    <span className="flex-1 text-sm font-semibold text-teal-800">
-                      Créer <em className="not-italic font-bold">« {query} »</em>
-                    </span>
-                    <span className="text-xs text-teal-600">Nouvelle lésion</span>
-                  </button>
-                </li>
-              )}
             </ul>
 
-            {/* Formulaire de création inline */}
-            {creating && (
-              <div className="border-t border-teal-100 bg-teal-50 px-4 py-3 space-y-3">
-                <p className="text-xs font-bold text-teal-700 uppercase tracking-wider">
-                  Créer « {query} »
-                </p>
-                <div className="flex gap-3 items-center">
-                  {/* Couleur */}
-                  <label className="cursor-pointer flex-shrink-0" title="Choisir la couleur">
-                    <div
-                      className="w-9 h-9 rounded-xl border-2 border-white shadow"
-                      style={{ background: newColor }}
-                    />
-                    <input
-                      type="color"
-                      value={newColor}
-                      onChange={(e) => setNewColor(e.target.value)}
-                      className="sr-only"
-                    />
-                  </label>
-                  {/* Catégorie */}
-                  <select
-                    value={newCategory}
-                    onChange={(e) => setNewCategory(e.target.value)}
-                    className="flex-1 px-3 py-2 text-sm border-2 border-slate-200 rounded-xl outline-none focus:border-teal-400 bg-white"
-                  >
-                    {CATEGORIES_PRESET.map((c) => (
-                      <option key={c} value={c}>{c}</option>
-                    ))}
-                  </select>
-                  {/* Valider */}
-                  <button
-                    type="button"
-                    onClick={handleCreate}
-                    disabled={saving}
-                    className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white text-sm font-bold rounded-xl disabled:opacity-40 active:scale-95 transition-all"
-                  >
-                    {saving ? "…" : "Créer"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setCreating(false)}
-                    className="px-3 py-2 text-slate-500 hover:text-slate-700 text-sm font-medium rounded-xl hover:bg-slate-100 transition-all"
-                  >
-                    Annuler
-                  </button>
-                </div>
+            {canCreate && (
+              <div className="border-t border-slate-100 p-1.5">
+                <button
+                  onClick={handleCreate}
+                  disabled={creating}
+                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition hover:bg-teal-50 disabled:opacity-50"
+                >
+                  <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-teal-600 text-white">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
+                  </span>
+                  <span className="flex-1 text-sm font-medium text-slate-800">
+                    {creating ? "Enregistrement…" : <>Créer la lésion «&nbsp;{trimmed}&nbsp;»</>}
+                  </span>
+                  <span className="text-xs text-teal-600">Nouvelle</span>
+                </button>
               </div>
             )}
 

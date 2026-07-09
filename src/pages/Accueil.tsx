@@ -175,20 +175,20 @@ export default function Accueil() {
   return (
     <div className="max-w-4xl mx-auto p-4 sm:p-6 lg:p-8 overflow-y-auto h-full">
       <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
-        <div className="p-6 bg-slate-50 border-b border-slate-200">
-          <h1 className="text-3xl font-extrabold text-slate-800 flex items-center gap-3">
-            <UserPlus className="w-8 h-8 text-teal-600" />
+        <div className="p-5 bg-slate-50 border-b border-slate-200">
+          <h1 className="text-2xl font-extrabold text-slate-800 flex items-center gap-3">
+            <UserPlus className="w-7 h-7 text-teal-600" />
             Nouveau Dossier Patient
           </h1>
-          <p className="text-slate-500 mt-2 font-medium">
+          <p className="text-slate-500 mt-1 text-sm font-medium">
             Saisie secrétariat pour l'entrée en salle d'attente.
           </p>
         </div>
 
-        <div className="p-6 sm:p-8 space-y-10">
-          {/* Identité */}
-          <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="md:col-span-1 border-2 border-slate-100 p-4 rounded-3xl bg-slate-50/50">
+        <div className="p-5 sm:p-6 space-y-6">
+          {/* Identité — 4 champs regroupés sur une seule ligne (desktop) */}
+          <section className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="border border-slate-200 p-3 rounded-2xl bg-slate-50/50">
               <label className="block text-sm font-bold text-slate-700 mb-2">
                 N° Dossier (Optionnel)
               </label>
@@ -196,11 +196,11 @@ export default function Accueil() {
                 type="text"
                 value={formData.folderId}
                 onChange={(e) => setFormData({ ...formData, folderId: e.target.value })}
-                className="w-full px-5 py-4 rounded-2xl border-2 border-slate-200 focus:ring-0 focus:border-teal-500 outline-none transition-all text-lg bg-white"
+                className="w-full px-4 py-2.5 rounded-xl border-2 border-slate-200 focus:ring-0 focus:border-teal-500 outline-none transition-all text-base bg-white"
                 placeholder="Ex: DP-2026-001"
               />
             </div>
-            <div className="md:col-span-1 border-2 border-slate-100 p-4 rounded-3xl bg-slate-50/50">
+            <div className="border border-slate-200 p-3 rounded-2xl bg-slate-50/50">
               <label className="block text-sm font-bold text-slate-700 mb-2">
                 Nom & Prénom <span className="text-red-500">*</span>
               </label>
@@ -208,11 +208,11 @@ export default function Accueil() {
                 type="text"
                 value={formData.nom}
                 onChange={(e) => setFormData({ ...formData, nom: e.target.value })}
-                className="w-full px-5 py-4 rounded-2xl border-2 border-slate-200 focus:ring-0 focus:border-teal-500 outline-none transition-all text-lg bg-white"
+                className="w-full px-4 py-2.5 rounded-xl border-2 border-slate-200 focus:ring-0 focus:border-teal-500 outline-none transition-all text-base bg-white"
                 placeholder="Ex: Jean Dupont"
               />
             </div>
-            <div className="md:col-span-1 border-2 border-slate-100 p-4 rounded-3xl bg-slate-50/50">
+            <div className="border border-slate-200 p-3 rounded-2xl bg-slate-50/50">
               <label className="block text-sm font-bold text-slate-700 mb-2">
                 Sexe <span className="text-red-500">*</span>
               </label>
@@ -220,7 +220,7 @@ export default function Accueil() {
                 <button
                   type="button"
                   onClick={() => setFormData({ ...formData, sexe: 'M' })}
-                  className={`flex-1 px-4 py-4 rounded-2xl text-lg font-bold border-2 transition-all active:scale-95 ${
+                  className={`flex-1 px-3 py-2.5 rounded-xl text-base font-bold border-2 transition-all active:scale-95 ${
                     formData.sexe === 'M'
                       ? 'bg-teal-500 border-teal-500 text-white shadow-md'
                       : 'bg-white border-slate-200 text-slate-600 hover:border-teal-300'
@@ -231,7 +231,7 @@ export default function Accueil() {
                 <button
                   type="button"
                   onClick={() => setFormData({ ...formData, sexe: 'F' })}
-                  className={`flex-1 px-4 py-4 rounded-2xl text-lg font-bold border-2 transition-all active:scale-95 ${
+                  className={`flex-1 px-3 py-2.5 rounded-xl text-base font-bold border-2 transition-all active:scale-95 ${
                     formData.sexe === 'F'
                       ? 'bg-teal-500 border-teal-500 text-white shadow-md'
                       : 'bg-white border-slate-200 text-slate-600 hover:border-teal-300'
@@ -241,7 +241,7 @@ export default function Accueil() {
                 </button>
               </div>
             </div>
-            <div className="md:col-span-1 border-2 border-slate-100 p-4 rounded-3xl bg-slate-50/50">
+            <div className="border border-slate-200 p-3 rounded-2xl bg-slate-50/50">
               <label className="block text-sm font-bold text-slate-700 mb-2">
                 Date de naissance{' '}
                 {formData.dateNaissance && (
@@ -255,13 +255,13 @@ export default function Accueil() {
                 type="date"
                 value={formData.dateNaissance}
                 onChange={(e) => setFormData({ ...formData, dateNaissance: e.target.value })}
-                className="w-full px-5 py-4 rounded-2xl border-2 border-slate-200 focus:ring-0 focus:border-teal-500 outline-none transition-all text-lg bg-white"
+                className="w-full px-4 py-2.5 rounded-xl border-2 border-slate-200 focus:ring-0 focus:border-teal-500 outline-none transition-all text-base bg-white"
               />
             </div>
           </section>
 
           {/* Clinique */}
-          <section className="space-y-8 border-t border-slate-100 pt-8">
+          <section className="space-y-5 border-t border-slate-100 pt-6">
             <TagAutocomplete
               label={<><Activity className="w-5 h-5 text-teal-600" /> Motif(s) principal(aux)</>}
               required
@@ -286,8 +286,8 @@ export default function Accueil() {
             />
 
             {/* Traitement */}
-            <div className="bg-slate-50 rounded-3xl p-6 border border-slate-200">
-              <div className="flex flex-col sm:flex-row sm:items-center gap-4 justify-between">
+            <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
                 <div>
                   <label className="block text-sm font-bold text-slate-800 flex items-center gap-2">
                     <Pill className="w-5 h-5 text-amber-500" /> Traitement(s) médical(aux) en cours ?
@@ -299,7 +299,7 @@ export default function Accueil() {
                 <div className="flex gap-2">
                   <button
                     onClick={() => setFormData({ ...formData, hasTraitement: true })}
-                    className={`px-6 py-3 rounded-xl text-sm font-bold border-2 transition-all ${
+                    className={`px-5 py-2.5 rounded-xl text-sm font-bold border-2 transition-all ${
                       formData.hasTraitement
                         ? 'bg-amber-500 border-amber-500 text-white shadow-md'
                         : 'bg-white border-slate-200 text-slate-600 hover:border-amber-300'
@@ -311,7 +311,7 @@ export default function Accueil() {
                     onClick={() =>
                       setFormData({ ...formData, hasTraitement: false, traitementTexte: '' })
                     }
-                    className={`px-6 py-3 rounded-xl text-sm font-bold border-2 transition-all ${
+                    className={`px-5 py-2.5 rounded-xl text-sm font-bold border-2 transition-all ${
                       !formData.hasTraitement
                         ? 'bg-slate-600 border-slate-600 text-white shadow-md'
                         : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
@@ -335,8 +335,8 @@ export default function Accueil() {
             </div>
           </section>
 
-          {/* Prescripteur & Date */}
-          <section className="grid grid-cols-1 md:grid-cols-2 gap-6 border-t border-slate-100 pt-8">
+          {/* Prescripteur, Date & Contact — regroupés en une grille compacte */}
+          <section className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-slate-100 pt-6">
             <div>
               <label className="block text-sm font-bold text-slate-700 mb-2">
                 Médecin Prescripteur
@@ -405,7 +405,7 @@ export default function Accueil() {
                     onChange={(e) =>
                       setFormData({ ...formData, medecinPrescripteur: e.target.value })
                     }
-                    className="w-full px-5 py-4 rounded-2xl border-2 border-slate-200 focus:ring-0 focus:border-teal-500 outline-none transition-all text-lg bg-white appearance-none cursor-pointer"
+                    className="w-full px-4 py-2.5 rounded-xl border-2 border-slate-200 focus:ring-0 focus:border-teal-500 outline-none transition-all text-base bg-white appearance-none cursor-pointer"
                   >
                     <option value="">— Non spécifié —</option>
                     {[...availableDoctors, ...customDoctors.filter((d) => !availableDoctors.includes(d))].map((d) => (
@@ -431,13 +431,9 @@ export default function Accueil() {
                 type="date"
                 value={formData.dateExamen}
                 onChange={(e) => setFormData({ ...formData, dateExamen: e.target.value })}
-                className="w-full px-5 py-4 rounded-2xl border-2 border-slate-200 focus:ring-0 focus:border-teal-500 outline-none transition-all text-lg bg-white"
+                className="w-full px-4 py-2.5 rounded-xl border-2 border-slate-200 focus:ring-0 focus:border-teal-500 outline-none transition-all text-base bg-white"
               />
             </div>
-          </section>
-
-          {/* Contact */}
-          <section className="grid grid-cols-1 md:grid-cols-2 gap-6 border-t border-slate-100 pt-8">
             <div>
               <label className="block text-sm font-bold text-slate-700 mb-2">
                 Téléphone (Optionnel)
@@ -446,7 +442,7 @@ export default function Accueil() {
                 type="tel"
                 value={formData.tel}
                 onChange={(e) => setFormData({ ...formData, tel: e.target.value })}
-                className="w-full px-5 py-4 rounded-2xl border-2 border-slate-200 focus:ring-0 focus:border-teal-500 outline-none transition-all text-lg"
+                className="w-full px-4 py-2.5 rounded-xl border-2 border-slate-200 focus:ring-0 focus:border-teal-500 outline-none transition-all text-base"
                 placeholder="+241 12 34 56 78"
               />
             </div>
@@ -458,34 +454,34 @@ export default function Accueil() {
                 type="email"
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                className="w-full px-5 py-4 rounded-2xl border-2 border-slate-200 focus:ring-0 focus:border-teal-500 outline-none transition-all text-lg"
+                className="w-full px-4 py-2.5 rounded-xl border-2 border-slate-200 focus:ring-0 focus:border-teal-500 outline-none transition-all text-base"
                 placeholder="patient@mail.com"
               />
             </div>
           </section>
 
           {/* Actions */}
-          <div className="pt-8 flex flex-col sm:flex-row gap-4">
+          <div className="pt-6 border-t border-slate-100 flex flex-col sm:flex-row gap-3">
             {!isSuccess ? (
               <button
                 onClick={handleSave}
-                className="w-full sm:w-auto flex-1 px-10 py-5 bg-teal-600 hover:bg-teal-700 text-white rounded-2xl font-extrabold text-xl shadow-lg hover:shadow-teal-500/30 transition-all active:scale-95 flex items-center justify-center gap-3"
+                className="w-full sm:w-auto flex-1 px-8 py-3.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl font-extrabold text-lg shadow-lg hover:shadow-teal-500/30 transition-all active:scale-95 flex items-center justify-center gap-3"
               >
-                <UserPlus className="w-7 h-7" />
+                <UserPlus className="w-6 h-6" />
                 Enregistrer le patient
               </button>
             ) : (
-              <div className="w-full sm:w-auto flex-1 px-10 py-5 bg-green-500 text-white rounded-2xl font-extrabold text-xl shadow-md flex items-center justify-center gap-3 cursor-default">
-                <CheckCircle className="w-7 h-7" />
+              <div className="w-full sm:w-auto flex-1 px-8 py-3.5 bg-green-500 text-white rounded-xl font-extrabold text-lg shadow-md flex items-center justify-center gap-3 cursor-default">
+                <CheckCircle className="w-6 h-6" />
                 Patient enregistré ✔
               </div>
             )}
 
             <button
               onClick={handleReset}
-              className="w-full sm:w-auto px-10 py-5 bg-slate-100 hover:bg-slate-200 text-slate-700 border-2 border-slate-200 rounded-2xl font-extrabold text-xl transition-all active:scale-95 flex items-center justify-center gap-3 shadow-sm hover:shadow-md"
+              className="w-full sm:w-auto px-8 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border-2 border-slate-200 rounded-xl font-extrabold text-lg transition-all active:scale-95 flex items-center justify-center gap-3 shadow-sm hover:shadow-md"
             >
-              <UserPlus className="w-7 h-7 text-slate-400" />
+              <UserPlus className="w-6 h-6 text-slate-400" />
               Nouveau patient
             </button>
           </div>

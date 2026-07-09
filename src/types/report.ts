@@ -1,7 +1,7 @@
 // Types pour le compte rendu structuré complet (MedivisionReport)
 
 import type { AIProviderKey, AIResultLegacy, AISeverite } from './ai';
-import type { EyeState } from './clinical';
+import type { EyeState, RetinaBackgroundSnapshot, RetinaLayers } from './clinical';
 import type { RnflSectors, GclSectors } from '../utils/rnflGcl';
 import type { Annotation } from '../features/retinasketch/lib/types';
 
@@ -28,6 +28,8 @@ export interface EyeData {
   latin: string;
   acquisitionQuality?: 'bon' | 'faible' | 'impossible';
   acquisitionQualityReasons?: string[];
+  // Acquisition difficile : RNFL/GCL non interprétés (message dédié dans le CR).
+  rnflGclExcluded?: boolean;
   // Boîtes de résumé en haut de la section biométriques
   discSurface?: string;
   cupDisc?: string;
@@ -39,6 +41,9 @@ export interface EyeData {
   annotations?: Annotation[];
   rnflSectors?: RnflSectors;
   gclSectors?: GclSectors;
+  // V3 — image de rétinographie + calques persistés (reproduits dans le schéma CR).
+  retinaBackground?: RetinaBackgroundSnapshot | null;
+  retinaLayers?: RetinaLayers;
   // V3 — suivi RNFL/GCL (affiché près des anneaux : « Diminué » / « Stable »).
   followUp?: {
     date?: string;
@@ -72,6 +77,8 @@ export interface OCTReportData {
   indication: { main: string; soft?: string };
   history: string;
   eyes: { od: EyeData; og: EyeData };
+  // Orientation d'impression : 'landscape' pour la rétinographie (schémas agrandis).
+  layout?: 'portrait' | 'landscape';
   // 4 sections cliniques structurées (remplacent interpretation + conclusion + recommendations)
   analyseClinic: string;
   conclusion: string;

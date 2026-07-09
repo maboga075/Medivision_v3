@@ -37,6 +37,9 @@ export async function exportReportToPDF(
   `;
   page.prepend(override);
 
+  // Rétinographie → PDF paysage (schémas agrandis) ; OCT → portrait.
+  const landscape = reportData.layout === 'landscape';
+
   const opt = {
     margin: 0,
     filename,
@@ -47,12 +50,12 @@ export async function exportReportToPDF(
       allowTaint: true,
       backgroundColor: '#ffffff',
       logging: false,
-      windowWidth: 794, // 210 mm @ 96 dpi
+      windowWidth: landscape ? 1123 : 794, // 297 mm / 210 mm @ 96 dpi
     },
     jsPDF: {
       unit: 'mm',
       format: 'a4',
-      orientation: 'portrait' as const,
+      orientation: (landscape ? 'landscape' : 'portrait') as 'portrait' | 'landscape',
       compress: true,
     },
     // Empêche de couper un bloc clinique au milieu si le contenu déborde sur une 2e page.

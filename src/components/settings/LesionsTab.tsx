@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, X, Palette, Lock } from 'lucide-react';
+import { Plus, X, Palette, RotateCcw } from 'lucide-react';
 import { useSettings } from '../../hooks/useSettings';
 import { LESIONS } from '../../features/retinasketch/lib/ontology/lesions';
 import type { CustomLesion } from '../../types/settings';
@@ -11,6 +11,11 @@ const CATEGORIES_PRESET = [
 
 const DEFAULT_COLOR = '#14B8A6';
 
+/** Génère les termes de recherche d'un nom de lésion. */
+const termsFromName = (name: string): string[] => [
+  name.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[-'\s]+/g, '_'),
+];
+
 function ColorDot({ color, size = 16 }: { color: string; size?: number }) {
   return (
     <span
@@ -19,9 +24,70 @@ function ColorDot({ color, size = 16 }: { color: string; size?: number }) {
   );
 }
 
+/** Ligne d'une lésion, entièrement modifiable (couleur, nom, catégorie, suppression). */
+function LesionRow({
+  lesion,
+  onPatch,
+  onDelete,
+  tone,
+}: {
+  lesion: CustomLesion;
+  onPatch: (patch: Partial<CustomLesion>) => void;
+  onDelete: () => void;
+  tone: 'builtin' | 'custom';
+}) {
+  const bg = tone === 'custom' ? 'bg-teal-50 border-teal-100' : 'bg-slate-50 border-slate-100';
+  return (
+    <div className={`flex items-center gap-3 px-3 py-2 rounded-xl border ${bg}`}>
+      {/* Couleur */}
+      <label className="cursor-pointer flex-shrink-0" title="Changer la couleur">
+        <ColorDot color={lesion.color} size={18} />
+        <input
+          type="color"
+          value={lesion.color}
+          onChange={(e) => onPatch({ color: e.target.value })}
+          className="sr-only"
+        />
+      </label>
+      {/* Nom (éditable) */}
+      <input
+        type="text"
+        defaultValue={lesion.name}
+        onBlur={(e) => {
+          const v = e.target.value.trim();
+          if (v && v !== lesion.name) onPatch({ name: v, terms: termsFromName(v) });
+          else e.target.value = lesion.name;
+        }}
+        onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+        className="flex-1 min-w-0 text-sm font-medium text-slate-800 bg-transparent border border-transparent hover:border-slate-200 focus:border-teal-400 rounded-lg px-2 py-1 outline-none"
+      />
+      {/* Catégorie (éditable) */}
+      <select
+        value={CATEGORIES_PRESET.includes(lesion.category) ? lesion.category : 'Autre'}
+        onChange={(e) => onPatch({ category: e.target.value })}
+        className="text-xs text-slate-500 bg-white border border-slate-200 rounded-full px-2 py-1 outline-none focus:border-teal-400 cursor-pointer"
+      >
+        {CATEGORIES_PRESET.map((c) => (
+          <option key={c} value={c}>{c}</option>
+        ))}
+      </select>
+      {/* Suppression */}
+      <button
+        type="button"
+        onClick={onDelete}
+        className="w-6 h-6 flex items-center justify-center rounded-full hover:bg-red-100 text-slate-400 hover:text-red-600 transition-colors flex-shrink-0"
+        aria-label={`Supprimer ${lesion.name}`}
+      >
+        <X className="w-3.5 h-3.5" />
+      </button>
+    </div>
+  );
+}
+
 export default function LesionsTab() {
-  const { settings, updateCustomLesions } = useSettings();
+  const { settings, updateCustomLesions, updateLesionOverrides } = useSettings();
   const customLesions: CustomLesion[] = settings?.customLesions ?? [];
+  const overrides: Record<string, CustomLesion | null> = settings?.lesionOverrides ?? {};
 
   const [newName, setNewName] = useState('');
   const [newColor, setNewColor] = useState(DEFAULT_COLOR);
@@ -34,10 +100,52 @@ export default function LesionsTab() {
     setTimeout(() => setToast(''), 2500);
   };
 
+  // Lésions intégrées effectives (surcharges appliquées) + celles masquées (supprimées).
+  const builtinEffective: CustomLesion[] = LESIONS
+    .filter((l) => overrides[l.id] !== null)
+    .map((l) => ({ ...l, ...(overrides[l.id] ?? {}) }));
+  const hiddenBuiltins = LESIONS.filter((l) => overrides[l.id] === null);
+
+  const patchBuiltin = async (id: string, patch: Partial<CustomLesion>) => {
+    const base = LESIONS.find((l) => l.id === id);
+    if (!base) return;
+    const current = { ...base, ...(overrides[id] ?? {}) };
+    const next: CustomLesion = { ...current, ...patch, id };
+    try {
+      await updateLesionOverrides({ ...overrides, [id]: next });
+    } catch { showToast('Erreur de mise à jour'); }
+  };
+  const deleteBuiltin = async (id: string) => {
+    try {
+      await updateLesionOverrides({ ...overrides, [id]: null });
+      showToast('Lésion masquée');
+    } catch { showToast('Erreur de suppression'); }
+  };
+  const restoreBuiltin = async (id: string) => {
+    const next = { ...overrides };
+    delete next[id];
+    try {
+      await updateLesionOverrides(next);
+      showToast('Lésion rétablie');
+    } catch { showToast('Erreur'); }
+  };
+
+  const patchCustom = async (id: string, patch: Partial<CustomLesion>) => {
+    try {
+      await updateCustomLesions(customLesions.map((l) => (l.id === id ? { ...l, ...patch } : l)));
+    } catch { showToast('Erreur de mise à jour'); }
+  };
+  const deleteCustom = async (id: string) => {
+    try {
+      await updateCustomLesions(customLesions.filter((l) => l.id !== id));
+      showToast('Lésion supprimée');
+    } catch { showToast('Erreur de suppression'); }
+  };
+
   const handleAdd = async () => {
     const name = newName.trim();
     if (!name) return;
-    const all = [...LESIONS, ...customLesions];
+    const all = [...builtinEffective, ...customLesions];
     if (all.some((l) => l.name.toLowerCase() === name.toLowerCase())) {
       showToast('Une lésion avec ce nom existe déjà');
       return;
@@ -49,7 +157,7 @@ export default function LesionsTab() {
         name,
         color: newColor,
         category: newCategory,
-        terms: [name.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[-'\s]+/g, '_')],
+        terms: termsFromName(name),
       };
       await updateCustomLesions([...customLesions, newLesion]);
       setNewName('');
@@ -58,27 +166,6 @@ export default function LesionsTab() {
       showToast(`"${name}" ajouté`);
     } catch {
       showToast("Erreur lors de l'ajout");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleUpdateColor = async (id: string, color: string) => {
-    const updated = customLesions.map((l) => l.id === id ? { ...l, color } : l);
-    try {
-      await updateCustomLesions(updated);
-    } catch {
-      showToast('Erreur de mise à jour');
-    }
-  };
-
-  const handleDelete = async (id: string) => {
-    setSaving(true);
-    try {
-      await updateCustomLesions(customLesions.filter((l) => l.id !== id));
-      showToast('Lésion supprimée');
-    } catch {
-      showToast('Erreur de suppression');
     } finally {
       setSaving(false);
     }
@@ -101,27 +188,45 @@ export default function LesionsTab() {
         <div>
           <h2 className="text-base font-bold text-slate-800">Bibliothèque des lésions</h2>
           <p className="text-xs text-slate-400 mt-0.5">
-            Gérez les symptômes dessinables sur le schéma rétinien et leur code couleur.
+            Toutes les lésions sont modifiables : nom, couleur, catégorie, suppression.
           </p>
         </div>
       </div>
 
-      {/* Lésions intégrées (lecture seule) */}
+      {/* Lésions intégrées — désormais modifiables */}
       <div className="space-y-2">
-        <div className="flex items-center gap-2 mb-3">
-          <span className="text-xs font-black text-slate-600 uppercase tracking-wider">Lésions intégrées</span>
-          <Lock className="w-3 h-3 text-slate-400" />
-          <span className="text-xs text-slate-400 font-medium">— non modifiables</span>
-        </div>
+        <span className="text-xs font-black text-slate-600 uppercase tracking-wider">Lésions intégrées</span>
         <div className="grid grid-cols-1 gap-1.5">
-          {LESIONS.map((l) => (
-            <div key={l.id} className="flex items-center gap-3 px-3 py-2 rounded-xl bg-slate-50 border border-slate-100">
-              <ColorDot color={l.color} />
-              <span className="flex-1 text-sm font-medium text-slate-700">{l.name}</span>
-              <span className="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">{l.category}</span>
-            </div>
+          {builtinEffective.map((l) => (
+            <LesionRow
+              key={l.id}
+              lesion={l}
+              tone="builtin"
+              onPatch={(patch) => patchBuiltin(l.id, patch)}
+              onDelete={() => deleteBuiltin(l.id)}
+            />
           ))}
         </div>
+
+        {/* Lésions intégrées masquées → rétablissables */}
+        {hiddenBuiltins.length > 0 && (
+          <div className="mt-2 space-y-1.5">
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Masquées</span>
+            {hiddenBuiltins.map((l) => (
+              <div key={l.id} className="flex items-center gap-3 px-3 py-2 rounded-xl bg-slate-50 border border-dashed border-slate-200 opacity-70">
+                <ColorDot color={l.color} />
+                <span className="flex-1 text-sm font-medium text-slate-500 line-through">{l.name}</span>
+                <button
+                  type="button"
+                  onClick={() => restoreBuiltin(l.id)}
+                  className="flex items-center gap-1 text-xs font-bold text-teal-600 hover:text-teal-700 px-2 py-1 rounded-lg hover:bg-teal-50 transition-colors"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" /> Rétablir
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Lésions personnalisées */}
@@ -136,29 +241,13 @@ export default function LesionsTab() {
 
         <div className="grid grid-cols-1 gap-1.5">
           {customLesions.map((l) => (
-            <div key={l.id} className="flex items-center gap-3 px-3 py-2 rounded-xl bg-teal-50 border border-teal-100">
-              {/* Sélecteur couleur inline */}
-              <label className="cursor-pointer flex-shrink-0" title="Changer la couleur">
-                <ColorDot color={l.color} size={18} />
-                <input
-                  type="color"
-                  value={l.color}
-                  onChange={(e) => handleUpdateColor(l.id, e.target.value)}
-                  className="sr-only"
-                />
-              </label>
-              <span className="flex-1 text-sm font-medium text-slate-800">{l.name}</span>
-              <span className="text-xs text-teal-600 bg-teal-100 px-2 py-0.5 rounded-full">{l.category}</span>
-              <button
-                type="button"
-                onClick={() => handleDelete(l.id)}
-                disabled={saving}
-                className="w-6 h-6 flex items-center justify-center rounded-full hover:bg-red-100 text-slate-400 hover:text-red-600 transition-colors disabled:opacity-40"
-                aria-label={`Supprimer ${l.name}`}
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
+            <LesionRow
+              key={l.id}
+              lesion={l}
+              tone="custom"
+              onPatch={(patch) => patchCustom(l.id, patch)}
+              onDelete={() => deleteCustom(l.id)}
+            />
           ))}
         </div>
       </div>

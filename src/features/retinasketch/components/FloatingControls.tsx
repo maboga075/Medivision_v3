@@ -1,6 +1,7 @@
-import { useState } from "react";
+
+import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { useStore, type LayerKey } from "../store/useStore";
+import { useStore, type LayerKey } from "@/features/retinasketch/store/useStore";
 
 const LAYER_LABELS: { key: LayerKey; label: string }[] = [
   { key: "anatomy", label: "Zones anatomiques" },
@@ -11,53 +12,65 @@ const LAYER_LABELS: { key: LayerKey; label: string }[] = [
   { key: "vessels", label: "Vaisseaux" },
 ];
 
-interface Props {
-  /** En contexte Consultation, l'œil est imposé : on masque le sélecteur OD/OG. */
-  hideLaterality?: boolean;
-}
-
-export default function FloatingControls({ hideLaterality }: Props) {
+/**
+ * Contrôles d'en-tête : latéralité (OD/OG) + couches activables.
+ * Rendus dans la barre du haut (`Workspace`), le menu Couches s'ouvre en
+ * déroulant sous le bouton.
+ */
+export default function FloatingControls() {
   const laterality = useStore((s) => s.laterality);
   const setLaterality = useStore((s) => s.setLaterality);
   const layers = useStore((s) => s.layers);
   const toggleLayer = useStore((s) => s.toggleLayer);
   const [layersOpen, setLayersOpen] = useState(false);
+  const layersRef = useRef<HTMLDivElement>(null);
 
   const activeCount = Object.values(layers).filter(Boolean).length;
 
-  return (
-    <div className="pointer-events-none absolute left-4 top-4 z-20 flex flex-col gap-2">
-      {/* Latéralité — bouton volant */}
-      {!hideLaterality && (
-        <div className="pointer-events-auto flex rounded-xl border border-slate-200 bg-white/90 p-1 shadow-lg shadow-slate-900/5 backdrop-blur">
-          {(["OD", "OS"] as const).map((l) => (
-            <button
-              key={l}
-              onClick={() => setLaterality(l)}
-              className={`rounded-lg px-3.5 py-1.5 text-sm font-semibold transition ${
-                laterality === l
-                  ? "bg-slate-900 text-white"
-                  : "text-slate-500 hover:text-slate-800"
-              }`}
-            >
-              {l === "OD" ? "OD" : "OG"}
-            </button>
-          ))}
-        </div>
-      )}
+  useEffect(() => {
+    const onDown = (e: MouseEvent) => {
+      if (
+        layersOpen &&
+        layersRef.current &&
+        !layersRef.current.contains(e.target as Node)
+      )
+        setLayersOpen(false);
+    };
+    window.addEventListener("mousedown", onDown);
+    return () => window.removeEventListener("mousedown", onDown);
+  }, [layersOpen]);
 
-      {/* Couches — widget volant */}
-      <div className="pointer-events-auto">
+  return (
+    <>
+      {/* Latéralité — segmenté */}
+      <div className="flex rounded-lg border border-slate-200 p-0.5">
+        {(["OD", "OS"] as const).map((l) => (
+          <button
+            key={l}
+            onClick={() => setLaterality(l)}
+            className={`rounded-md px-2.5 py-1 text-xs font-semibold transition ${
+              laterality === l
+                ? "bg-slate-900 text-white"
+                : "text-slate-500 hover:text-slate-900"
+            }`}
+          >
+            {l === "OD" ? "OD" : "OG"}
+          </button>
+        ))}
+      </div>
+
+      {/* Couches — bouton + menu déroulant */}
+      <div ref={layersRef} className="relative">
         <button
           onClick={() => setLayersOpen((o) => !o)}
-          className={`flex items-center gap-2 rounded-xl border border-slate-200 bg-white/90 px-3 py-2 text-sm font-medium shadow-lg shadow-slate-900/5 backdrop-blur transition ${
+          className={`flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium transition ${
             layersOpen ? "text-slate-900" : "text-slate-600 hover:text-slate-900"
           }`}
         >
           <Layers />
           Couches
           {activeCount > 0 && (
-            <span className="rounded-full bg-blue-100 px-1.5 text-xs font-semibold text-blue-700">
+            <span className="rounded-full bg-blue-100 px-1.5 text-[10px] font-semibold text-blue-700">
               {activeCount}
             </span>
           )}
@@ -70,7 +83,7 @@ export default function FloatingControls({ hideLaterality }: Props) {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -6, scale: 0.98 }}
               transition={{ duration: 0.12 }}
-              className="mt-2 w-60 rounded-xl border border-slate-200 bg-white/95 p-1.5 shadow-xl shadow-slate-900/10 backdrop-blur"
+              className="absolute left-0 top-full z-40 mt-1.5 w-60 rounded-xl border border-slate-200 bg-white/95 p-1.5 shadow-xl shadow-slate-900/10 backdrop-blur"
             >
               {LAYER_LABELS.map(({ key, label }) => (
                 <button
@@ -105,12 +118,12 @@ export default function FloatingControls({ hideLaterality }: Props) {
           )}
         </AnimatePresence>
       </div>
-    </div>
+    </>
   );
 }
 
 const Layers = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round">
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round">
     <path d="M12 2l9 5-9 5-9-5 9-5zM3 12l9 5 9-5M3 17l9 5 9-5" />
   </svg>
 );

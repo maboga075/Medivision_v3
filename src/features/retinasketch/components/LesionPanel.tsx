@@ -1,7 +1,7 @@
 
 import { useMemo } from "react";
-import { useStore } from "../store/useStore";
-import { getLesion } from "../lib/ontology/lesions";
+import { useStore } from "@/features/retinasketch/store/useStore";
+import { getLesion } from "@/features/retinasketch/lib/ontology/lesions";
 
 export default function LesionPanel() {
   const annotations = useStore((s) => s.annotations);

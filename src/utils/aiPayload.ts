@@ -49,7 +49,10 @@ export const buildAIPayload = (
       ne_pas_inventer: true,
       analyse_clinique_max_phrases: 4,
       analyse_clinique_focus: 'anomalies_significatives_uniquement',
-      interdire_mentions: ['acquisition', 'non_realise', 'aucune_donnee', 'non_transmis', 'non_renseigne'],
+      // 'acquisition' n'est plus interdit : quand l'indice est faible/impossible,
+      // l'IA DOIT en tenir compte (nuancer l'interprétation, mentionner le motif).
+      interdire_mentions: ['non_realise', 'aucune_donnee', 'non_transmis', 'non_renseigne'],
+      tenir_compte_indice_acquisition: true,
     },
   };
 };

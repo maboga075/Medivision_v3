@@ -59,19 +59,31 @@ function biomValue(eye: EyeData, label: string): { text: string; color?: string 
 /** Colonne schema (schéma rétinien + légende lésions + finding) */
 function EyeSchemaColumn({ eye }: { eye: EyeData }) {
   const impossible = eye.acquisitionQuality === 'impossible';
+  const isFaible = eye.acquisitionQuality === 'faible';
   const finding = eyeFinding(eye);
   const legend = lesionLegend(eye.annotations);
+
+  // Indice faible : une seule bulle (panneau ⚠ + motif), sans badge séparé.
+  const faibleReasons = isFaible && eye.acquisitionQualityReasons?.length
+    ? eye.acquisitionQualityReasons.join(' · ')
+    : '';
 
   return (
     <div className="vc-col">
       <div className="vc-cap">
         <span className="vc-eye-code">{eye.code}</span>
-        <span className="vc-eye-name">{eye.name}</span>
-        {eye.acquisitionQuality && (
-          <span className={`vc-acq vc-acq-${eye.acquisitionQuality}`}>
-            {eye.acquisitionQuality === 'bon' ? '✓ Bon' : eye.acquisitionQuality === 'faible' ? '⚠ Faible' : '✗ Impossible'}
+        {/* Indice faible → bulle unique (⚠ + motif) sur la même ligne que OD/OG ;
+            sinon badge « bon » / « impossible ». */}
+        {isFaible ? (
+          <span className="vc-acq-motif">
+            <span className="vc-acq-warn" aria-hidden>⚠</span>
+            {faibleReasons || "Indice d'acquisition faible"}
           </span>
-        )}
+        ) : eye.acquisitionQuality ? (
+          <span className={`vc-acq vc-acq-${eye.acquisitionQuality}`}>
+            {eye.acquisitionQuality === 'bon' ? '✓ Bon' : '✗ Impossible'}
+          </span>
+        ) : null}
       </div>
 
       {impossible ? (
@@ -84,7 +96,12 @@ function EyeSchemaColumn({ eye }: { eye: EyeData }) {
       ) : (
         <>
           <div className="vc-schema">
-            <RetinaSchemaSvg side={eye.code} annotations={eye.annotations} />
+            <RetinaSchemaSvg
+              side={eye.code}
+              annotations={eye.annotations}
+              background={eye.retinaBackground}
+              layers={eye.retinaLayers}
+            />
           </div>
           {legend.length > 0 ? (
             <div className="vc-lesion-legend">
@@ -115,6 +132,10 @@ export default function VisualClinicalSection({ od, og }: { od: EyeData; og: Eye
   const ogRnflTxt = biomValue(og, 'RNFL');
   const ogGclTxt = biomValue(og, 'GCL++');
 
+  // RNFL/GCL présents (anneaux ou texte) — absents en rétinographie pure.
+  const hasNeuroData = hasAnyRings || !!(odRnflTxt || odGclTxt || ogRnflTxt || ogGclTxt);
+  const hasAnyCD = !!(od.cupDisc || og.cupDisc);
+
   const showSurface = !!(od.discSurface || og.discSurface);
 
   const followUpDate = fmtFollowUpDate(od.followUp?.date || og.followUp?.date);
@@ -135,10 +156,12 @@ export default function VisualClinicalSection({ od, og }: { od: EyeData; og: Eye
       <div className="vc-neuro-row">
 
         {/* OD : anneaux à gauche, barre C/D à droite (vers le centre) */}
-        <div className="vc-neuro-half vc-neuro-od">
+        <div className={`vc-neuro-half vc-neuro-od${od.rnflGclExcluded ? ' vc-neuro-centered' : ''}`}>
           {od.acquisitionQuality !== 'impossible' && (
             <>
-              {odHasRings ? (
+              {od.rnflGclExcluded ? (
+                <div className="vc-neuro-excluded"><b>RNFL &amp; GCL</b> non interprétables<span>indice d'acquisition faible</span></div>
+              ) : odHasRings ? (
                 <NeuroRings side="OD" rnfl={od.rnflSectors} gcl={od.gclSectors} rnflEvo={odRnflEvo} gclEvo={odGclEvo} />
               ) : (
                 <div className="vc-neuro-text">
@@ -153,20 +176,18 @@ export default function VisualClinicalSection({ od, og }: { od: EyeData; og: Eye
 
         {/* Centre : labels descriptifs, partagés */}
         <div className="vc-neuro-center">
-          {hasAnyRings && (
-            <>
-              <span className="vc-nc-label">C/D vertical</span>
-              {showSurface && <span className="vc-nc-label">Cup area (mm²)</span>}
-            </>
-          )}
+          {(hasAnyCD || hasNeuroData) && <span className="vc-nc-label">C/D vertical</span>}
+          {showSurface && <span className="vc-nc-label">Cup area (mm²)</span>}
         </div>
 
         {/* OG : barre C/D à gauche (vers le centre), anneaux à droite */}
-        <div className="vc-neuro-half vc-neuro-og">
+        <div className={`vc-neuro-half vc-neuro-og${og.rnflGclExcluded ? ' vc-neuro-centered' : ''}`}>
           {og.acquisitionQuality !== 'impossible' && (
             <>
               <CDGauge cupDisc={og.cupDisc} cupDiscFlag={og.cupDiscFlag} discSurface={og.discSurface} />
-              {ogHasRings ? (
+              {og.rnflGclExcluded ? (
+                <div className="vc-neuro-excluded"><b>RNFL &amp; GCL</b> non interprétables<span>indice d'acquisition faible</span></div>
+              ) : ogHasRings ? (
                 <NeuroRings side="OG" rnfl={og.rnflSectors} gcl={og.gclSectors} rnflEvo={ogRnflEvo} gclEvo={ogGclEvo} />
               ) : (
                 <div className="vc-neuro-text">
@@ -184,14 +205,17 @@ export default function VisualClinicalSection({ od, og }: { od: EyeData; og: Eye
         <div className="vc-fu-date-row"><span className="vc-fu-date">Suivi · {followUpDate}</span></div>
       )}
 
-      {/* Légende sévérité + définitions des sigles — sur une seule ligne */}
-      <div className="vc-sev-legend">
-        {SEV_LEGEND.map((s) => (
-          <span key={s.label}><i style={{ background: s.color }} />{s.label}</span>
-        ))}
-        <span className="vc-sev-def"><b>RNFL</b> : fibres nerveuses péripapillaires</span>
-        <span className="vc-sev-def"><b>GCL</b> : complexe cellules ganglionnaires</span>
-      </div>
+      {/* Légende sévérité + définitions des sigles — uniquement si RNFL/GCL affichés
+          (masquée en rétinographie pure où ces paramètres OCT sont absents). */}
+      {hasNeuroData && (
+        <div className="vc-sev-legend">
+          {SEV_LEGEND.map((s) => (
+            <span key={s.label}><i style={{ background: s.color }} />{s.label}</span>
+          ))}
+          <span className="vc-sev-def"><b>RNFL</b> : fibres nerveuses péripapillaires</span>
+          <span className="vc-sev-def"><b>GCL</b> : complexe cellules ganglionnaires</span>
+        </div>
+      )}
     </div>
   );
 }

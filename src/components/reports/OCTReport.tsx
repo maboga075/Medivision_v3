@@ -14,6 +14,8 @@ import * as React from "react";
 import "./OCTReport.css";
 import type { PillVariant, ParamRow, EyeData, OCTReportData } from "../../types/report";
 import VisualClinicalSection from "./visual/VisualClinicalSection";
+import RetinographyReport from "./RetinographyReport";
+import { highlightText } from "./highlight";
 
 // Ré-exports pour la compatibilité des imports existants
 export type { PillVariant, ParamRow, EyeData, OCTReportData };
@@ -31,26 +33,9 @@ const BrandMark: React.FC = () => (
   </div>
 );
 
-const KEY_TERM_RE = /\b(RNFL|GCL\+\+|GCL|C\/D|OCT[A]?|PIO|DMLA|OVCR|OBVR|OACR|DR[NP]?)\b/g;
-
 // Supprime les tirets/puces de début et le markdown **gras** générés par certains modèles IA
 const stripItem = (s: string) =>
   s.replace(/^\s*[\-–—•*]\s*/, '').replace(/\*\*([^*]+)\*\*/g, '$1').trim();
-
-function highlightText(text: string): React.ReactNode {
-  const chunks: React.ReactNode[] = [];
-  let last = 0;
-  const re = new RegExp(KEY_TERM_RE.source, 'g');
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(text)) !== null) {
-    if (m.index > last) chunks.push(text.slice(last, m.index));
-    chunks.push(<span key={m.index} className="key">{m[0]}</span>);
-    last = m.index + m[0].length;
-  }
-  if (last < text.length) chunks.push(text.slice(last));
-  if (chunks.length === 0) return text;
-  return <>{chunks}</>;
-}
 
 /* Bloc synthèse — résolution des champs avec repli sur les anciens rapports.
    Les rapports sauvegardés avant la refonte n'ont pas les champs structurés :
@@ -72,6 +57,10 @@ function resolveConseil(d: OCTReportData): string {
 
 const OCTReport: React.FC<{ data: OCTReportData }> = ({ data }) => {
   const d = data;
+  // Rétinographie pure → mise en page paysage dédiée (schémas agrandis).
+  if (d.layout === 'landscape') {
+    return <RetinographyReport data={d} />;
+  }
   return (
     <div className="page">
       {/* ══ HEADER ══ */}

@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { db, doc, getDoc, setDoc, serverTimestamp } from '../services/firebase';
 import type { AppSettings, Doctor, CustomLesion, ClinicalPattern } from '../types/settings';
-import { setCustomLesions } from '../features/retinasketch/lib/ontology/lesions';
+import { setCustomLesions, setLesionOverrides } from '../features/retinasketch/lib/ontology/lesions';
 
 const SETTINGS_DOC_ID = 'clinic';
 const LOCAL_CACHE_KEY = 'medivision_settings_cache';
@@ -66,6 +66,7 @@ export function useSettings() {
           const merged = { ...DEFAULT_SETTINGS, ...data };
           setSettings(merged);
           if (merged.customLesions) setCustomLesions(merged.customLesions);
+          setLesionOverrides(merged.lesionOverrides);
           localStorage.setItem(LOCAL_CACHE_KEY, JSON.stringify(merged));
         } else {
           await setDoc(ref, cleanUndefined({ ...DEFAULT_SETTINGS, updatedAt: serverTimestamp() }) as Record<string, unknown>);
@@ -91,6 +92,7 @@ export function useSettings() {
     await setDoc(ref, clean);
     setSettings(next);
     if (next.customLesions) setCustomLesions(next.customLesions);
+    setLesionOverrides(next.lesionOverrides);
     localStorage.setItem(LOCAL_CACHE_KEY, JSON.stringify(next));
   }, []);
 
@@ -193,6 +195,14 @@ export function useSettings() {
     [settings, persist]
   );
 
+  const updateLesionOverrides = useCallback(
+    async (overrides: Record<string, CustomLesion | null>) => {
+      if (!settings) return;
+      await persist({ ...settings, lesionOverrides: overrides });
+    },
+    [settings, persist]
+  );
+
   const updateClinicalPatterns = useCallback(
     async (patterns: ClinicalPattern[]) => {
       if (!settings) return;
@@ -216,6 +226,7 @@ export function useSettings() {
     updatePrescripteurs,
     updateExport,
     updateCustomLesions,
+    updateLesionOverrides,
     updateClinicalPatterns,
   };
 }

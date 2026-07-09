@@ -1,39 +1,98 @@
-import { useEffect, useRef, useState, lazy, Suspense } from "react";
+import { useEffect, useRef } from "react";
 import { useStore } from "../store/useStore";
 import type { Annotation } from "../lib/types";
-import FloatingControls from "./FloatingControls";
-import InfoPanel from "./InfoPanel";
-import DraftBar from "./DraftBar";
-import CommandPalette from "./CommandPalette";
+import type { RetinaPrintInfo } from "../lib/printInfo";
+import type { RetinaBackgroundSnapshot, RetinaLayers } from "@/types/clinical";
+import { snapshotBackground } from "../lib/export/backgroundSnapshot";
+import Workspace from "./Workspace";
 
-// Konva nécessite le DOM : chargement paresseux à l'ouverture de l'éditeur.
-const RetinaStage = lazy(() => import("./RetinaStage"));
+/** Instantané complet remonté à la fermeture (images + calques par œil). */
+export interface RetinaCommit {
+  od: RetinaBackgroundSnapshot | null;
+  og: RetinaBackgroundSnapshot | null;
+  layers: RetinaLayers;
+}
 
 interface RetinaEditorProps {
-  side: "OD" | "OG";
-  value: Annotation[];
-  onChange: (annotations: Annotation[]) => void;
+  /** Annotations de l'œil droit (convention store « OD »). */
+  odAnnotations: Annotation[];
+  /** Annotations de l'œil gauche (convention store « OS »). */
+  ogAnnotations: Annotation[];
+  onChangeOD: (annotations: Annotation[]) => void;
+  onChangeOG: (annotations: Annotation[]) => void;
+  /** Ferme la modale (bouton « Terminer »). */
+  onClose: () => void;
+  /** Crée et enregistre une lésion personnalisée en mémoire. */
+  onCreateLesion?: (name: string) => Promise<{ id: string } | null>;
+  /** Infos patient/clinique pour l'en-tête d'impression/export. */
+  printInfo?: RetinaPrintInfo;
+  /** Instantanés d'image existants (restaurés au montage). */
+  backgroundOD?: RetinaBackgroundSnapshot | null;
+  backgroundOG?: RetinaBackgroundSnapshot | null;
+  /** Calques persistés (restaurés au montage). */
+  layers?: RetinaLayers;
+  /** Remonte images + calques à la fermeture (persistance CR). */
+  onCommit?: (commit: RetinaCommit) => void;
+}
+
+/** Applique un instantané d'image au store pour l'œil donné. */
+function seedBackground(snap: RetinaBackgroundSnapshot | null | undefined, eye: "OD" | "OS") {
+  if (!snap?.src) return;
+  const st = useStore.getState();
+  st.setBackgroundImage(snap.src, "retinographie.jpg", eye);
+  st.updateBackground(
+    {
+      natW: snap.natW,
+      natH: snap.natH,
+      visible: snap.visible,
+      opacity: snap.opacity,
+      brightness: snap.brightness,
+      contrast: snap.contrast,
+      saturation: snap.saturation,
+      scale: snap.scale,
+      offsetXMm: snap.offsetXMm,
+      offsetYMm: snap.offsetYMm,
+      rotationDeg: snap.rotationDeg,
+    },
+    eye,
+  );
 }
 
 /**
- * Éditeur RetinaSketch contrôlé, destiné à être monté dans une modale par œil.
- * Amorce le store au montage avec `value`, verrouille la latéralité sur `side`,
- * et remonte toute modification via `onChange`.
+ * Éditeur RetinaSketch double-œil, monté en modale plein écran depuis la
+ * consultation. Amorce le store avec les annotations OD + OG (confondues dans
+ * une seule liste, distinguées par `laterality`), puis remonte séparément les
+ * modifications de chaque œil. L'état est réinitialisé au démontage.
  */
-export default function RetinaEditor({ side, value, onChange }: RetinaEditorProps) {
-  const setPaletteOpen = useStore((s) => s.setPaletteOpen);
-  const paletteOpen = useStore((s) => s.paletteOpen);
+export default function RetinaEditor({
+  odAnnotations,
+  ogAnnotations,
+  onChangeOD,
+  onChangeOG,
+  onClose,
+  onCreateLesion,
+  printInfo,
+  backgroundOD,
+  backgroundOG,
+  layers,
+  onCommit,
+}: RetinaEditorProps) {
   const annotations = useStore((s) => s.annotations);
-  const draftCount = annotations.filter((a) => a.status === "draft").length;
-
-  const stageRef = useRef<HTMLDivElement>(null);
-  const [size, setSize] = useState({ w: 0, h: 0 });
   const mounted = useRef(false);
 
-  // Amorçage unique au montage (la modale est remontée à chaque ouverture).
+  // Amorçage unique au montage : la latéralité de chaque annotation est forcée
+  // selon sa source (robuste même si la donnée stockée est incohérente). On
+  // restaure aussi les images de fond et l'état des calques du CR précédent.
   useEffect(() => {
-    useStore.getState().setLaterality(side === "OD" ? "OD" : "OS");
-    useStore.getState().loadAnnotations(value);
+    const seed: Annotation[] = [
+      ...odAnnotations.map((a) => ({ ...a, laterality: "OD" as const })),
+      ...ogAnnotations.map((a) => ({ ...a, laterality: "OS" as const })),
+    ];
+    useStore.getState().setLayout("dual");
+    useStore.getState().loadAnnotations(seed);
+    seedBackground(backgroundOD, "OD");
+    seedBackground(backgroundOG, "OS");
+    if (layers) useStore.getState().setLayers(layers);
     mounted.current = true;
     return () => {
       mounted.current = false;
@@ -42,79 +101,34 @@ export default function RetinaEditor({ side, value, onChange }: RetinaEditorProp
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Remontée des modifications vers le parent (après amorçage).
+  // Remontée des modifications vers le formulaire (après amorçage).
   useEffect(() => {
-    if (mounted.current) onChange(annotations);
+    if (!mounted.current) return;
+    onChangeOD(annotations.filter((a) => a.laterality === "OD"));
+    onChangeOG(annotations.filter((a) => a.laterality === "OS"));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [annotations]);
 
-  useEffect(() => {
-    const el = stageRef.current;
-    if (!el) return;
-    // Mesure initiale synchrone : ne pas dépendre du seul premier tick (async)
-    // du ResizeObserver, qui peut tarder à l'ouverture de la modale.
-    const rect = el.getBoundingClientRect();
-    if (rect.width > 0 && rect.height > 0) {
-      setSize({ w: Math.floor(rect.width), h: Math.floor(rect.height) });
-    }
-    const ro = new ResizeObserver(([entry]) => {
-      const { width, height } = entry.contentRect;
-      if (width > 0 && height > 0) setSize({ w: Math.floor(width), h: Math.floor(height) });
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      const typing =
-        e.target instanceof HTMLElement &&
-        ["INPUT", "TEXTAREA"].includes(e.target.tagName);
-      if (typing) return;
-      if ((e.key === "/" || e.key === "Enter") && draftCount > 0) {
-        e.preventDefault();
-        setPaletteOpen(true);
-      } else if (e.key === "Escape" && paletteOpen) {
-        e.preventDefault();
-        setPaletteOpen(false);
+  // Fermeture : capture les images + calques puis remonte le tout avant de fermer.
+  const handleClose = async () => {
+    if (onCommit) {
+      try {
+        const st = useStore.getState();
+        const [od, og] = await Promise.all([
+          snapshotBackground(st.backgrounds.OD),
+          snapshotBackground(st.backgrounds.OS),
+        ]);
+        onCommit({ od, og, layers: { ...st.layers } });
+      } catch {
+        /* la capture ne doit jamais empêcher la fermeture */
       }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [setPaletteOpen, paletteOpen, draftCount]);
+    }
+    onClose();
+  };
 
   return (
-    <div className="flex h-full w-full flex-col overflow-hidden bg-white text-slate-900">
-      <div className="flex shrink-0 items-center gap-2 border-b border-slate-200 px-4 py-2 text-xs text-slate-400">
-        <span className="rounded bg-slate-900 px-2 py-0.5 font-semibold text-white">
-          {side === "OD" ? "Œil droit" : "Œil gauche"}
-        </span>
-        <span className="hidden sm:inline">
-          Clic = spot · clic glissé = surface ·{" "}
-          <kbd className="rounded bg-slate-100 px-1">Espace</kbd> = diamètre · re-clic = effacer ·{" "}
-          <kbd className="rounded bg-slate-100 px-1">↵</kbd> = identifier
-        </span>
-      </div>
-
-      <div className="relative min-h-0 flex-1 bg-white">
-        <div ref={stageRef} className="absolute inset-0">
-          <Suspense
-            fallback={
-              <div className="flex h-full w-full items-center justify-center text-sm text-slate-400">
-                Chargement du schéma…
-              </div>
-            }
-          >
-            {size.w > 0 && <RetinaStage width={size.w} height={size.h} />}
-          </Suspense>
-        </div>
-
-        <FloatingControls hideLaterality />
-        <InfoPanel />
-        <DraftBar />
-      </div>
-
-      <CommandPalette />
+    <div className="fixed inset-0 z-[100] bg-white">
+      <Workspace onClose={handleClose} onCreateLesion={onCreateLesion} printInfo={printInfo} />
     </div>
   );
 }

@@ -1,10 +1,7 @@
 import { useState } from 'react';
-import { Pencil, X } from 'lucide-react';
-import { useStore } from '../../features/retinasketch/store/useStore';
+import { Pencil } from 'lucide-react';
 import BubblePicker from './BubblePicker';
 import RnflGclPicker from './RnflGclPicker';
-import RetinaEditor from '../../features/retinasketch/components/RetinaEditor';
-import type { Annotation } from '../../features/retinasketch/lib/types';
 import {
   BUBBLE_PICKER_SUGGESTIONS,
   EVOLUTION_OPTIONS,
@@ -29,7 +26,26 @@ const PREDEFINED_CAUSES = [
   'Mouvements du patient',
   'Pupille mal réactive',
   'Trouble vitréen',
+  'Opacité des milieux transparents',
 ] as const;
+
+// C/D vertical : toujours < 1, donc seul « 0, » est sous-entendu et l'on ne saisit
+// que les décimales. La valeur reste stockée au format « 0.x » pour le reste du pipeline.
+const CUP_DISC_MAX_DECIMALS = 2;
+
+/** Décimales à afficher dans le champ (partie après « 0, »). */
+function cupDiscDecimals(stored: string): string {
+  if (!stored) return '';
+  const dot = stored.replace(',', '.').indexOf('.');
+  const digits = dot === -1 ? '' : stored.replace(',', '.').slice(dot + 1);
+  return digits.replace(/\D/g, '').slice(0, CUP_DISC_MAX_DECIMALS);
+}
+
+/** Reconstruit la valeur stockée « 0.x » à partir des décimales saisies. */
+function decimalsToCupDisc(input: string): string {
+  const digits = input.replace(/\D/g, '').slice(0, CUP_DISC_MAX_DECIMALS);
+  return digits ? `0.${digits}` : '';
+}
 
 interface EyeExamSectionProps {
   side: 'OD' | 'OG';
@@ -39,6 +55,8 @@ interface EyeExamSectionProps {
   showOpticNerve?: boolean;
   showAnterior?: boolean;
   octaDone?: boolean;
+  /** Ouvre l'éditeur RetinaSketch double-œil (modale unique gérée par le parent). */
+  onOpenRetina?: () => void;
   onNewSuggestion?: (category: 'macula' | 'papille' | 'peripherie', item: string) => void;
 }
 
@@ -50,12 +68,15 @@ export default function EyeExamSection({
   showOpticNerve = false,
   showAnterior = false,
   octaDone = false,
+  onOpenRetina,
 }: EyeExamSectionProps) {
   const [customCause, setCustomCause] = useState('');
   const [showCustomInput, setShowCustomInput] = useState(false);
-  const [showRetinaEditor, setShowRetinaEditor] = useState(false);
 
   const isImpossible = eye.acquisitionQuality === 'impossible';
+  // Acquisition dégradée (faible ou impossible) → propose d'exclure RNFL/GCL.
+  const isDegraded = eye.acquisitionQuality === 'faible' || eye.acquisitionQuality === 'impossible';
+  const excludeRnflGcl = eye.excludeRnflGcl === true && isDegraded;
   const annotationCount = (eye.retinaAnnotations ?? []).filter((a) => a.status === 'validated').length;
 
   const update = <K extends keyof EyeState>(k: K, v: EyeState[K]) =>
@@ -247,15 +268,15 @@ export default function EyeExamSection({
             Observations morphologiques
           </div>
 
-          {/* RetinaSketch — annotation du schéma rétinien */}
+          {/* RetinaSketch — ouvre l'éditeur double-œil (OD + OG simultanés) */}
           <button
             type="button"
-            onClick={() => setShowRetinaEditor(true)}
+            onClick={() => onOpenRetina?.()}
             disabled={isImpossible}
             className="w-full flex items-center justify-between gap-3 px-4 py-3 rounded-xl border-2 border-dashed border-teal-200 bg-teal-50/40 text-teal-700 font-bold text-sm hover:border-teal-400 hover:bg-teal-50 transition-all active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <span className="flex items-center gap-2">
-              <Pencil className="w-4 h-4" /> Annoter la rétine
+              <Pencil className="w-4 h-4" /> Annoter la rétine (2 yeux)
             </span>
             <span className={`px-2 py-0.5 rounded-full text-xs ${annotationCount > 0 ? 'bg-teal-600 text-white' : 'bg-slate-200 text-slate-500'}`}>
               {annotationCount > 0 ? `${annotationCount} lésion${annotationCount > 1 ? 's' : ''}` : 'aucune'}
@@ -333,8 +354,37 @@ export default function EyeExamSection({
             </div>
 
             <div className={`p-4 space-y-4 ${isImpossible ? 'opacity-50 pointer-events-none select-none' : ''}`}>
-                {/* RNFL & GCL+ par secteurs — OCT uniquement */}
-                {isOCT && (
+                {/* Acquisition difficile : bouton pour exclure RNFL/GCL de l'interprétation.
+                    Visible uniquement quand la qualité est Faible ou Impossible. */}
+                {isOCT && isDegraded && (
+                  <button
+                    type="button"
+                    onClick={() => update('excludeRnflGcl', !eye.excludeRnflGcl)}
+                    className={`w-full flex items-center justify-between gap-3 px-4 py-2.5 rounded-xl text-sm font-bold border transition-all active:scale-[0.99] ${
+                      excludeRnflGcl
+                        ? 'bg-amber-500 border-amber-500 text-white shadow-sm'
+                        : 'bg-white border-amber-300 text-amber-700 hover:bg-amber-50'
+                    }`}
+                  >
+                    <span>
+                      {excludeRnflGcl ? '✓ RNFL/GCL exclus de l’interprétation' : 'Ne pas interpréter RNFL/GCL'}
+                    </span>
+                    <span className="text-xs font-medium opacity-90">
+                      acquisition {eye.acquisitionQuality}
+                    </span>
+                  </button>
+                )}
+
+                {/* Message affiché quand RNFL/GCL sont exclus */}
+                {isOCT && excludeRnflGcl && (
+                  <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-xs font-semibold text-amber-700">
+                    RNFL et GCL non interprétables en raison d'un indice d'acquisition faible.
+                    Ces paramètres n'apparaîtront pas dans le compte rendu.
+                  </div>
+                )}
+
+                {/* RNFL & GCL+ par secteurs — OCT uniquement, masqués si exclus */}
+                {isOCT && !excludeRnflGcl && (
                   <div>
                     <label className="block text-xs font-bold text-slate-500 uppercase mb-2">
                       RNFL &amp; GCL+ <span className="text-slate-400 normal-case font-medium">— cliquer un secteur</span>
@@ -363,14 +413,23 @@ export default function EyeExamSection({
                     <label className="block text-xs font-bold text-slate-500 uppercase mb-2">
                       C/D vertical
                     </label>
-                    <input
-                      type="number"
-                      step="0.1"
-                      className="w-full p-2.5 border-2 border-slate-200 rounded-xl text-sm font-bold outline-none focus:border-teal-500"
-                      placeholder="Ex: 0.4"
-                      value={eye.cupDisc}
-                      onChange={(e) => update('cupDisc', e.target.value)}
-                    />
+                    <div className="relative">
+                      <span
+                        aria-hidden="true"
+                        className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400 select-none"
+                      >
+                        0,
+                      </span>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        maxLength={CUP_DISC_MAX_DECIMALS}
+                        className="w-full p-2.5 pl-9 border-2 border-slate-200 rounded-xl text-sm font-bold outline-none focus:border-teal-500"
+                        placeholder="9"
+                        value={cupDiscDecimals(eye.cupDisc)}
+                        onChange={(e) => update('cupDisc', decimalsToCupDisc(e.target.value))}
+                      />
+                    </div>
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-slate-500 uppercase mb-2">
@@ -387,8 +446,8 @@ export default function EyeExamSection({
                   </div>
                 </div>
 
-                {/* Suivi RNFL/GCL — OCT uniquement */}
-                {isOCT && (
+                {/* Suivi RNFL/GCL — OCT uniquement, masqué si RNFL/GCL exclus */}
+                {isOCT && !excludeRnflGcl && (
                   <div>
                     <div className="flex items-center justify-between mb-2">
                       <label className="text-xs font-bold text-slate-500 uppercase">Suivi RNFL/GCL</label>
@@ -457,45 +516,6 @@ export default function EyeExamSection({
         )}
 
       </div>
-
-      {/* Modale RetinaSketch */}
-      {showRetinaEditor && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
-          <div className="relative flex flex-col w-full max-w-5xl h-[85vh] bg-white rounded-2xl shadow-2xl overflow-hidden border border-slate-200">
-            <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200 bg-slate-50">
-              <h3 className="font-black text-slate-800 flex items-center gap-2">
-                <Pencil className="w-5 h-5 text-teal-600" />
-                Annotation de la rétine — {side === 'OD' ? 'Œil droit' : 'Œil gauche'}
-              </h3>
-              <button
-                type="button"
-                onClick={() => {
-                  const drafts = useStore.getState().annotations.filter(
-                    (a) => a.status === 'draft'
-                  );
-                  if (drafts.length > 0) {
-                    const ok = window.confirm(
-                      `${drafts.length} annotation${drafts.length > 1 ? 's' : ''} non validée${drafts.length > 1 ? 's' : ''} sera perdue${drafts.length > 1 ? 's' : ''}.\nTerminer quand même ?`
-                    );
-                    if (!ok) return;
-                  }
-                  setShowRetinaEditor(false);
-                }}
-                className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl flex items-center gap-2 transition-all active:scale-95"
-              >
-                <X className="w-4 h-4" /> Terminer
-              </button>
-            </div>
-            <div className="flex-1 min-h-0">
-              <RetinaEditor
-                side={side}
-                value={eye.retinaAnnotations ?? []}
-                onChange={(annotations: Annotation[]) => update('retinaAnnotations', annotations)}
-              />
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

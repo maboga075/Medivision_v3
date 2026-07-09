@@ -97,5 +97,6 @@ export interface AIPayload {
     analyse_clinique_max_phrases?: number;
     analyse_clinique_focus?: string;
     interdire_mentions?: string[];
+    tenir_compte_indice_acquisition?: boolean;
   };
 }

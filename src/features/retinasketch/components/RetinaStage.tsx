@@ -2,10 +2,11 @@
 import { useRef, useState, useMemo, useCallback, useEffect } from "react";
 import { Stage, Layer, Group, Circle, Ellipse, Line, Text } from "react-konva";
 import type Konva from "konva";
-import { useStore } from "../store/useStore";
-import { TEMPLATE, createViewport, toScreen } from "../lib/geometry/template";
-import { arcadePolylines } from "../lib/geometry/engine";
-import { getLesion } from "../lib/ontology/lesions";
+import { useStore, IMG_MIN_SCALE, IMG_MAX_SCALE } from "@/features/retinasketch/store/useStore";
+import { TEMPLATE, createViewport, toScreen, mirrorFor, isInsideRetina } from "@/features/retinasketch/lib/geometry/template";
+import { imagePxToHomeMm, imagePxLenToMm } from "@/features/retinasketch/lib/geometry/project";
+import { arcadePolylines } from "@/features/retinasketch/lib/geometry/engine";
+import { getLesion } from "@/features/retinasketch/lib/ontology/lesions";
 
 const C = {
   contour: "#0f172a",
@@ -19,50 +20,123 @@ const C = {
   draft: "#94a3b8",
   draftFill: "rgba(148,163,184,0.28)",
   preview: "#2563eb",
+  select: "#0ea5e9", // halo de la lésion sélectionnée
+  discDetected: "#16a34a", // papille détectée (vert)
+  cupDetected: "#f59e0b", // excavation (cup) détectée (ambre)
+  maculaDetected: "#a855f7", // macula détectée (violet)
 };
 
 const DRAG_THRESHOLD_MM = 0.8; // au-delà → surface libre, sinon → spot
 
+/** Sensibilité du zoom à la molette (plus petit = plus doux). */
+const ZOOM_SENSITIVITY = 0.0012;
+
+/**
+ * Normalise l'amplitude d'un événement molette selon son `deltaMode`
+ * (pixel / ligne / page) puis la borne, afin d'obtenir un zoom proportionnel et
+ * doux, cohérent entre souris et trackpad (qui émet beaucoup de petits events).
+ */
+function normalizeWheel(e: WheelEvent): number {
+  const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1;
+  return Math.max(-60, Math.min(60, e.deltaY * unit));
+}
+
 interface Props {
   width: number;
   height: number;
+  /** Force l'œil affiché (vue double) ; sinon latéralité globale du store. */
+  eye?: "OD" | "OS";
+  /** Rendu statique (vue double / impression) : pas d'interaction ni de zoom. */
+  readOnly?: boolean;
+  /** Récupère l'instance Stage Konva (capture pour export PDF). */
+  stageRef?: React.Ref<Konva.Stage>;
 }
 
-export default function RetinaStage({ width, height }: Props) {
-  const laterality = useStore((s) => s.laterality);
+export default function RetinaStage({ width, height, eye, readOnly, stageRef }: Props) {
+  const storeLaterality = useStore((s) => s.laterality);
   const layers = useStore((s) => s.layers);
-  const annotations = useStore((s) => s.annotations);
+  const allAnnotations = useStore((s) => s.annotations);
   const hiddenLesionIds = useStore((s) => s.hiddenLesionIds);
   const spotRadiusMm = useStore((s) => s.spotRadiusMm);
   const addSpot = useStore((s) => s.addSpot);
   const addFreeform = useStore((s) => s.addFreeform);
   const deleteAnnotation = useStore((s) => s.deleteAnnotation);
   const adjustSpotRadius = useStore((s) => s.adjustSpotRadius);
+  const updateBackground = useStore((s) => s.updateBackground);
+  const selectMode = useStore((s) => s.selectMode);
+  const selectedAnnotationId = useStore((s) => s.selectedAnnotationId);
+  const selectAnnotation = useStore((s) => s.selectAnnotation);
+  const setOverlapPick = useStore((s) => s.setOverlapPick);
+
+  const laterality = eye ?? storeLaterality;
+  // Image de fond de cet œil : son transform (zoom/pan/rotation) est appliqué
+  // AUSSI aux annotations → les lésions suivent l'image quand on la manipule.
+  const bg = useStore((s) => s.backgrounds[laterality]);
+  // Anatomie spécifique détectée (papille + macula) — suit l'image comme les lésions.
+  const anatomy = useStore((s) => s.anatomy[laterality]);
+  const anatomyVisible = useStore((s) => s.anatomyVisible);
+  // Présence d'une image de fond manipulable (molette = zoom, Shift+glisser = déplacer).
+  const hasBg = !readOnly && !!bg.src && bg.visible;
+  // On n'affiche que les annotations de l'œil de ce panneau.
+  const annotations = allAnnotations.filter((a) => a.laterality === laterality);
 
   const vp = useMemo(
-    () => createViewport(width, height, laterality === "OD" ? 1 : -1),
+    () => createViewport(width, height, mirrorFor(laterality)),
     [width, height, laterality],
   );
+
+  // Transform commun image + annotations (autour du centre du cercle), en px écran.
+  const imageFrame = {
+    x: vp.cx + bg.offsetXMm * vp.pxPerMm,
+    y: vp.cy + bg.offsetYMm * vp.pxPerMm,
+    offsetX: vp.cx,
+    offsetY: vp.cy,
+    scaleX: bg.scale,
+    scaleY: bg.scale,
+    rotation: bg.rotationDeg,
+  };
+
+  // Anatomie détectée → mm « domicile » (rendue sous `imageFrame` → suit l'image).
+  const anatomyShapes =
+    anatomyVisible && anatomy && bg.src
+      ? {
+          disc: {
+            ...imagePxToHomeMm(anatomy.disc.cx, anatomy.disc.cy, anatomy.natW, anatomy.natH, vp),
+            rx: imagePxLenToMm(anatomy.disc.rx, anatomy.natW, anatomy.natH),
+            ry: imagePxLenToMm(anatomy.disc.ry, anatomy.natW, anatomy.natH),
+          },
+          // Contours réels (IA) si présents → affichés à la place de l'ellipse.
+          discPolygon: discPolygonToHomeMm(anatomy.disc.polygon, anatomy.natW, anatomy.natH, vp),
+          cupPolygon: discPolygonToHomeMm(anatomy.disc.cupPolygon, anatomy.natW, anatomy.natH, vp),
+          macula: {
+            ...imagePxToHomeMm(anatomy.macula.cx, anatomy.macula.cy, anatomy.natW, anatomy.natH, vp),
+            r: imagePxLenToMm(anatomy.macula.r, anatomy.natW, anatomy.natH),
+          },
+        }
+      : null;
 
   const groupRef = useRef<Konva.Group>(null);
   const active = useRef(false);
   const moved = useRef(false);
   const buffer = useRef<number[]>([]);
   const lastY = useRef(0);
+  // Déplacement de l'IMAGE de fond (Shift+glisser ou bouton du milieu) — pas les annotations.
+  const panImg = useRef<{ sx: number; sy: number; ox: number; oy: number; sc: number } | null>(null);
 
   const [draftLine, setDraftLine] = useState<number[]>([]);
   const [spaceHeld, setSpaceHeld] = useState(false);
   const [preview, setPreview] = useState<{ x: number; y: number } | null>(null);
 
-  // Touche Espace = mode ajustement du diamètre du spot.
-  // Ne pas intercepter si l'utilisateur tape dans un champ texte (création de lésion, etc.)
+  // Touche Espace = mode ajustement du diamètre du spot (interactif seulement).
+  // Ignorée quand on saisit du texte (palette d'identification, champ de nom…),
+  // sinon l'espace ne s'insère jamais dans les inputs.
   useEffect(() => {
+    if (readOnly) return;
+    const isTyping = (t: EventTarget | null) =>
+      t instanceof HTMLElement &&
+      (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable);
     const down = (e: KeyboardEvent) => {
-      if (e.code === "Space") {
-        const typing =
-          e.target instanceof HTMLElement &&
-          ["INPUT", "TEXTAREA", "SELECT"].includes(e.target.tagName);
-        if (typing) return;
+      if (e.code === "Space" && !isTyping(e.target)) {
         e.preventDefault();
         setSpaceHeld(true);
       }
@@ -76,7 +150,7 @@ export default function RetinaStage({ width, height }: Props) {
       window.removeEventListener("keydown", down);
       window.removeEventListener("keyup", up);
     };
-  }, []);
+  }, [readOnly]);
 
   const modelPos = useCallback(() => {
     return groupRef.current?.getRelativePointerPosition() ?? null;
@@ -84,23 +158,83 @@ export default function RetinaStage({ width, height }: Props) {
 
   const onDown = useCallback(
     (e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
+      const evt = e.evt as MouseEvent;
+      // Clic droit = menu contextuel (ouverture du panneau Image de fond) → ne
+      // jamais dessiner ni sélectionner.
+      if ("button" in evt && evt.button === 2) return;
+      const shift = "shiftKey" in evt && evt.shiftKey;
+      const middle = "button" in evt && evt.button === 1;
+      // Shift+glisser (ou bouton du milieu) = déplacer l'IMAGE de fond dans le
+      // cercle, sans toucher aux annotations déjà posées.
+      if ((shift || middle) && hasBg) {
+        evt.preventDefault?.();
+        const p = e.target.getStage()?.getPointerPosition();
+        const bg = useStore.getState().backgrounds[laterality];
+        if (p)
+          panImg.current = {
+            sx: p.x,
+            sy: p.y,
+            ox: bg.offsetXMm,
+            oy: bg.offsetYMm,
+            sc: bg.scale || 1,
+          };
+        return;
+      }
       if (spaceHeld) return; // en mode diamètre, pas de dessin
-      if (e.target !== e.target.getStage()) return; // un objet gère le clic
+      // Mode sélection : le clic CHOISIT une lésion (sans en créer). Si plusieurs
+      // lésions sont superposées sous le clic, on propose la liste à choisir.
+      if (selectMode) {
+        const p = modelPos();
+        if (!p) return;
+        const hits = useStore
+          .getState()
+          .annotations.filter(
+            (a) =>
+              a.laterality === laterality &&
+              (a.kind === "point" ? spotHit(a, p.x, p.y) : polyHit(a.points, p.x, p.y)),
+          );
+        if (hits.length <= 1) {
+          selectAnnotation(hits[0]?.id ?? null);
+        } else {
+          const sp = e.target.getStage()?.getPointerPosition();
+          if (sp)
+            setOverlapPick({
+              eye: laterality,
+              x: sp.x,
+              y: sp.y,
+              ids: hits.map((h) => h.id).reverse(), // dernière dessinée (au-dessus) en premier
+            });
+        }
+        return;
+      }
       const p = modelPos();
       if (!p) return;
-      // Bloquer les clics hors de l'ellipse rétinienne
-      const rx = TEMPLATE.retina.halfWidthMm;
-      const ry = TEMPLATE.retina.halfHeightMm;
-      if ((p.x * p.x) / (rx * rx) + (p.y * p.y) / (ry * ry) > 1) return;
       active.current = true;
       moved.current = false;
       buffer.current = [p.x, p.y];
       setDraftLine([p.x, p.y]);
     },
-    [spaceHeld, modelPos],
+    [spaceHeld, modelPos, laterality, hasBg, selectMode, selectAnnotation, setOverlapPick],
   );
 
   const onMove = useCallback(() => {
+    // Déplacement de l'image de fond : delta écran → décalage (mm). Bornage « cover » :
+    // l'image ne peut jamais découvrir le cercle (au zoom 1, déplacement nul).
+    if (panImg.current) {
+      const sp = groupRef.current?.getStage()?.getPointerPosition();
+      if (!sp) return;
+      const { sx, sy, ox, oy, sc } = panImg.current;
+      const lim = TEMPLATE.retina.halfWidthMm * Math.max(0, sc - 1);
+      const clamp = (v: number) => Math.max(-lim, Math.min(lim, v));
+      updateBackground(
+        {
+          offsetXMm: clamp(ox + (sp.x - sx) / vp.pxPerMm),
+          offsetYMm: clamp(oy + (sp.y - sy) / vp.pxPerMm),
+        },
+        laterality,
+      );
+      return;
+    }
     const p = modelPos();
     if (!p) return;
     if (spaceHeld) {
@@ -123,17 +257,84 @@ export default function RetinaStage({ width, height }: Props) {
     const start = buffer.current;
     if (Math.hypot(p.x - start[0], p.y - start[1]) > DRAG_THRESHOLD_MM)
       moved.current = true;
-  }, [spaceHeld, modelPos, adjustSpotRadius]);
+  }, [spaceHeld, modelPos, adjustSpotRadius, updateBackground, laterality, vp]);
 
   const onUp = useCallback(() => {
+    if (panImg.current) {
+      panImg.current = null;
+      return;
+    }
     if (!active.current) return;
-    if (moved.current) addFreeform(buffer.current);
-    else addSpot(buffer.current[0], buffer.current[1]);
+    // Le dessin est rattaché à l'œil de CE panneau (pas seulement à l'œil actif).
+    // On rejette toute lésion dont le centre est hors du contour rétinien.
+    const buf = buffer.current;
+    if (moved.current) {
+      // Glissé → surface libre (un glissé ne sert jamais à effacer).
+      const c = polygonCentroid(buf);
+      if (isInsideRetina(c.x, c.y)) addFreeform(buf, laterality);
+    } else {
+      // Clic simple : re-cliquer sur une lésion NON VALIDÉE (brouillon) l'efface ;
+      // sinon on crée un spot (les lésions validées sont verrouillées → on peut
+      // dessiner par-dessus sans les effacer). En cas de chevauchement, on efface
+      // le brouillon du dessus (le dernier dessiné).
+      const all = useStore.getState().annotations;
+      let draftHit: (typeof all)[number] | undefined;
+      for (let i = all.length - 1; i >= 0; i--) {
+        const a = all[i];
+        if (
+          a.laterality === laterality &&
+          a.status === "draft" &&
+          (a.kind === "point"
+            ? spotHit(a, buf[0], buf[1])
+            : polyHit(a.points, buf[0], buf[1]))
+        ) {
+          draftHit = a;
+          break;
+        }
+      }
+      if (draftHit) {
+        deleteAnnotation(draftHit.id);
+      } else if (isInsideRetina(buf[0], buf[1])) {
+        addSpot(buf[0], buf[1], laterality);
+      }
+    }
     active.current = false;
     moved.current = false;
     buffer.current = [];
     setDraftLine([]);
-  }, [addFreeform, addSpot]);
+  }, [addFreeform, addSpot, deleteAnnotation, laterality]);
+
+  // Molette = zoom de l'IMAGE de fond À L'INTÉRIEUR du cercle, centré sur le
+  // curseur. Borné à [IMG_MIN_SCALE, IMG_MAX_SCALE] : on ne dézoome jamais
+  // au-delà de la vue de départ (rétinographie à 50° remplissant le cercle).
+  const onWheel = useCallback(
+    (e: Konva.KonvaEventObject<WheelEvent>) => {
+      e.evt.preventDefault();
+      if (!hasBg) return;
+      const pointer = groupRef.current?.getStage()?.getPointerPosition();
+      if (!pointer) return;
+      const bg = useStore.getState().backgrounds[laterality];
+      const { pxPerMm, cx, cy } = vp;
+      const sOld = bg.scale || 1;
+      const sNew = Math.max(
+        IMG_MIN_SCALE,
+        Math.min(IMG_MAX_SCALE, sOld * Math.exp(-normalizeWheel(e.evt) * ZOOM_SENSITIVITY)),
+      );
+      const tx = bg.offsetXMm * pxPerMm;
+      const ty = bg.offsetYMm * pxPerMm;
+      const ratio = sNew / sOld;
+      const txNew = pointer.x - cx - ratio * (pointer.x - cx - tx);
+      const tyNew = pointer.y - cy - ratio * (pointer.y - cy - ty);
+      // Bornage « cover » : recadrer le décalage pour ne jamais découvrir le cercle.
+      const lim = TEMPLATE.retina.halfWidthMm * Math.max(0, sNew - 1);
+      const clamp = (v: number) => Math.max(-lim, Math.min(lim, v));
+      updateBackground(
+        { scale: sNew, offsetXMm: clamp(txNew / pxPerMm), offsetYMm: clamp(tyNew / pxPerMm) },
+        laterality,
+      );
+    },
+    [hasBg, updateBackground, laterality, vp],
+  );
 
   useEffect(() => {
     if (!spaceHeld) setPreview(null);
@@ -143,32 +344,39 @@ export default function RetinaStage({ width, height }: Props) {
 
   return (
     <Stage
+      ref={stageRef}
       width={width}
       height={height}
-      onMouseDown={onDown}
-      onMouseMove={onMove}
-      onMouseUp={onUp}
-      onTouchStart={onDown}
-      onTouchMove={onMove}
-      onTouchEnd={onUp}
-      style={{ cursor: spaceHeld ? "ns-resize" : "crosshair" }}
+      listening={!readOnly}
+      onMouseDown={readOnly ? undefined : onDown}
+      onMouseMove={readOnly ? undefined : onMove}
+      onMouseUp={readOnly ? undefined : onUp}
+      onTouchStart={readOnly ? undefined : onDown}
+      onTouchMove={readOnly ? undefined : onMove}
+      onTouchEnd={readOnly ? undefined : onUp}
+      onWheel={readOnly ? undefined : onWheel}
+      style={
+        readOnly
+          ? undefined
+          : { cursor: spaceHeld ? "ns-resize" : selectMode ? "pointer" : "crosshair" }
+      }
     >
       <Layer>
+        {/* Schéma + couches : FIXES (ne suivent pas l'image), non-interactifs */}
         <Group
-          ref={groupRef}
           x={vp.cx}
           y={vp.cy}
           scaleX={vp.pxPerMm * vp.mirror}
           scaleY={vp.pxPerMm}
+          listening={false}
         >
           {/* Template + couches : non-interactifs, on dessine au travers */}
           <Group listening={false}>
-            {/* Contour rétinien (toujours visible) */}
-            <Ellipse
+            {/* Cercle rétinien = champ ~50° (toujours visible) */}
+            <Circle
               x={0}
               y={0}
-              radiusX={TEMPLATE.retina.halfWidthMm}
-              radiusY={TEMPLATE.retina.halfHeightMm}
+              radius={TEMPLATE.retina.halfWidthMm}
               stroke={C.contour}
               strokeWidth={1.6}
               strokeScaleEnabled={false}
@@ -272,95 +480,193 @@ export default function RetinaStage({ width, height }: Props) {
               </>
             )}
 
-            {/* Papille + zone péripapillaire (base) */}
-            <Circle
-              x={TEMPLATE.disc.x}
-              y={TEMPLATE.disc.y}
-              radius={TEMPLATE.peripapillaryRadiusMm}
-              stroke={C.subtle}
-              strokeWidth={1}
-              dash={[3, 3]}
-              strokeScaleEnabled={false}
-            />
-            <Circle
-              x={TEMPLATE.disc.x}
-              y={TEMPLATE.disc.y}
-              radius={TEMPLATE.discRadiusMm}
-              fill={C.disc}
-              stroke={C.discStroke}
-              strokeWidth={1.2}
-              strokeScaleEnabled={false}
-            />
+            {/* Modèle anatomique générique (papille + macula + fovéa) : affiché
+                UNIQUEMENT via la couche « Zones anatomiques » (mode démonstration,
+                désactivé par défaut). On abandonne progressivement ce repère fixe ;
+                la structuration reste calculée sur les constantes du TEMPLATE. */}
+            {layers.anatomy && (
+              <>
+                {/* Papille + zone péripapillaire */}
+                <Circle
+                  x={TEMPLATE.disc.x}
+                  y={TEMPLATE.disc.y}
+                  radius={TEMPLATE.peripapillaryRadiusMm}
+                  stroke={C.subtle}
+                  strokeWidth={1}
+                  dash={[3, 3]}
+                  strokeScaleEnabled={false}
+                />
+                <Circle
+                  x={TEMPLATE.disc.x}
+                  y={TEMPLATE.disc.y}
+                  radius={TEMPLATE.discRadiusMm}
+                  fill={C.disc}
+                  stroke={C.discStroke}
+                  strokeWidth={1.2}
+                  strokeScaleEnabled={false}
+                />
 
-            {/* Macula + fovéa (base) */}
-            <Circle
-              x={0}
-              y={0}
-              radius={TEMPLATE.maculaRadiusMm}
-              stroke={C.subtle}
-              strokeWidth={1}
-              dash={[3, 3]}
-              strokeScaleEnabled={false}
-            />
-            <Circle x={0} y={0} radius={0.18} fill={C.contour} />
+                {/* Macula + fovéa */}
+                <Circle
+                  x={0}
+                  y={0}
+                  radius={TEMPLATE.maculaRadiusMm}
+                  stroke={C.subtle}
+                  strokeWidth={1}
+                  dash={[3, 3]}
+                  strokeScaleEnabled={false}
+                />
+                <Circle x={0} y={0} radius={0.18} fill={C.contour} />
+              </>
+            )}
 
-            {/* Arcades vasculaires */}
-            {arcades.map((line, i) => (
-              <Line
-                key={i}
-                points={line.flatMap((p) => [p.x, p.y])}
-                stroke={layers.vessels ? C.vesselHi : C.vessel}
-                strokeWidth={layers.vessels ? 2.2 : 1.4}
-                opacity={layers.vessels ? 0.85 : 0.6}
-                tension={0.5}
-                lineCap="round"
+            {/* Arcades vasculaires — masquées par défaut, visibles via la couche « Vaisseaux ». */}
+            {layers.vessels &&
+              arcades.map((line, i) => (
+                <Line
+                  key={i}
+                  points={line.flatMap((p) => [p.x, p.y])}
+                  stroke={C.vesselHi}
+                  strokeWidth={2.2}
+                  opacity={0.85}
+                  tension={0.5}
+                  lineCap="round"
+                  strokeScaleEnabled={false}
+                />
+              ))}
+          </Group>
+        </Group>
+
+        {/* ——— Annotations : suivent l'image de fond (zoom/pan/rotation) ———
+            Non-interactives (listening=false) → elles n'interceptent jamais le
+            clic de création ; la sélection se fait par hit-test (mode Sélection). */}
+        <Group {...imageFrame} listening={false}>
+          <Group
+            ref={groupRef}
+            x={vp.cx}
+            y={vp.cy}
+            scaleX={vp.pxPerMm * vp.mirror}
+            scaleY={vp.pxPerMm}
+            // Clip circulaire (champ rétinien) : aucune lésion ne déborde du cercle
+            // dédié, même dessinée près du bord (fix bug « lésion hors zone »).
+            clipFunc={(ctx) => {
+              ctx.beginPath();
+              ctx.arc(0, 0, TEMPLATE.retina.halfWidthMm, 0, Math.PI * 2, false);
+              ctx.closePath();
+            }}
+          >
+          {/* Anatomie spécifique détectée (proposition) : papille + macula */}
+          {anatomyShapes && (
+            <>
+              <Circle
+                x={anatomyShapes.macula.x}
+                y={anatomyShapes.macula.y}
+                radius={anatomyShapes.macula.r}
+                stroke={C.maculaDetected}
+                strokeWidth={1.4}
+                dash={[4, 3]}
                 strokeScaleEnabled={false}
               />
-            ))}
-          </Group>
-
-          {/* ——— Annotations ——— */}
+              <Circle
+                x={anatomyShapes.macula.x}
+                y={anatomyShapes.macula.y}
+                radius={0.18}
+                fill={C.maculaDetected}
+              />
+              {anatomyShapes.discPolygon ? (
+                <Line
+                  points={anatomyShapes.discPolygon}
+                  closed
+                  fill={hexToRgba(C.discDetected, 0.12)}
+                  stroke={C.discDetected}
+                  strokeWidth={1.8}
+                  strokeScaleEnabled={false}
+                />
+              ) : (
+                <Ellipse
+                  x={anatomyShapes.disc.x}
+                  y={anatomyShapes.disc.y}
+                  radiusX={anatomyShapes.disc.rx}
+                  radiusY={anatomyShapes.disc.ry}
+                  fill={hexToRgba(C.discDetected, 0.12)}
+                  stroke={C.discDetected}
+                  strokeWidth={1.8}
+                  strokeScaleEnabled={false}
+                />
+              )}
+              {/* Excavation (cup) détourée par l'IA */}
+              {anatomyShapes.cupPolygon && (
+                <Line
+                  points={anatomyShapes.cupPolygon}
+                  closed
+                  fill={hexToRgba(C.cupDetected, 0.14)}
+                  stroke={C.cupDetected}
+                  strokeWidth={1.5}
+                  strokeScaleEnabled={false}
+                />
+              )}
+            </>
+          )}
           {annotations.map((a) => {
             const lesion = getLesion(a.lesionId);
             if (lesion && hiddenLesionIds.includes(lesion.id)) return null;
-            const locked = a.status === "validated";
+            // Remplissage transparent (la rétinographie reste visible), contour
+            // plus visible que le remplissage.
             const stroke = lesion ? lesion.color : C.draft;
-            const onClick = (
-              e: Konva.KonvaEventObject<MouseEvent | TouchEvent>,
-            ) => {
-              e.cancelBubble = true;
-              if (!locked) deleteAnnotation(a.id); // re-clic = effacer (brouillon)
-            };
+            const fill = lesion ? hexToRgba(lesion.color, 0.22) : C.draftFill;
+            const selected = a.id === selectedAnnotationId;
+            const sw = selected ? 2.6 : 1.6;
 
             if (a.kind === "point") {
+              const r = a.radiusMm ?? 0.5;
               return (
-                <Circle
-                  key={a.id}
-                  x={a.points[0]}
-                  y={a.points[1]}
-                  radius={a.radiusMm ?? 0.5}
-                  fill={lesion ? lesion.color : C.draftFill}
-                  stroke={stroke}
-                  strokeWidth={1.4}
-                  strokeScaleEnabled={false}
-                  onClick={onClick}
-                  onTap={onClick}
-                />
+                <Group key={a.id}>
+                  {selected && (
+                    <Circle
+                      x={a.points[0]}
+                      y={a.points[1]}
+                      radius={r}
+                      stroke={C.select}
+                      strokeWidth={5}
+                      opacity={0.5}
+                      strokeScaleEnabled={false}
+                    />
+                  )}
+                  <Circle
+                    x={a.points[0]}
+                    y={a.points[1]}
+                    radius={r}
+                    fill={fill}
+                    stroke={stroke}
+                    strokeWidth={sw}
+                    strokeScaleEnabled={false}
+                  />
+                </Group>
               );
             }
             return (
-              <Line
-                key={a.id}
-                points={a.points}
-                closed
-                fill={lesion ? hexToRgba(lesion.color, 0.25) : C.draftFill}
-                stroke={stroke}
-                strokeWidth={1.6}
-                tension={0.4}
-                strokeScaleEnabled={false}
-                onClick={onClick}
-                onTap={onClick}
-              />
+              <Group key={a.id}>
+                {selected && (
+                  <Line
+                    points={a.points}
+                    closed
+                    stroke={C.select}
+                    strokeWidth={5}
+                    opacity={0.5}
+                    tension={0.4}
+                    strokeScaleEnabled={false}
+                  />
+                )}
+                <Line
+                  points={a.points}
+                  closed
+                  fill={fill}
+                  stroke={stroke}
+                  strokeWidth={sw}
+                  tension={0.4}
+                  strokeScaleEnabled={false}
+                />
+              </Group>
             );
           })}
 
@@ -389,6 +695,7 @@ export default function RetinaStage({ width, height }: Props) {
               strokeScaleEnabled={false}
             />
           )}
+          </Group>
         </Group>
       </Layer>
 
@@ -418,17 +725,9 @@ export default function RetinaStage({ width, height }: Props) {
               fill={C.overlayText}
             />
           ))}
-        {layers.anatomy &&
-          anatomyLabels(vp).map((l) => (
-            <Text
-              key={l.text}
-              x={l.x}
-              y={l.y}
-              text={l.text}
-              fontSize={11}
-              fill={C.overlayText}
-            />
-          ))}
+        {/* La couche « zones anatomiques » n'affiche plus les libellés Papille,
+            Macula, Rétine temporale/nasale (demande praticien) : seuls les repères
+            graphiques (papille + macula) restent visibles. */}
       </Layer>
     </Stage>
   );
@@ -436,6 +735,22 @@ export default function RetinaStage({ width, height }: Props) {
 
 /* ——— Étiquettes calculées en coordonnées écran ——— */
 type Vp = ReturnType<typeof createViewport>;
+
+/** Contour papille (px image) → points mm « domicile » pour Konva, ou null. */
+function discPolygonToHomeMm(
+  poly: number[] | undefined,
+  natW: number,
+  natH: number,
+  vp: Vp,
+): number[] | null {
+  if (!poly || poly.length < 6) return null;
+  const out: number[] = [];
+  for (let i = 0; i < poly.length; i += 2) {
+    const p = imagePxToHomeMm(poly[i], poly[i + 1], natW, natH, vp);
+    out.push(p.x, p.y);
+  }
+  return out;
+}
 
 function quadrantLabels(vp: Vp) {
   const d = TEMPLATE.disc;
@@ -464,14 +779,39 @@ function etdrsLabels(vp: Vp) {
   ];
 }
 
-function anatomyLabels(vp: Vp) {
-  const d = TEMPLATE.disc;
-  return [
-    { text: "Papille", ...toScreen(d.x - 1.2, d.y + 2.2, vp) },
-    { text: "Macula", ...toScreen(0.6, TEMPLATE.maculaRadiusMm + 0.4, vp) },
-    { text: "Rétine temporale", ...toScreen(9, 0, vp) },
-    { text: "Rétine nasale", ...toScreen(-13.5, 0, vp) },
-  ];
+/** Hit-test d'un spot (mm) : le point est-il dans le disque de la lésion ? */
+function spotHit(a: { points: number[]; radiusMm: number | null }, mx: number, my: number) {
+  const r = (a.radiusMm ?? 0.5) + 0.15; // légère tolérance de visée
+  const dx = mx - a.points[0];
+  const dy = my - a.points[1];
+  return dx * dx + dy * dy <= r * r;
+}
+
+/** Hit-test d'un polygone (mm) : point-dans-polygone (lancer de rayon). */
+function polyHit(pts: number[], mx: number, my: number) {
+  let inside = false;
+  for (let i = 0, j = pts.length - 2; i < pts.length; j = i, i += 2) {
+    const xi = pts[i];
+    const yi = pts[i + 1];
+    const xj = pts[j];
+    const yj = pts[j + 1];
+    const intersect =
+      yi > my !== yj > my && mx < ((xj - xi) * (my - yi)) / (yj - yi) + xi;
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+
+/** Centroïde approché (moyenne des sommets) d'un polygone [x,y,...]. */
+function polygonCentroid(pts: number[]) {
+  let sx = 0;
+  let sy = 0;
+  const n = pts.length / 2;
+  for (let i = 0; i < pts.length; i += 2) {
+    sx += pts[i];
+    sy += pts[i + 1];
+  }
+  return { x: sx / n, y: sy / n };
 }
 
 function hexToRgba(hex: string, alpha: number) {

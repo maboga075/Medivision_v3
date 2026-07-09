@@ -194,11 +194,15 @@ function buildMorphologyRows(
 
 /* ─── Biométrie (valeurs catégoriques) ────────────────────────── */
 
-function buildBiometricRows(eye: EyeState): ParamRow[] {
+// `showNeuro` : RNFL/GCL et leur suivi ne sont pertinents qu'en présence d'OCT.
+// En rétinographie pure, ces paramètres OCT sont exclus du compte rendu.
+// `excludeRnflGcl` : acquisition difficile → RNFL/GCL retirés (non interprétables).
+function buildBiometricRows(eye: EyeState, showNeuro: boolean, excludeRnflGcl = false): ParamRow[] {
   const rows: ParamRow[] = [];
+  const showNeuroEff = showNeuro && !excludeRnflGcl;
 
-  // RNFL avec statut catégorique
-  if (eye.rnfl) {
+  // RNFL avec statut catégorique — OCT uniquement
+  if (showNeuroEff && eye.rnfl) {
     const fmt = formatRNFLGCL(eye.rnfl);
     if (fmt) {
       rows.push({
@@ -211,8 +215,8 @@ function buildBiometricRows(eye: EyeState): ParamRow[] {
     }
   }
 
-  // GCL++ avec statut catégorique
-  if (eye.gcl) {
+  // GCL++ avec statut catégorique — OCT uniquement
+  if (showNeuroEff && eye.gcl) {
     const fmt = formatRNFLGCL(eye.gcl);
     if (fmt) {
       rows.push({
@@ -230,7 +234,7 @@ function buildBiometricRows(eye: EyeState): ParamRow[] {
     rows.push({ label: 'Pachymétrie', hint: 'cornée centrale', value: `${eye.cornealThickness} µm` });
   }
 
-  if (eye.hasFollowUp && eye.rnflEvolution && eye.rnflEvolution !== 'Non évaluable') {
+  if (showNeuroEff && eye.hasFollowUp && eye.rnflEvolution && eye.rnflEvolution !== 'Non évaluable') {
     const fmt = formatBiometricValue(eye.rnflEvolution);
     const hint = eye.followUpDate ? `vs ${eye.followUpDate}` : 'évolution';
     rows.push({ label: 'Évolution RNFL', hint, value: fmt.text, customColor: fmt.color });
@@ -250,7 +254,8 @@ function buildEyeData(
   eye: EyeState,
   anteriorSegmentDone?: boolean,
   octaDone?: boolean,
-  acquisitionQuality?: 'bon' | 'faible' | 'impossible'
+  acquisitionQuality?: 'bon' | 'faible' | 'impossible',
+  showNeuro: boolean = true
 ): EyeData {
   // Calcul du flag C/D
   const cupDiscFlag = (() => {
@@ -262,12 +267,27 @@ function buildEyeData(
     return undefined;
   })();
 
+  // Acquisition difficile : le praticien a pu exclure RNFL/GCL de l'interprétation.
+  const excludeRnflGcl =
+    eye.excludeRnflGcl === true &&
+    (acquisitionQuality === 'faible' || acquisitionQuality === 'impossible');
+
   // Données du rendu visuel (V3) — recopiées telles quelles depuis la saisie.
+  // Les anneaux RNFL/GCL et leur suivi sont des paramètres OCT : exclus en rétinographie
+  // ou quand l'acquisition difficile a conduit à ne pas les interpréter.
+  const showRings = showNeuro && !excludeRnflGcl;
   const visual = {
     annotations: eye.retinaAnnotations ?? [],
-    rnflSectors: eye.rnflSectors,
-    gclSectors: eye.gclSectors,
-    ...(eye.hasFollowUp
+    // Image de rétinographie + calques (reproduits fidèlement dans le schéma CR).
+    ...(eye.retinaBackground ? { retinaBackground: eye.retinaBackground } : {}),
+    ...(eye.retinaLayers ? { retinaLayers: eye.retinaLayers } : {}),
+    ...(showRings
+      ? {
+          rnflSectors: eye.rnflSectors,
+          gclSectors: eye.gclSectors,
+        }
+      : {}),
+    ...(showRings && eye.hasFollowUp
       ? {
           followUp: {
             date: eye.followUpDate || undefined,
@@ -286,6 +306,7 @@ function buildEyeData(
       latin: side === 'OD' ? 'dexter' : 'sinister',
       acquisitionQuality: 'impossible',
       acquisitionQualityReasons: eye.acquisitionQualityReasons ?? [],
+      rnflGclExcluded: excludeRnflGcl,
       discSurface: eye.discSurface || undefined,
       cupDisc: eye.cupDisc || undefined,
       cupDiscFlag,
@@ -300,11 +321,15 @@ function buildEyeData(
     name: side === 'OD' ? 'Œil droit' : 'Œil gauche',
     latin: side === 'OD' ? 'dexter' : 'sinister',
     acquisitionQuality,
+    // Motifs d'acquisition affichés aussi en qualité « faible » (pas seulement impossible).
+    acquisitionQualityReasons:
+      acquisitionQuality === 'faible' ? eye.acquisitionQualityReasons ?? [] : undefined,
+    rnflGclExcluded: excludeRnflGcl,
     discSurface: eye.discSurface || undefined,
     cupDisc: eye.cupDisc || undefined,
     cupDiscFlag,
     morphology: buildMorphologyRows(eye, anteriorSegmentDone, octaDone),
-    biometrics: buildBiometricRows(eye),
+    biometrics: buildBiometricRows(eye, showNeuro, excludeRnflGcl),
     ...visual,
   };
 }
@@ -429,19 +454,25 @@ export function mapAIResultToOCTReportData(
     hasRetinography: consultation.reportType === 'Compte rendu Rétinographie',
   });
 
+  // RNFL/GCL sont des paramètres OCT : exclus du compte rendu en rétinographie pure.
+  const isRetinography = consultation.reportType === 'Compte rendu Rétinographie';
+  const showNeuro = !isRetinography;
+
   const odEye = buildEyeData(
     'OD',
     consultation.oeil_droit,
     consultation.anteriorSegmentDone,
     consultation.octaDone,
-    consultation.acquisitionQualityOD
+    consultation.acquisitionQualityOD,
+    showNeuro
   );
   const ogEye = buildEyeData(
     'OG',
     consultation.oeil_gauche,
     consultation.anteriorSegmentDone,
     consultation.octaDone,
-    consultation.acquisitionQualityOG
+    consultation.acquisitionQualityOG,
+    showNeuro
   );
 
   const resumePatient = buildPatientSummary(aiResult, odEye, ogEye);
@@ -472,6 +503,9 @@ export function mapAIResultToOCTReportData(
     },
 
     history,
+
+    // Rétinographie pure → compte rendu en paysage (schémas rétiniens agrandis).
+    layout: isRetinography ? 'landscape' : 'portrait',
 
     // A5/A6 : passer les flags d'acquisition aux builders
     eyes: { od: odEye, og: ogEye },

@@ -70,11 +70,20 @@ RÈGLES ABSOLUES :
 LONGUEUR : 3 à 4 phrases MAXIMUM. Jamais plus.
 
 INTERDICTIONS ABSOLUES — ne jamais écrire ces formulations :
-- "Acquisition de bonne qualité" / "qualité d'acquisition" / "image de bonne qualité"
+- "Acquisition de bonne qualité" / "image de bonne qualité" (ne JAMAIS signaler une bonne qualité)
 - "OCTA non réalisé" / "segment antérieur non examiné" / "non réalisé" / "non effectué"
 - "Aucune donnée transmise" / "aucune donnée exploitable" / "non renseigné" / "non transmis"
 - Toute formulation signalant l'ABSENCE d'un examen ou d'une donnée
 - Toute répétition textuelle des valeurs brutes (ex: "Cup/Disc renseigné à 0.9", "RNFL renseigné comme stable")
+
+INDICE D'ACQUISITION — à PRENDRE EN COMPTE impérativement :
+- Si "acquisitionQuality" vaut "faible" ou "impossible" : nuancer TOUTE l'interprétation
+  (l'atteinte peut être surestimée/sous-estimée) et MENTIONNER le motif fourni dans
+  "acquisitionMotifs" (ex: "interprétation à nuancer du fait d'une opacité des milieux transparents").
+- Si "rnfl_gcl_non_interpretable" est vrai pour un œil : NE PAS interpréter le RNFL ni le GCL
+  de cet œil ; écrire à la place « RNFL et GCL non interprétables en raison d'un indice
+  d'acquisition faible » et fonder l'analyse sur les autres éléments.
+- Une bonne qualité d'acquisition (acquisitionQuality absent) ne doit JAMAIS être mentionnée.
 
 LOGIQUE DE RÉDACTION :
 - Ne mentionner QUE les structures présentant des anomalies significatives
@@ -83,9 +92,23 @@ LOGIQUE DE RÉDACTION :
 - Formuler le raisonnement du praticien : "L'asymétrie papillaire associée à l'amincissement du RNFL évoque…"
 - Un œil normal sur toutes les structures → une phrase globale suffit
 
-**DIRECTIVES CONCLUSION :**
-- 1 à 2 phrases, synthèse diagnostique pure
-- AUCUN suivi, AUCUNE recommandation ici
+MISE EN FORME (analyse_clinique ET conclusion) — à respecter impérativement :
+- Entourer de doubles astérisques \`**…**\` UNIQUEMENT les noms de MALADIES ou de
+  SYMPTÔMES (ex: \`**glaucome**\`, \`**œdème maculaire**\`, \`**hémorragie rétinienne**\`,
+  \`**néovaisseaux**\`). C'est le SEUL usage autorisé du gras.
+- NE JAMAIS mettre en gras les sigles techniques (RNFL, GCL, OCT, OCTA, C/D, PIO…),
+  les structures anatomiques (macula, papille, rétine…) ni les valeurs chiffrées.
+- Désigner les côtés par « œil droit » / « œil gauche » (jamais « à droite » / « à gauche »).
+
+**DIRECTIVES CONCLUSION — formulation prudente OBLIGATOIRE :**
+- 1 à 2 phrases, synthèse diagnostique pure. AUCUN suivi, AUCUNE recommandation ici.
+- Ne JAMAIS poser un diagnostic ferme (ne pas écrire "Glaucome", "DMLA", "Rétinopathie diabétique" seuls).
+- Toujours formuler par compatibilité ou par absence d'argument :
+  • en présence de signes évocateurs → « OCT compatible avec … » / « Aspect compatible avec … »
+  • en l'absence de signe → « Pas d'argument en faveur de … » / « Absence d'argument en faveur de … »
+- Adapter au type d'examen (OCT, rétinographie, OCTA) et rester cohérent avec l'analyse et les données.
+- Tenir compte de l'indice d'acquisition : si dégradé, rester prudent (« sous réserve d'un indice
+  d'acquisition faible »).
 
 **DIRECTIVES PREVENTION (2 à 3 items) :**
 - Conseils pratiques adaptés au profil et aux pathologies identifiées
