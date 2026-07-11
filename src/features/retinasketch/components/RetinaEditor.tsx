@@ -111,9 +111,26 @@ export default function RetinaEditor({
 
   // Fermeture : capture les images + calques puis remonte le tout avant de fermer.
   const handleClose = async () => {
+    const st = useStore.getState();
+    // Lésions dessinées mais non renseignées (brouillons) : on avertit avant de
+    // quitter ; si le clinicien confirme, on les supprime (elles ne sont pas
+    // exploitables sans type). Sinon on annule la fermeture pour les compléter.
+    const drafts = st.annotations.filter((a) => a.status === "draft");
+    if (drafts.length > 0) {
+      const s = drafts.length > 1 ? "s" : "";
+      const ok = window.confirm(
+        `${drafts.length} lésion${s} non renseignée${s}. Quitter quand même ?\n` +
+          `La${drafts.length > 1 ? "es" : ""} lésion${s} non renseignée${s} sera${drafts.length > 1 ? "ont" : ""} supprimée${s}.`,
+      );
+      if (!ok) return;
+      // Remonte immédiatement les annotations conservées (évite toute course
+      // avec le démontage qui réinitialise le store).
+      const kept = st.annotations.filter((a) => a.status !== "draft");
+      onChangeOD(kept.filter((a) => a.laterality === "OD"));
+      onChangeOG(kept.filter((a) => a.laterality === "OS"));
+    }
     if (onCommit) {
       try {
-        const st = useStore.getState();
         const [od, og] = await Promise.all([
           snapshotBackground(st.backgrounds.OD),
           snapshotBackground(st.backgrounds.OS),

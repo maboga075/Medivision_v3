@@ -24,7 +24,13 @@ export default function ComptesRendus() {
   const navigate = useNavigate();
 
   const [selected, setSelected] = useState<SavedReport | null>(null);
-  const [reportAudience, setReportAudience] = useState<ReportAudience>('medecin');
+  const [reportAudience, setReportAudience] = useState<ReportAudience>('oct');
+
+  // Ouvre un CR sauvegardé en alignant la vue par défaut sur son type d'examen.
+  const openReport = (r: SavedReport) => {
+    setSelected(r);
+    setReportAudience(r.data.layout === 'landscape' ? 'retino' : 'oct');
+  };
   const [search, setSearch] = useState('');
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
@@ -180,10 +186,12 @@ export default function ComptesRendus() {
             <ReportAudienceToggle value={reportAudience} onChange={setReportAudience} />
           </div>
           <div ref={reportRef}>
-            {reportAudience === 'medecin' ? (
-              <OCTReport data={selected.data} />
-            ) : (
+            {reportAudience === 'patient' ? (
               <PatientReport data={selected.data} />
+            ) : (
+              <OCTReport
+                data={{ ...selected.data, layout: reportAudience === 'retino' ? 'landscape' : 'portrait' }}
+              />
             )}
           </div>
         </div>
@@ -269,7 +277,7 @@ export default function ComptesRendus() {
 
                 <div className="flex items-center gap-2 shrink-0">
                   <button
-                    onClick={() => setSelected(r)}
+                    onClick={() => openReport(r)}
                     className="p-2.5 rounded-xl bg-slate-50 hover:bg-teal-50 text-slate-500 hover:text-teal-600 border border-slate-200 hover:border-teal-200 transition-colors"
                     title="Consulter"
                   >
@@ -286,7 +294,7 @@ export default function ComptesRendus() {
 
                   <button
                     onClick={() => {
-                      setSelected(r);
+                      openReport(r);
                       setTimeout(handlePrint, 100);
                     }}
                     className="p-2.5 rounded-xl bg-slate-50 hover:bg-amber-50 text-slate-500 hover:text-amber-600 border border-slate-200 hover:border-amber-200 transition-colors"

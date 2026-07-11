@@ -37,10 +37,14 @@ export interface MaculaShape {
   r: number;
 }
 
-/** Anatomie d'un œil (proposition détectée puis corrigée par le clinicien). */
+/**
+ * Anatomie d'un œil (proposition détectée puis corrigée par le clinicien).
+ * `disc` et `macula` sont INDÉPENDANTS : détecter la papille n'affiche pas la
+ * macula (et inversement). Au moins l'un des deux est présent quand l'objet existe.
+ */
 export interface EyeAnatomy {
-  disc: DiscShape;
-  macula: MaculaShape;
+  disc?: DiscShape;
+  macula?: MaculaShape;
   /** Provenance : heuristique navigateur, correction manuelle, ou IA (futur). */
   source: "heuristic" | "manual" | "ai";
   /** Dimensions de l'image au moment de la détection (cohérence des pixels). */
@@ -216,3 +220,30 @@ function fitDiscEllipse(
 
 /** Détecteur heuristique par défaut (remplaçable par une IA via la même interface). */
 export const heuristicAnatomyDetector: AnatomyDetector = { detect: detectAnatomy };
+
+/**
+ * Convertit une ellipse (cx/cy/rx/ry, px image) en polygone fermé de `n` sommets.
+ * Sert de repli pour l'édition de FORME quand aucun contour IA n'est disponible :
+ * le clinicien obtient toujours des poignées par sommet pour corriger la papille.
+ */
+export function ellipseToPolygon(disc: DiscShape, n = 20): number[] {
+  const out: number[] = [];
+  for (let i = 0; i < n; i++) {
+    const t = (i / n) * Math.PI * 2;
+    out.push(disc.cx + disc.rx * Math.cos(t), disc.cy + disc.ry * Math.sin(t));
+  }
+  return out;
+}
+
+/** Boîte englobante d'un polygone `[x,y,...]` → ellipse (cx/cy/rx/ry). */
+export function polygonBBox(poly: number[]): { cx: number; cy: number; rx: number; ry: number } {
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (let i = 0; i < poly.length; i += 2) {
+    const x = poly[i], y = poly[i + 1];
+    if (x < minX) minX = x;
+    if (x > maxX) maxX = x;
+    if (y < minY) minY = y;
+    if (y > maxY) maxY = y;
+  }
+  return { cx: (minX + maxX) / 2, cy: (minY + maxY) / 2, rx: (maxX - minX) / 2, ry: (maxY - minY) / 2 };
+}

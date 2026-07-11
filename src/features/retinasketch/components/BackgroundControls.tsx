@@ -140,11 +140,11 @@ export default function BackgroundControls() {
     img.src = bg.src;
   };
 
-  // Détection de l'anatomie. 1) Heuristique instantanée (centre + macula + ellipse
-  // de repli ajustée à l'intensité). 2) Segmentation IA spécialisée disque + cup
-  // (W-Net ONNX, 100 % navigateur) → vrai contour. Repli sur l'ellipse si le
-  // modèle est absent ou échoue.
-  const runDetectAnatomy = () => {
+  // Détection de la PAPILLE seule (indépendante de la macula).
+  // 1) Heuristique instantanée (ellipse ajustée à l'intensité). 2) Segmentation IA
+  // spécialisée disque + cup (W-Net ONNX) → vrai contour. Repli sur l'ellipse si le
+  // modèle est absent/échoue. La macula existante est CONSERVÉE.
+  const runDetectDisc = () => {
     if (!bg.src) return;
     const eye = useStore.getState().laterality;
     const src = bg.src;
@@ -158,13 +158,23 @@ export default function BackgroundControls() {
         setAnatomyMsg("Papille introuvable sur cette image.");
         return;
       }
-      setAnatomy(eye, a); // repli (ellipse + macula) affiché tout de suite
-      setAnatomyMsg("Détection du contour (IA)…");
+      const cur = useStore.getState().anatomy[eye];
+      // Pose UNIQUEMENT la papille ; conserve la macula existante (sinon aucune).
+      setAnatomy(eye, {
+        disc: a.disc,
+        macula: cur?.macula,
+        natW: a.natW,
+        natH: a.natH,
+        source: "heuristic",
+        updatedAt: new Date().toISOString(),
+      });
+      setAnatomyMsg("Détection du contour de la papille (IA)…");
       try {
         const dc = await detectDiscCup(src);
-        if (dc) {
+        const cur2 = useStore.getState().anatomy[eye];
+        if (dc && cur2) {
           setAnatomy(eye, {
-            ...a,
+            ...cur2,
             disc: {
               cx: dc.cx,
               cy: dc.cy,
@@ -174,6 +184,7 @@ export default function BackgroundControls() {
               cupPolygon: dc.cupPolygon ?? undefined,
             },
             source: "ai",
+            updatedAt: new Date().toISOString(),
           });
           setAnatomyMsg(dc.cupPolygon ? "Papille + excavation détourées (IA)." : "Papille détourée (IA).");
         } else {
@@ -190,6 +201,41 @@ export default function BackgroundControls() {
       setAnatomyMsg("Image illisible.");
     };
     img.src = src;
+  };
+
+  // Détection de la MACULA seule (indépendante de la papille). Heuristique
+  // (position dérivée des repères + zone sombre). La papille existante est CONSERVÉE.
+  const runDetectMacula = () => {
+    if (!bg.src) return;
+    const eye = useStore.getState().laterality;
+    setAnatomyBusy(true);
+    setAnatomyMsg("");
+    const img = new Image();
+    img.onload = () => {
+      const a = detectAnatomy(img, eye);
+      if (!a) {
+        setAnatomyBusy(false);
+        setAnatomyMsg("Macula introuvable sur cette image.");
+        return;
+      }
+      const cur = useStore.getState().anatomy[eye];
+      // Pose UNIQUEMENT la macula ; conserve la papille existante (sinon aucune).
+      setAnatomy(eye, {
+        disc: cur?.disc,
+        macula: a.macula,
+        natW: a.natW,
+        natH: a.natH,
+        source: cur?.source ?? "heuristic",
+        updatedAt: new Date().toISOString(),
+      });
+      setAnatomyMsg("Macula détectée.");
+      setAnatomyBusy(false);
+    };
+    img.onerror = () => {
+      setAnatomyBusy(false);
+      setAnatomyMsg("Image illisible.");
+    };
+    img.src = bg.src;
   };
 
   // À l'import : on détecte d'abord la latéralité (papille à droite de la fovéa
@@ -454,19 +500,22 @@ export default function BackgroundControls() {
               )}
             </div>
 
-            {/* Anatomie spécifique (papille + macula) */}
+            {/* Anatomie : papille et macula détectées SÉPARÉMENT */}
             <SectionLabel>Anatomie (papille / macula)</SectionLabel>
             <div className="flex items-center gap-2">
               <button
-                onClick={runDetectAnatomy}
+                onClick={runDetectDisc}
                 disabled={anatomyBusy}
-                className="flex-1 rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
+                className="flex-1 rounded-lg border border-emerald-300 px-2.5 py-1.5 text-xs font-medium text-emerald-700 transition hover:bg-emerald-50 disabled:opacity-50"
               >
-                {anatomyBusy
-                  ? "Analyse…"
-                  : anatomy
-                    ? "Re-détecter"
-                    : "Détecter papille/macula"}
+                {anatomyBusy ? "Analyse…" : "Détecter la papille"}
+              </button>
+              <button
+                onClick={runDetectMacula}
+                disabled={anatomyBusy}
+                className="flex-1 rounded-lg border border-violet-300 px-2.5 py-1.5 text-xs font-medium text-violet-700 transition hover:bg-violet-50 disabled:opacity-50"
+              >
+                {anatomyBusy ? "Analyse…" : "Détecter la macula"}
               </button>
               {anatomy && (
                 <button
@@ -489,7 +538,7 @@ export default function BackgroundControls() {
                   }}
                   className="flex-1 rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
                 >
-                  Ajuster (déplacer / redimensionner)
+                  Ajuster (forme / déplacer / taille)
                 </button>
                 <button
                   onClick={() => clearAnatomy()}
@@ -501,7 +550,7 @@ export default function BackgroundControls() {
             )}
             <p className="mt-1 text-[11px] leading-snug text-slate-400">
               {anatomyMsg ||
-                "Détourage IA de la papille (vert) + excavation (ambre) ; corrigez papille et macula (Ajuster) puis « Terminer » — les corrections sont sauvegardées."}
+                "Papille et macula se détectent séparément. « Ajuster » : glissez les points verts pour corriger la FORME du contour, P pour déplacer, M pour la macula — les corrections sont sauvegardées."}
             </p>
 
             {/* Pré-annotation IA */}

@@ -100,18 +100,24 @@ export default function RetinaStage({ width, height, eye, readOnly, stageRef }: 
   const anatomyShapes =
     anatomyVisible && anatomy && bg.src
       ? {
-          disc: {
-            ...imagePxToHomeMm(anatomy.disc.cx, anatomy.disc.cy, anatomy.natW, anatomy.natH, vp),
-            rx: imagePxLenToMm(anatomy.disc.rx, anatomy.natW, anatomy.natH),
-            ry: imagePxLenToMm(anatomy.disc.ry, anatomy.natW, anatomy.natH),
-          },
+          // Papille (indépendante) : présente uniquement si détectée.
+          disc: anatomy.disc
+            ? {
+                ...imagePxToHomeMm(anatomy.disc.cx, anatomy.disc.cy, anatomy.natW, anatomy.natH, vp),
+                rx: imagePxLenToMm(anatomy.disc.rx, anatomy.natW, anatomy.natH),
+                ry: imagePxLenToMm(anatomy.disc.ry, anatomy.natW, anatomy.natH),
+              }
+            : null,
           // Contours réels (IA) si présents → affichés à la place de l'ellipse.
-          discPolygon: discPolygonToHomeMm(anatomy.disc.polygon, anatomy.natW, anatomy.natH, vp),
-          cupPolygon: discPolygonToHomeMm(anatomy.disc.cupPolygon, anatomy.natW, anatomy.natH, vp),
-          macula: {
-            ...imagePxToHomeMm(anatomy.macula.cx, anatomy.macula.cy, anatomy.natW, anatomy.natH, vp),
-            r: imagePxLenToMm(anatomy.macula.r, anatomy.natW, anatomy.natH),
-          },
+          discPolygon: anatomy.disc ? discPolygonToHomeMm(anatomy.disc.polygon, anatomy.natW, anatomy.natH, vp) : null,
+          cupPolygon: anatomy.disc ? discPolygonToHomeMm(anatomy.disc.cupPolygon, anatomy.natW, anatomy.natH, vp) : null,
+          // Macula (indépendante) : présente uniquement si détectée.
+          macula: anatomy.macula
+            ? {
+                ...imagePxToHomeMm(anatomy.macula.cx, anatomy.macula.cy, anatomy.natW, anatomy.natH, vp),
+                r: imagePxLenToMm(anatomy.macula.r, anatomy.natW, anatomy.natH),
+              }
+            : null,
         }
       : null;
 
@@ -540,6 +546,17 @@ export default function RetinaStage({ width, height, eye, readOnly, stageRef }: 
         {/* ——— Annotations : suivent l'image de fond (zoom/pan/rotation) ———
             Non-interactives (listening=false) → elles n'interceptent jamais le
             clic de création ; la sélection se fait par hit-test (mode Sélection). */}
+        <Group
+          listening={false}
+          // Clip circulaire au champ rétinien FIXE (coords écran) : appliqué HORS
+          // du transform image (zoom/pan) → aucune lésion ne déborde du cercle, y
+          // compris quand on zoome l'image (fix bug « lésion hors zone au zoom »).
+          clipFunc={(ctx) => {
+            ctx.beginPath();
+            ctx.arc(vp.cx, vp.cy, TEMPLATE.retina.halfWidthMm * vp.pxPerMm, 0, Math.PI * 2, false);
+            ctx.closePath();
+          }}
+        >
         <Group {...imageFrame} listening={false}>
           <Group
             ref={groupRef}
@@ -547,32 +564,29 @@ export default function RetinaStage({ width, height, eye, readOnly, stageRef }: 
             y={vp.cy}
             scaleX={vp.pxPerMm * vp.mirror}
             scaleY={vp.pxPerMm}
-            // Clip circulaire (champ rétinien) : aucune lésion ne déborde du cercle
-            // dédié, même dessinée près du bord (fix bug « lésion hors zone »).
-            clipFunc={(ctx) => {
-              ctx.beginPath();
-              ctx.arc(0, 0, TEMPLATE.retina.halfWidthMm, 0, Math.PI * 2, false);
-              ctx.closePath();
-            }}
           >
-          {/* Anatomie spécifique détectée (proposition) : papille + macula */}
+          {/* Anatomie détectée (proposition) : papille et macula INDÉPENDANTES */}
           {anatomyShapes && (
             <>
-              <Circle
-                x={anatomyShapes.macula.x}
-                y={anatomyShapes.macula.y}
-                radius={anatomyShapes.macula.r}
-                stroke={C.maculaDetected}
-                strokeWidth={1.4}
-                dash={[4, 3]}
-                strokeScaleEnabled={false}
-              />
-              <Circle
-                x={anatomyShapes.macula.x}
-                y={anatomyShapes.macula.y}
-                radius={0.18}
-                fill={C.maculaDetected}
-              />
+              {anatomyShapes.macula && (
+                <>
+                  <Circle
+                    x={anatomyShapes.macula.x}
+                    y={anatomyShapes.macula.y}
+                    radius={anatomyShapes.macula.r}
+                    stroke={C.maculaDetected}
+                    strokeWidth={1.4}
+                    dash={[4, 3]}
+                    strokeScaleEnabled={false}
+                  />
+                  <Circle
+                    x={anatomyShapes.macula.x}
+                    y={anatomyShapes.macula.y}
+                    radius={0.18}
+                    fill={C.maculaDetected}
+                  />
+                </>
+              )}
               {anatomyShapes.discPolygon ? (
                 <Line
                   points={anatomyShapes.discPolygon}
@@ -582,7 +596,7 @@ export default function RetinaStage({ width, height, eye, readOnly, stageRef }: 
                   strokeWidth={1.8}
                   strokeScaleEnabled={false}
                 />
-              ) : (
+              ) : anatomyShapes.disc ? (
                 <Ellipse
                   x={anatomyShapes.disc.x}
                   y={anatomyShapes.disc.y}
@@ -593,7 +607,7 @@ export default function RetinaStage({ width, height, eye, readOnly, stageRef }: 
                   strokeWidth={1.8}
                   strokeScaleEnabled={false}
                 />
-              )}
+              ) : null}
               {/* Excavation (cup) détourée par l'IA */}
               {anatomyShapes.cupPolygon && (
                 <Line
@@ -696,6 +710,7 @@ export default function RetinaStage({ width, height, eye, readOnly, stageRef }: 
             />
           )}
           </Group>
+        </Group>
         </Group>
       </Layer>
 

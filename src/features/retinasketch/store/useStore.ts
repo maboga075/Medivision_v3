@@ -4,6 +4,7 @@ import type { Annotation, Laterality } from "@/features/retinasketch/lib/types";
 import { computeAttributes, geometryMetrics, smoothFreeform } from "@/features/retinasketch/lib/geometry/engine";
 import { getLesion } from "@/features/retinasketch/lib/ontology/lesions";
 import type { EyeAnatomy, DiscShape, MaculaShape } from "@/features/retinasketch/lib/vision/anatomy";
+import { polygonBBox } from "@/features/retinasketch/lib/vision/anatomy";
 
 export type LayerKey =
   | "anatomy"
@@ -183,6 +184,8 @@ interface State {
   patchAnatomyDisc: (eye: Laterality, patch: Partial<DiscShape>) => void;
   /** Édite la macula (déplacer) — marque la source « manual ». */
   patchAnatomyMacula: (eye: Laterality, patch: Partial<MaculaShape>) => void;
+  /** Remplace le contour (forme) de la papille — édition par sommets, source « manual ». */
+  setDiscPolygon: (eye: Laterality, polygon: number[]) => void;
   clearAnatomy: (eye?: Laterality) => void;
   setAnatomyVisible: (v: boolean) => void;
   setAnatomyEdit: (v: boolean) => void;
@@ -374,7 +377,7 @@ export const useStore = create<State>((set, get) => ({
   patchAnatomyDisc: (eye, patch) =>
     set((s) => {
       const a = s.anatomy[eye];
-      if (!a) return {};
+      if (!a || !a.disc) return {};
       const old = a.disc;
       // Les contours IA (papille + cup) suivent la correction manuelle :
       // translation au déplacement, homothétie autour du centre au redimensionnement.
@@ -411,11 +414,30 @@ export const useStore = create<State>((set, get) => ({
   patchAnatomyMacula: (eye, patch) =>
     set((s) => {
       const a = s.anatomy[eye];
-      if (!a) return {};
+      if (!a || !a.macula) return {};
       return {
         anatomy: {
           ...s.anatomy,
           [eye]: { ...a, macula: { ...a.macula, ...patch }, source: "manual", updatedAt: new Date().toISOString() },
+        },
+      };
+    }),
+  setDiscPolygon: (eye, polygon) =>
+    set((s) => {
+      const a = s.anatomy[eye];
+      if (!a || !a.disc || polygon.length < 6) return {};
+      // L'ellipse englobante (cx/cy/rx/ry) est recalculée à partir du contour →
+      // les poignées « déplacer / redimensionner » restent cohérentes avec la forme.
+      const bb = polygonBBox(polygon);
+      return {
+        anatomy: {
+          ...s.anatomy,
+          [eye]: {
+            ...a,
+            disc: { ...a.disc, polygon, cx: bb.cx, cy: bb.cy, rx: bb.rx, ry: bb.ry },
+            source: "manual",
+            updatedAt: new Date().toISOString(),
+          },
         },
       };
     }),

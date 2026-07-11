@@ -3,6 +3,7 @@ import { useEffect, useRef } from "react";
 import { useStore } from "@/features/retinasketch/store/useStore";
 import { mirrorFor } from "@/features/retinasketch/lib/geometry/template";
 import { designViewport, screenToImagePx, imagePxToScreen } from "@/features/retinasketch/lib/geometry/project";
+import { ellipseToPolygon } from "@/features/retinasketch/lib/vision/anatomy";
 
 interface Props {
   width: number;
@@ -26,9 +27,14 @@ export default function AnatomyOverlay({ width, height }: Props) {
   const view = useStore((s) => s.views[s.laterality]);
   const patchDisc = useStore((s) => s.patchAnatomyDisc);
   const patchMacula = useStore((s) => s.patchAnatomyMacula);
+  const setDiscPolygon = useStore((s) => s.setDiscPolygon);
 
   const ref = useRef<HTMLDivElement>(null);
   const drag = useRef<Handle | null>(null);
+  // Édition de FORME : index du sommet en cours de glissement (-1 = aucun) et
+  // copie de travail du contour (créée au démarrage du glissement).
+  const vDrag = useRef<number>(-1);
+  const polyRef = useRef<number[]>([]);
 
   useEffect(() => {
     if (!anatomyEdit) return;
@@ -53,9 +59,21 @@ export default function AnatomyOverlay({ width, height }: Props) {
   };
 
   const toScreenPt = (px: number, py: number) => imagePxToScreen(px, py, bgT, vp, view);
-  const discC = toScreenPt(anatomy.disc.cx, anatomy.disc.cy);
-  const discEdge = toScreenPt(anatomy.disc.cx + anatomy.disc.rx, anatomy.disc.cy);
-  const maculaC = toScreenPt(anatomy.macula.cx, anatomy.macula.cy);
+  // Papille et macula sont INDÉPENDANTES : on n'affiche les poignées que pour
+  // celle(s) réellement détectée(s).
+  const disc = anatomy.disc;
+  const macula = anatomy.macula;
+  const discC = disc ? toScreenPt(disc.cx, disc.cy) : null;
+  const discEdge = disc ? toScreenPt(disc.cx + disc.rx, disc.cy) : null;
+  const maculaC = macula ? toScreenPt(macula.cx, macula.cy) : null;
+
+  // Contour éditable de la papille : polygone IA si présent, sinon polygone dérivé
+  // de l'ellipse (repli) → des poignées de FORME sont toujours disponibles.
+  const editPoly = disc ? (disc.polygon ?? ellipseToPolygon(disc)) : [];
+  const vertScreen: { x: number; y: number }[] = [];
+  for (let i = 0; i < editPoly.length; i += 2) {
+    vertScreen.push(toScreenPt(editPoly[i], editPoly[i + 1]));
+  }
 
   const imgPt = (e: React.MouseEvent) => {
     const rect = ref.current!.getBoundingClientRect();
@@ -63,16 +81,26 @@ export default function AnatomyOverlay({ width, height }: Props) {
   };
 
   const onMove = (e: React.MouseEvent) => {
+    // Édition de forme : glissement d'un sommet du contour.
+    if (vDrag.current >= 0) {
+      const p = imgPt(e);
+      const poly = polyRef.current;
+      poly[vDrag.current * 2] = p.x;
+      poly[vDrag.current * 2 + 1] = p.y;
+      setDiscPolygon(laterality, poly.slice());
+      return;
+    }
     if (!drag.current) return;
     const p = imgPt(e);
     if (drag.current === "disc") {
       patchDisc(laterality, { cx: p.x, cy: p.y });
     } else if (drag.current === "discR") {
+      if (!disc) return;
       // Redimensionnement proportionnel : on préserve le rapport d'axes mesuré.
-      const oldRx = anatomy.disc.rx || 4;
-      const newRx = Math.max(4, Math.hypot(p.x - anatomy.disc.cx, p.y - anatomy.disc.cy));
+      const oldRx = disc.rx || 4;
+      const newRx = Math.max(4, Math.hypot(p.x - disc.cx, p.y - disc.cy));
       const k = newRx / oldRx;
-      patchDisc(laterality, { rx: newRx, ry: Math.max(2, anatomy.disc.ry * k) });
+      patchDisc(laterality, { rx: newRx, ry: Math.max(2, disc.ry * k) });
     } else {
       patchMacula(laterality, { cx: p.x, cy: p.y });
     }
@@ -82,8 +110,14 @@ export default function AnatomyOverlay({ width, height }: Props) {
     e.stopPropagation();
     drag.current = h;
   };
+  const startVertex = (i: number) => (e: React.MouseEvent) => {
+    e.stopPropagation();
+    vDrag.current = i;
+    polyRef.current = editPoly.slice(); // copie de travail (crée le contour si repli ellipse)
+  };
   const end = () => {
     drag.current = null;
+    vDrag.current = -1;
   };
 
   return (
@@ -94,17 +128,25 @@ export default function AnatomyOverlay({ width, height }: Props) {
       onMouseLeave={end}
       className="absolute inset-0 z-[25]"
     >
-      {/* Poignée de redimensionnement de la papille */}
-      <Knob x={discEdge.x} y={discEdge.y} color="#16a34a" small onDown={start("discR")} title="Redimensionner la papille" />
-      {/* Poignée de déplacement de la papille */}
-      <Knob x={discC.x} y={discC.y} color="#16a34a" onDown={start("disc")} title="Déplacer la papille" label="P" />
-      {/* Poignée de déplacement de la macula */}
-      <Knob x={maculaC.x} y={maculaC.y} color="#a855f7" onDown={start("macula")} title="Déplacer la macula" label="M" />
+      {/* Papille : poignées de FORME (par sommet) + redimensionner + déplacer */}
+      {disc && discC && discEdge && (
+        <>
+          {vertScreen.map((v, i) => (
+            <VertexKnob key={i} x={v.x} y={v.y} onDown={startVertex(i)} />
+          ))}
+          <Knob x={discEdge.x} y={discEdge.y} color="#16a34a" small onDown={start("discR")} title="Redimensionner la papille" />
+          <Knob x={discC.x} y={discC.y} color="#16a34a" onDown={start("disc")} title="Déplacer la papille" label="P" />
+        </>
+      )}
+      {/* Macula : poignée de déplacement */}
+      {macula && maculaC && (
+        <Knob x={maculaC.x} y={maculaC.y} color="#a855f7" onDown={start("macula")} title="Déplacer la macula" label="M" />
+      )}
 
       {/* Bandeau de consigne */}
       <div className="pointer-events-none absolute left-1/2 top-4 flex -translate-x-1/2 items-center gap-3 rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white shadow-xl">
         <span className="text-xs text-white/80">
-          Papille <b className="text-emerald-300">P</b> · Macula <b className="text-violet-300">M</b> — glissez pour ajuster
+          Papille <b className="text-emerald-300">P</b> (déplacer) · points verts = forme · Macula <b className="text-violet-300">M</b> — glissez pour ajuster
         </span>
         <button
           onClick={(e) => {
@@ -147,5 +189,17 @@ function Knob({
     >
       {label}
     </button>
+  );
+}
+
+/** Petite poignée de sommet (édition de forme de la papille). */
+function VertexKnob({ x, y, onDown }: { x: number; y: number; onDown: (e: React.MouseEvent) => void }) {
+  return (
+    <button
+      title="Déformer le contour de la papille"
+      onMouseDown={onDown}
+      className="absolute h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 cursor-grab rounded-full border border-white bg-emerald-500 shadow-sm hover:scale-125 active:cursor-grabbing"
+      style={{ left: x, top: y }}
+    />
   );
 }

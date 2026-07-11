@@ -167,7 +167,9 @@ export default function RetinaSchemaSvg({ side, annotations = [], background = n
           const color = getLesion(a.lesionId)?.color ?? DRAFT;
           if (a.kind === 'point') {
             const r = Math.max(3, (a.radiusMm ?? 0.5) * PX);
-            return <circle key={a.id} cx={toX(a.points[0])} cy={toY(a.points[1])} r={r} fill={color} fillOpacity={0.85} stroke={color} strokeWidth={1.2} />;
+            // Remplissage transparent (comme dans l'éditeur) : la rétinographie
+            // reste visible sous le spot ; seul le contour est plein.
+            return <circle key={a.id} cx={toX(a.points[0])} cy={toY(a.points[1])} r={r} fill={hexToRgba(color, 0.28)} stroke={color} strokeWidth={1.4} />;
           }
           let d = '';
           for (let i = 0; i < a.points.length; i += 2) {

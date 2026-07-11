@@ -87,7 +87,7 @@ export default function Consultation() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [jsonValidation, setJsonValidation] = useState<ValidationResult | null>(null);
   const [octReportData, setOctReportData] = useState<OCTReportData | null>(null);
-  const [reportAudience, setReportAudience] = useState<ReportAudience>('medecin');
+  const [reportAudience, setReportAudience] = useState<ReportAudience>('oct');
   const [retinaOpen, setRetinaOpen] = useState(false);
   const reportRef = useRef<HTMLDivElement>(null);
 
@@ -217,6 +217,8 @@ export default function Consultation() {
 
       setJsonValidation(validation);
       setOctReportData(mapped);
+      // Vue par défaut alignée sur le type d'examen (rétino → paysage, sinon OCT).
+      setReportAudience(mapped.layout === 'landscape' ? 'retino' : 'oct');
 
       saveReport({
         patientId: selectedPatient.id,
@@ -589,10 +591,14 @@ export default function Consultation() {
                     <ReportAudienceToggle value={reportAudience} onChange={setReportAudience} />
                   </div>
                   <div ref={reportRef}>
-                    {reportAudience === 'medecin' ? (
-                      <OCTReport data={octReportData} />
-                    ) : (
+                    {reportAudience === 'patient' ? (
                       <PatientReport data={octReportData} />
+                    ) : (
+                      // OCT vs Rétino : on force la mise en page correspondante,
+                      // disponible pour tout patient (même OCT seul).
+                      <OCTReport
+                        data={{ ...octReportData, layout: reportAudience === 'retino' ? 'landscape' : 'portrait' }}
+                      />
                     )}
                   </div>
                 </div>
