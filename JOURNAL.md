@@ -7,10 +7,10 @@
 
 ## État général du projet
 
-**Branche active :** `v3`  
-**Dernière session :** 2026-06-11  
-**Build :** ✅ Compilé sans erreurs  
-**Stack :** React + TypeScript + Vite · Firebase (Auth + Firestore) · Tailwind CSS · Konva (RetinaSketch) · Framer Motion
+**Branche active :** `feat/retinasketch-v2-port`  
+**Dernière session :** 2026-08-12  
+**Build :** ✅ Compilé sans erreurs (`tsc` app + node, 18 tests Vitest verts, `vite build` OK)  
+**Stack :** React + TypeScript + Vite · Firebase (Auth + Firestore) · Tailwind CSS · Konva + ONNX Runtime Web (RetinaSketch) · Framer Motion · jsPDF · Fonctions serverless Vercel (`api/ai`)
 
 ---
 
@@ -26,17 +26,61 @@ src/
 │   ├── settings/       ClinicTab, DoctorsTab, FormulaireTab, LesionsTab (new), ExportTab
 │   └── shared/
 ├── features/
-│   └── retinasketch/   RetinaEditor, RetinaStage, CommandPalette, store, ontologie
+│   └── retinasketch/   RetinaEditor, RetinaStage, CommandPalette, DrawToolControls,
+│                       BackgroundControls/Image, RetinaImageFilters, store, ontologie,
+│                       lib/image/filters (tons+netteté), lib/ai (SAM, disque/cup ONNX)
 ├── hooks/              useSettings, useConsultationDrafts, useSuggestions…
 ├── pages/              Parametres, Patients, Login
 ├── services/           firebase, aiManager, pdfExportService, printService…
 ├── types/              clinical, report, settings, ai…
 └── utils/              aiPayload, rnflGcl, clinicalPayload…
+
+api/ai/generate-report  Fonction serverless (OpenAI/Anthropic/Gemini/DeepSeek).
+                        En dev, servie par le pont `api/**` de vite.config.ts.
 ```
 
 ---
 
 ## Historique des sessions
+
+---
+
+### Session 2026-08-12 — RetinaSketch : colorimétrie, annotations, + 3 correctifs
+
+**Demandé par :** Yoan
+**Statut :** ✅ Terminé — `tsc --noEmit` (app + node) 0 erreur, 18 tests Vitest verts, `vite build` OK
+**Branche :** `feat/retinasketch-v2-port`
+
+#### RetinaSketch — évolutions (colorimétrie & annotations)
+- [x] **Fix décalage annotations / photo à l'impression** : dans l'éditeur les annotations sont rendues SOUS le transform de la photo (elles suivent zoom/pan/rotation), mais le compte rendu n'appliquait ce transform qu'à l'image. → [`RetinaSchemaSvg.tsx`](src/components/reports/visual/RetinaSchemaSvg.tsx) : un `alignTransform` unique enveloppe désormais l'image ET les annotations (clip circulaire conservé à l'extérieur). Le PDF Konva était déjà correct (capture du Stage).
+- [x] **Netteté + tons** (Netteté, Hautes lumières, Ombres, Point blanc, Point noir) : non exprimables en `filter` CSS natif. Nouveau module unique [`lib/image/filters.ts`](src/features/retinasketch/lib/image/filters.ts) (courbe tonale `feComponentTransfer` + noyau de netteté `feConvolveMatrix` + chaîne CSS + pré-passe canvas) et composant [`RetinaImageFilters.tsx`](src/features/retinasketch/components/RetinaImageFilters.tsx). Temps réel via filtre SVG (éditeur + CR), export PDF via pré-passe pixels. 5 curseurs section « Tons & netteté » dans `BackgroundControls`.
+- [x] **Couleur choisie à la création d'une lésion** : `CommandPalette` propose une rangée de pastilles + sélecteur libre ; signature `onCreateLesion(name, color)` propagée jusqu'à `Consultation.tsx`. Palette `RETINA_LESION_COLORS` déplacée dans `ontology/lesions.ts` (DRY, était dupliquée).
+- [x] **Opacité globale des annotations** : nouvel en-tête [`DrawToolControls.tsx`](src/features/retinasketch/components/DrawToolControls.tsx) (curseur), appliquée à l'écran (RetinaStage) et persistée jusqu'au CR via la chaîne `retinaAnnotationOpacity` (clinical/report/mapper/RetinaEditor commit).
+- [x] **Outil flèche** (couleur de la lésion) : `kind: "arrow"` ajouté au modèle Zod, store (`drawTool`, `addArrow`), tracé + rendu Konva `Arrow` + hit-test sélection, rendu SVG dans le CR (`renderArrow`). Les flèches sont EXCLUES des décomptes du texte clinique (`generate.ts`) — pure désignation.
+- [x] **Compatibilité** : tous les champs ajoutés (tons, opacité, flèche) sont optionnels à défaut neutre → les CR déjà enregistrés restent valides.
+
+#### Outillage — tenue du journal
+- [x] **Rattrapage de ce journal** : les sessions 2026-07-09→08-12 n'avaient pas été consignées ; ajoutées rétroactivement.
+- [x] **Hook `Stop`** ([`.claude/settings.json`](.claude/settings.json) → [`.claude/hooks/journal-reminder.sh`](.claude/hooks/journal-reminder.sh)) : rappelle à Claude de mettre à jour `JOURNAL.md` en fin de tâche si `src/`/`api/` ont changé sans le journal. Anti-boucle via `stop_hook_active` (un seul rappel) + condition qui s'éteint dès que le journal est touché.
+
+#### Correctifs
+- [x] **Boutons Sexe débordant en mobile** : section « Identité » en `grid-cols-2` (mobile) → « Homme »/« Femme » débordent. Simplifiés en **H / F** + `min-w-0` + `aria-label`/`title` (accessibilité), dans `Accueil.tsx` et `PatientEditModal.tsx`.
+- [x] **RetinaSketch « Terminé » avec lésion en cours** : `f3c97d7` avait rendu le `window.confirm` bloquant ET supprimait les brouillons. → [`RetinaEditor.tsx`](src/features/retinasketch/components/RetinaEditor.tsx) : confirmation rétablie (« Voulez-vous quand même fermer ? »), *Annuler* revient à l'éditeur, *OK* ferme SANS supprimer (brouillons conservés, inertes dans les CR).
+- [x] **Serveur IA cassé en dev local** : depuis la sécurisation de l'IA (`62e17e9`), les appels passent par la fonction serverless `/api/ai/generate-report` ; `vite dev` n'exécute pas `api/*` et aucun proxy n'existait → `/api/...` tombait sur le fallback SPA (HTML). → plugin Vite **dev-only** dans [`vite.config.ts`](vite.config.ts) qui exécute `api/**` localement (adaptateur req/res au contrat Vercel). Vérifié : ping `200 {configured:true, provider:"openai", model:"gpt-5.5"}`. Aucun impact prod (`apply:'serve'`).
+  - ⚠️ Si l'IA est aussi cassée sur le **déploiement Vercel**, cause distincte : `.env.local` n'est pas déployé → vérifier `AI_PROVIDER`/`AI_MODEL`/clé dans les *Environment Variables* du projet Vercel.
+
+---
+
+### Session 2026-07-09 → 07-11 — Port RetinaSketch v2 (IA papille/cup, SAM, 3 comptes rendus)
+
+**Demandé par :** Yoan
+**Statut :** ✅ Terminé (commits `245c17b`, `58d259c`, `f3c97d7`)
+**Note :** session reconstituée a posteriori depuis les messages de commit (journal non tenu à l'époque).
+
+- [x] **Port RetinaSketch v2** (`245c17b`) : recadrage automatique à l'import (centre + remplit le champ, supprime le liseré noir), overlays SAM / anatomie / alignement, double vue, contrôles de fond, panneau d'apprentissage. Ajout des dépendances `jspdf` et `onnxruntime-web`. Création de `vercel.json` (`framework: vite`).
+- [x] **Détection IA papille/cup + SAM** (`58d259c`) : modèles ONNX (W-Net disque + excavation), segmentation au clic.
+- [x] **Comptes rendus** (`245c17b`, `f3c97d7`) : gras réservé aux noms de maladies/symptômes, latéralité explicite « œil droit/gauche », rétinographie A4 paysage (images pleine largeur en haut, texte dessous), indice d'acquisition faible en bulle unique, spots transparents, garde-fou lésions, papille/macula détectées séparément, 3 variantes de comptes rendus.
+- [x] **IA** : directives de mise en forme (gras maladies uniquement) + prise en compte de l'indice d'acquisition (nuancer/exclure RNFL-GCL si qualité faible).
 
 ---
 
@@ -268,14 +312,20 @@ src/
 | 2026-06-11 | Lésions custom stockées dans Firestore (settings doc) | Cohérence avec le reste des paramètres, pas de collection séparée |
 | 2026-06-11 | Registre `_customLesions` en module-level (non React) | `getLesion()` est appelée depuis des utilitaires sans contexte React |
 | 2026-06-11 | Sync registre dans `useSettings.persist()` | Évite un contexte React dédié, garantit la cohérence après toute écriture |
+| 2026-08-12 | Contrat de fidélité `alignTransform` (éditeur = CR = PDF) | Les annotations doivent suivre le zoom/pan/rotation de la photo à l'identique sur les 3 rendus |
+| 2026-08-12 | Netteté/tons via filtre SVG (affichage) + pré-passe canvas (PDF) | `ctx.filter: url(#…)` peu fiable sur canvas (Safari) ; le SVG couvre le temps réel |
+| 2026-08-12 | Opacité des annotations globale (pas par lésion) | Choix produit (simplicité), persistée via `retinaAnnotationOpacity` |
+| 2026-08-12 | Flèches exclues des décomptes du texte clinique (`generate.ts`) | Ce sont de pures désignations visuelles, pas des occurrences de lésion |
+| 2026-08-12 | Pont API dev dans `vite.config.ts` (`apply:'serve'`) | Exécuter `api/**` sous `vite dev` sans dépendre de `vercel dev`, sans impacter la prod |
 
 ---
 
 ## Bugs connus / Points de vigilance
 
-- **`useSuggestions` hook** importé dans `EyeExamSection` mais plus utilisé (BubblePicker Macula/Papille/Péri supprimés) → peut être retiré si aucun autre usage
 - **`onNewSuggestion` prop** gardée dans l'interface (compatibilité descendante) mais plus appelée en interne
-- **Chunk size warning** au build (>500 KB) — existait avant nos changements, non bloquant
+- **Chunk size warning** au build (>500 KB, + WASM ONNX ~26 Mo) — non bloquant ; envisager `manualChunks` / lazy
+- **IA sur Vercel** : `.env.local` n'est pas déployé → les variables `AI_PROVIDER`/`AI_MODEL`/clé doivent être définies dans les *Environment Variables* du projet Vercel, sinon l'onglet IA reste rouge en prod
+- **IDs de filtre SVG dupliqués** possibles si l'aperçu double-œil et l'espace de travail sont montés simultanément (mêmes `rsk-ed-adj-*`) — sans conséquence visuelle (filtres identiques), à surveiller si un jour les réglages divergent par instance
 
 ---
 
@@ -287,4 +337,4 @@ src/
 
 ---
 
-*Mis à jour automatiquement par Claude · Format : Markdown*
+*Tenu à jour par Claude à la fin de chaque tâche modifiant le code (rappel via hook `Stop` dans `.claude/settings.json`) · Format : Markdown*
