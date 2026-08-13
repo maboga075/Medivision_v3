@@ -11,6 +11,26 @@ export interface Lesion {
   terms: string[];
 }
 
+/**
+ * Palette de couleurs proposée pour les lésions personnalisées (pastilles de la
+ * palette d'identification + rotation par défaut à la création). Partagée entre
+ * la consultation et l'éditeur pour rester cohérente.
+ */
+export const RETINA_LESION_COLORS = [
+  "#14B8A6",
+  "#8B5CF6",
+  "#EC4899",
+  "#F5A524",
+  "#3B82F6",
+  "#E5484D",
+  "#0EA5E9",
+  "#A11D2B",
+  "#22C55E",
+  "#EAB308",
+  "#6366F1",
+  "#64748B",
+];
+
 export const LESIONS: Lesion[] = [
   { id: "hem-flammeche", name: "Hémorragie en flammèche", color: "#E5484D", category: "Hémorragie", terms: ["hemorragie", "flammeche", "flame", "saignement"] },
   { id: "hem-punctiforme", name: "Hémorragie punctiforme", color: "#C2282D", category: "Hémorragie", terms: ["hemorragie", "punctiforme", "dot", "ponctuelle"] },

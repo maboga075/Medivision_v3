@@ -1,6 +1,8 @@
 
 import { create } from "zustand";
-import type { Annotation, Laterality } from "@/features/retinasketch/lib/types";
+import type { Annotation, Laterality, ImageKind, ImageGeometry } from "@/features/retinasketch/lib/types";
+import { GEOMETRY_FOR_KIND, LABEL_FOR_KIND } from "@/features/retinasketch/lib/types";
+import type { RetinaBackgroundSnapshot, RetinaSlotSnapshot } from "@/types/clinical";
 import { computeAttributes, geometryMetrics, smoothFreeform } from "@/features/retinasketch/lib/geometry/engine";
 import { getLesion } from "@/features/retinasketch/lib/ontology/lesions";
 import type { EyeAnatomy, DiscShape, MaculaShape } from "@/features/retinasketch/lib/vision/anatomy";
@@ -16,6 +18,21 @@ export type LayerKey =
 
 /** Disposition de l'espace de travail : 2 yeux côte à côte ou 1 œil plein cadre. */
 export type WorkspaceLayout = "dual" | "mono";
+
+/**
+ * Outil de tracé actif :
+ * - `lesion` : clic = spot, clic glissé = surface (comportement historique).
+ * - `arrow`  : clic glissé = flèche de désignation (queue → pointe).
+ */
+export type DrawTool = "lesion" | "arrow";
+
+/** Bornes de l'opacité globale des annotations (0 = invisibles, 1 = pleines). */
+export const ANNOTATION_OPACITY_MIN = 0.2;
+export const ANNOTATION_OPACITY_MAX = 1;
+export const DEFAULT_ANNOTATION_OPACITY = 1;
+
+/** Longueur minimale d'une flèche (mm) sous laquelle le tracé est ignoré. */
+export const ARROW_MIN_LEN_MM = 0.4;
 
 export const SPOT_MIN_MM = 0.15;
 export const SPOT_MAX_MM = 4;
@@ -63,6 +80,12 @@ export interface BackgroundState {
   brightness: number; // %, 100 = neutre
   contrast: number; // %, 100 = neutre
   saturation: number; // %, 100 = neutre
+  // ——— Tons & netteté (0 = neutre) ———
+  sharpness: number; // 0..100, accentuation locale des contours
+  highlights: number; // -100..100, tons clairs
+  shadows: number; // -100..100, tons foncés
+  whites: number; // -100..100, point blanc
+  blacks: number; // -100..100, point noir
   // ——— Alignement ———
   scale: number; // multiplicateur, 1 = ajusté au contour
   offsetXMm: number; // décalage horizontal (mm, +x = droite écran)
@@ -76,6 +99,11 @@ const DEFAULT_BACKGROUND_ADJ = {
   brightness: 100,
   contrast: 100,
   saturation: 100,
+  sharpness: 0,
+  highlights: 0,
+  shadows: 0,
+  whites: 0,
+  blacks: 0,
   scale: 1,
   offsetXMm: 0,
   offsetYMm: 0,
@@ -115,6 +143,110 @@ function revokeBackground(bg: BackgroundState) {
 
 const freshView = (): ViewState => ({ scale: 1, x: 0, y: 0 });
 
+/**
+ * Galerie multi-images (Lot B) — chaque œil porte une liste de slots, chacun
+ * portant son type/géométrie. Le slot ACTIF de chaque œil a ses données de
+ * travail dans les champs existants (`backgrounds`/`anatomy`/`views`/`annotations`),
+ * pour ne pas casser les consommateurs. Les slots INACTIFS sont rangés dans
+ * `stash` (indexé par `id`) et échangés lors de la sélection.
+ */
+export interface SlotMeta {
+  id: string;
+  kind: ImageKind;
+  geometry: ImageGeometry;
+  label: string;
+}
+
+/** Données de travail rangées d'un slot inactif. */
+export interface SlotData {
+  background: BackgroundState;
+  anatomy: EyeAnatomy | null;
+  view: ViewState;
+  annotations: Annotation[];
+}
+
+let slotCounter = 0;
+const newSlotId = () => `s${Date.now().toString(36)}${(slotCounter++).toString(36)}`;
+
+/** Crée un slot rétino vierge (slot de base de chaque œil). */
+function freshRetinoSlot(): SlotMeta {
+  return { id: newSlotId(), kind: "retino", geometry: GEOMETRY_FOR_KIND.retino, label: LABEL_FOR_KIND.retino };
+}
+
+/** Données vierges pour un nouveau slot (image vide, aucune annotation). */
+const freshSlotData = (): SlotData => ({
+  background: freshBackground(),
+  anatomy: null,
+  view: freshView(),
+  annotations: [],
+});
+
+/** Reconstruit un BackgroundState à partir d'un instantané persisté (restore). */
+function backgroundStateFromSnapshot(snap: RetinaBackgroundSnapshot): BackgroundState {
+  return {
+    ...freshBackground(),
+    src: snap.src,
+    fileName: "image.jpg",
+    natW: snap.natW,
+    natH: snap.natH,
+    visible: snap.visible,
+    opacity: snap.opacity,
+    brightness: snap.brightness,
+    contrast: snap.contrast,
+    saturation: snap.saturation,
+    // Tons & netteté — anciens instantanés sans ces champs → neutre.
+    sharpness: snap.sharpness ?? 0,
+    highlights: snap.highlights ?? 0,
+    shadows: snap.shadows ?? 0,
+    whites: snap.whites ?? 0,
+    blacks: snap.blacks ?? 0,
+    scale: snap.scale,
+    offsetXMm: snap.offsetXMm,
+    offsetYMm: snap.offsetYMm,
+    rotationDeg: snap.rotationDeg,
+  };
+}
+
+/**
+ * Énumère les slots d'un œil avec leurs données de travail — le slot actif est
+ * lu dans les champs courants, les inactifs dans le stash. Utilisé à la
+ * fermeture pour sérialiser toute la galerie.
+ */
+/**
+ * Nombre total de brouillons à identifier : slots actifs (annotations à plat)
+ * + slots rangés (autres images de la galerie). Permet à la barre « à
+ * identifier » de refléter toutes les images, pas seulement l'image affichée.
+ */
+export function countAllDrafts(s: {
+  annotations: Annotation[];
+  slotStash: Record<string, SlotData>;
+}): number {
+  const active = s.annotations.filter((a) => a.status === "draft").length;
+  const stashed = Object.values(s.slotStash).reduce(
+    (n, d) => n + d.annotations.filter((a) => a.status === "draft").length,
+    0,
+  );
+  return active + stashed;
+}
+
+export function collectEyeSlots(eye: Laterality): { meta: SlotMeta; data: SlotData }[] {
+  const s = useStore.getState();
+  return s.slots[eye].map((meta) => {
+    if (meta.id === s.activeSlot[eye]) {
+      return {
+        meta,
+        data: {
+          background: s.backgrounds[eye],
+          anatomy: s.anatomy[eye],
+          view: s.views[eye],
+          annotations: s.annotations.filter((a) => a.laterality === eye),
+        },
+      };
+    }
+    return { meta, data: s.slotStash[meta.id] ?? freshSlotData() };
+  });
+}
+
 interface State {
   /** Œil actif : reçoit les nouvelles annotations, cible de l'import et des outils. */
   laterality: Laterality;
@@ -125,6 +257,10 @@ interface State {
   hiddenLesionIds: string[];
   paletteOpen: boolean;
   spotRadiusMm: number;
+  /** Outil de tracé actif (spot/surface ou flèche). */
+  drawTool: DrawTool;
+  /** Opacité globale appliquée au rendu de toutes les annotations (0.2..1). */
+  annotationOpacity: number;
   author: string;
   /** Image de fond par œil. */
   backgrounds: EyeMap<BackgroundState>;
@@ -151,6 +287,14 @@ interface State {
   /** Mode édition de l'anatomie (déplacer/redimensionner — outil de précision mono). */
   anatomyEdit: boolean;
 
+  // ——— Galerie multi-images (Lot B) ———
+  /** Liste des slots (ordre galerie) par œil. Le 1er slot est la rétino de base. */
+  slots: EyeMap<SlotMeta[]>;
+  /** Id du slot actif par œil (ses données vivent dans les champs de travail). */
+  activeSlot: EyeMap<string>;
+  /** Données rangées des slots INACTIFS, indexées par id de slot. */
+  slotStash: Record<string, SlotData>;
+
   setLaterality: (l: Laterality) => void;
   setLayout: (l: WorkspaceLayout) => void;
   toggleLayer: (k: LayerKey) => void;
@@ -159,6 +303,8 @@ interface State {
   setPaletteOpen: (open: boolean) => void;
   setSpotRadius: (mm: number) => void;
   adjustSpotRadius: (deltaMm: number) => void;
+  setDrawTool: (t: DrawTool) => void;
+  setAnnotationOpacity: (v: number) => void;
 
   setBackgroundImage: (src: string, fileName: string, eye?: Laterality) => void;
   updateBackground: (patch: Partial<BackgroundState>, eye?: Laterality) => void;
@@ -190,8 +336,22 @@ interface State {
   setAnatomyVisible: (v: boolean) => void;
   setAnatomyEdit: (v: boolean) => void;
 
+  // ——— Galerie multi-images (Lot B) ———
+  /** Ajoute un slot du type donné à un œil et le rend actif. Retourne son id. */
+  addSlot: (kind: ImageKind, eye?: Laterality) => string;
+  /** Sélectionne (rend actif) un slot d'un œil : échange les données de travail. */
+  selectSlot: (id: string, eye?: Laterality) => void;
+  /** Supprime un slot (≥ 1 slot conservé par œil). */
+  removeSlot: (id: string, eye?: Laterality) => void;
+  /** Modifie les métadonnées d'un slot (libellé). */
+  updateSlotMeta: (id: string, patch: Partial<Pick<SlotMeta, "label">>, eye?: Laterality) => void;
+  /** Restaure la galerie d'un œil depuis des instantanés persistés (au montage). */
+  hydrateEyeSlots: (eye: Laterality, snaps: RetinaSlotSnapshot[]) => void;
+
   addSpot: (mx: number, my: number, eye?: Laterality) => void;
   addFreeform: (points: number[], eye?: Laterality) => void;
+  /** Ajoute une flèche de désignation (brouillon) — `points = [xQueue,yQueue,xPointe,yPointe]`. */
+  addArrow: (points: number[], eye?: Laterality) => void;
   /** Ajoute un polygone de lésion (brouillon) — utilisé par la pré-annotation SAM. */
   addLesionPolygon: (points: number[], eye?: Laterality) => void;
 
@@ -217,7 +377,7 @@ const clampRadius = (mm: number) =>
   Math.max(SPOT_MIN_MM, Math.min(SPOT_MAX_MM, mm));
 
 function buildAnnotation(
-  kind: "point" | "polygon",
+  kind: "point" | "polygon" | "arrow",
   points: number[],
   radiusMm: number | null,
   laterality: Laterality,
@@ -243,6 +403,13 @@ function buildAnnotation(
   };
 }
 
+/** Slots rétino de base (un par œil) au démarrage / après reset. */
+function initialSlots(): { slots: EyeMap<SlotMeta[]>; activeSlot: EyeMap<string> } {
+  const od = freshRetinoSlot();
+  const os = freshRetinoSlot();
+  return { slots: { OD: [od], OS: [os] }, activeSlot: { OD: od.id, OS: os.id } };
+}
+
 export const useStore = create<State>((set, get) => ({
   laterality: "OD",
   layout: "dual",
@@ -260,6 +427,8 @@ export const useStore = create<State>((set, get) => ({
   hiddenLesionIds: [],
   paletteOpen: false,
   spotRadiusMm: 0.5,
+  drawTool: "lesion",
+  annotationOpacity: DEFAULT_ANNOTATION_OPACITY,
   author: "Dr. Utilisateur",
   backgrounds: { OD: freshBackground(), OS: freshBackground() },
   pointing: false,
@@ -273,6 +442,8 @@ export const useStore = create<State>((set, get) => ({
   anatomy: { OD: null, OS: null },
   anatomyVisible: true,
   anatomyEdit: false,
+  ...initialSlots(),
+  slotStash: {},
 
   setLaterality: (l) => set({ laterality: l }),
   setLayout: (l) => set({ layout: l }),
@@ -283,6 +454,14 @@ export const useStore = create<State>((set, get) => ({
   setSpotRadius: (mm) => set({ spotRadiusMm: clampRadius(mm) }),
   adjustSpotRadius: (deltaMm) =>
     set((s) => ({ spotRadiusMm: clampRadius(s.spotRadiusMm + deltaMm) })),
+  setDrawTool: (t) => set({ drawTool: t }),
+  setAnnotationOpacity: (v) =>
+    set({
+      annotationOpacity: Math.max(
+        ANNOTATION_OPACITY_MIN,
+        Math.min(ANNOTATION_OPACITY_MAX, v),
+      ),
+    }),
 
   setBackgroundImage: (src, fileName, eye) =>
     set((s) => {
@@ -458,6 +637,120 @@ export const useStore = create<State>((set, get) => ({
       selectedAnnotationId: v ? null : get().selectedAnnotationId,
     }),
 
+  // ——— Galerie multi-images (Lot B) ———
+  addSlot: (kind, eye) => {
+    const k = eye ?? get().laterality;
+    const sameKind = get().slots[k].filter((sl) => sl.kind === kind).length;
+    const label = sameKind === 0 ? LABEL_FOR_KIND[kind] : `${LABEL_FOR_KIND[kind]} ${sameKind + 1}`;
+    const meta: SlotMeta = { id: newSlotId(), kind, geometry: GEOMETRY_FOR_KIND[kind], label };
+    set((s) => ({
+      slots: { ...s.slots, [k]: [...s.slots[k], meta] },
+      slotStash: { ...s.slotStash, [meta.id]: freshSlotData() },
+    }));
+    // Rendre le nouveau slot actif (échange des données de travail).
+    get().selectSlot(meta.id, k);
+    return meta.id;
+  },
+
+  selectSlot: (id, eye) =>
+    set((s) => {
+      const k = eye ?? s.laterality;
+      if (s.activeSlot[k] === id || !s.slots[k].some((sl) => sl.id === id)) return {};
+      const oldId = s.activeSlot[k];
+      // Range les données de travail du slot actuellement actif.
+      const captured: SlotData = {
+        background: s.backgrounds[k],
+        anatomy: s.anatomy[k],
+        view: s.views[k],
+        annotations: s.annotations.filter((a) => a.laterality === k),
+      };
+      const target = s.slotStash[id] ?? freshSlotData();
+      const nextStash = { ...s.slotStash, [oldId]: captured };
+      delete nextStash[id];
+      return {
+        backgrounds: { ...s.backgrounds, [k]: target.background },
+        anatomy: { ...s.anatomy, [k]: target.anatomy },
+        views: { ...s.views, [k]: target.view },
+        // Remplace les annotations de CET œil, conserve celles de l'autre.
+        annotations: [...s.annotations.filter((a) => a.laterality !== k), ...target.annotations],
+        activeSlot: { ...s.activeSlot, [k]: id },
+        slotStash: nextStash,
+        // La sélection de slot annule les modes transitoires.
+        pointing: false,
+        adjustImage: false,
+        samMode: false,
+        selectMode: false,
+        anatomyEdit: false,
+        selectedAnnotationId: null,
+        overlapPick: null,
+      };
+    }),
+
+  removeSlot: (id, eye) => {
+    const k = eye ?? get().laterality;
+    const s0 = get();
+    if (s0.slots[k].length <= 1) return; // toujours au moins un slot par œil
+    // Si le slot actif est supprimé, on bascule d'abord sur un voisin (ses
+    // données sont alors rangées dans le stash, puis effacées ci-dessous).
+    if (s0.activeSlot[k] === id) {
+      const neighbor = s0.slots[k].find((sl) => sl.id !== id);
+      if (neighbor) get().selectSlot(neighbor.id, k);
+    }
+    set((s) => {
+      const nextStash = { ...s.slotStash };
+      if (nextStash[id]) revokeBackground(nextStash[id].background);
+      delete nextStash[id];
+      return {
+        slots: { ...s.slots, [k]: s.slots[k].filter((sl) => sl.id !== id) },
+        slotStash: nextStash,
+      };
+    });
+  },
+
+  updateSlotMeta: (id, patch, eye) =>
+    set((s) => {
+      const k = eye ?? s.laterality;
+      return {
+        slots: {
+          ...s.slots,
+          [k]: s.slots[k].map((sl) => (sl.id === id ? { ...sl, ...patch } : sl)),
+        },
+      };
+    }),
+
+  hydrateEyeSlots: (eye, snaps) =>
+    set((s) => {
+      if (snaps.length === 0) return {};
+      const metas: SlotMeta[] = snaps.map((sn) => ({
+        id: sn.id,
+        kind: sn.kind,
+        geometry: sn.geometry,
+        label: sn.label,
+      }));
+      const toData = (sn: RetinaSlotSnapshot): SlotData => ({
+        background: sn.background ? backgroundStateFromSnapshot(sn.background) : freshBackground(),
+        anatomy: null, // l'anatomie (papille/macula) est re-détectée, non persistée
+        view: freshView(),
+        annotations: sn.annotations.map((a) => ({ ...a, laterality: eye })),
+      });
+      // Slot actif restauré = rétino (sinon le premier).
+      const activeSnap = snaps.find((sn) => sn.kind === "retino") ?? snaps[0];
+      const activeData = toData(activeSnap);
+      const nextStash = { ...s.slotStash };
+      snaps.forEach((sn) => {
+        if (sn.id !== activeSnap.id) nextStash[sn.id] = toData(sn);
+      });
+      return {
+        slots: { ...s.slots, [eye]: metas },
+        activeSlot: { ...s.activeSlot, [eye]: activeSnap.id },
+        slotStash: nextStash,
+        backgrounds: { ...s.backgrounds, [eye]: activeData.background },
+        anatomy: { ...s.anatomy, [eye]: activeData.anatomy },
+        views: { ...s.views, [eye]: activeData.view },
+        annotations: [...s.annotations.filter((a) => a.laterality !== eye), ...activeData.annotations],
+      };
+    }),
+
   setView: (v, eye) =>
     set((s) => {
       const k = eye ?? s.laterality;
@@ -489,6 +782,20 @@ export const useStore = create<State>((set, get) => ({
     }));
   },
 
+  addArrow: (points, eye) => {
+    // Flèche = segment queue → pointe. On ignore les tracés trop courts (clic
+    // sans glissé) pour ne pas créer de flèches dégénérées.
+    if (points.length < 4) return;
+    const [x0, y0, x1, y1] = points;
+    if (Math.hypot(x1 - x0, y1 - y0) < ARROW_MIN_LEN_MM) return;
+    set((s) => ({
+      annotations: [
+        ...s.annotations,
+        buildAnnotation("arrow", [x0, y0, x1, y1], null, eye ?? s.laterality, s.author),
+      ],
+    }));
+  },
+
   addLesionPolygon: (points, eye) => {
     // Polygone issu de SAM : déjà propre, on évite le lissage agressif.
     if (points.length < 6) return;
@@ -503,14 +810,24 @@ export const useStore = create<State>((set, get) => ({
   assignLesion: (lesionId) =>
     set((s) => {
       if (!getLesion(lesionId)) return {};
-      const hasDraft = s.annotations.some((a) => a.status === "draft");
-      if (!hasDraft) return {};
+      // Identifie TOUS les brouillons en une fois : slots actifs (annotations à
+      // plat, les deux yeux) ET slots rangés (autres images de la galerie). Le
+      // clinicien peut ainsi marquer une même lésion sur un B-scan, une rétino
+      // et l'œil controlatéral, puis l'identifier d'un seul geste.
+      const validate = (a: Annotation): Annotation =>
+        a.status === "draft" ? { ...a, lesionId, status: "validated" as const } : a;
+      const activeHasDraft = s.annotations.some((a) => a.status === "draft");
+      const stashHasDraft = Object.values(s.slotStash).some((d) =>
+        d.annotations.some((a) => a.status === "draft"),
+      );
+      if (!activeHasDraft && !stashHasDraft) return {};
+      const nextStash: Record<string, SlotData> = {};
+      for (const [id, d] of Object.entries(s.slotStash)) {
+        nextStash[id] = { ...d, annotations: d.annotations.map(validate) };
+      }
       return {
-        annotations: s.annotations.map((a) =>
-          a.status === "draft"
-            ? { ...a, lesionId, status: "validated" as const }
-            : a,
-        ),
+        annotations: s.annotations.map(validate),
+        slotStash: nextStash,
         paletteOpen: false,
       };
     }),
@@ -559,6 +876,8 @@ export const useStore = create<State>((set, get) => ({
     set((s) => {
       revokeBackground(s.backgrounds.OD);
       revokeBackground(s.backgrounds.OS);
+      // Libère aussi les images des slots inactifs rangés.
+      Object.values(s.slotStash).forEach((d) => revokeBackground(d.background));
       return {
         annotations: [],
         hiddenLesionIds: [],
@@ -567,6 +886,8 @@ export const useStore = create<State>((set, get) => ({
         backgrounds: { OD: freshBackground(), OS: freshBackground() },
         anatomy: { OD: null, OS: null },
         views: { OD: freshView(), OS: freshView() },
+        ...initialSlots(),
+        slotStash: {},
         paletteOpen: false,
         pointing: false,
         adjustImage: false,
@@ -575,6 +896,8 @@ export const useStore = create<State>((set, get) => ({
         anatomyEdit: false,
         layout: "dual",
         doubleView: false,
+        drawTool: "lesion",
+        annotationOpacity: DEFAULT_ANNOTATION_OPACITY,
       };
     }),
 }));

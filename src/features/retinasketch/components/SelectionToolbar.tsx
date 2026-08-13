@@ -40,7 +40,7 @@ export default function SelectionToolbar() {
               {lesion ? lesion.name : "Brouillon"}
             </span>
             <span className="text-[11px] text-slate-400">
-              {annotation.kind === "point" ? "spot" : "surface"} · {annotation.attrs.anatomicalZone}
+              {annotation.kind === "point" ? "spot" : annotation.kind === "arrow" ? "flèche" : "surface"} · {annotation.attrs.anatomicalZone}
             </span>
             <span className="mx-0.5 h-4 w-px bg-slate-200" />
             <button

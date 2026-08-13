@@ -119,13 +119,18 @@ export function computeAttributes(centroidMm: P): DerivedAttributes {
 
 const round = (n: number) => Math.round(n * 100) / 100;
 
-/** Centroïde et aire (mm²) d'une géométrie (point ou polygone). */
+/** Centroïde et aire (mm²) d'une géométrie (point, polygone ou flèche). */
 export function geometryMetrics(
-  kind: "point" | "polygon",
+  kind: "point" | "polygon" | "arrow",
   points: number[],
 ): { centroid: P; areaMm2: number | null } {
   if (kind === "point") {
     return { centroid: { x: points[0], y: points[1] }, areaMm2: null };
+  }
+  if (kind === "arrow") {
+    // Point de référence clinique = la POINTE de la flèche (ce qu'elle désigne),
+    // et non son milieu : c'est la localisation utile pour la structuration.
+    return { centroid: { x: points[2], y: points[3] }, areaMm2: null };
   }
   const n = points.length / 2;
   let area = 0;

@@ -79,6 +79,7 @@ function EyeSchema({ eye }: { eye: EyeData }) {
               annotations={eye.annotations}
               background={eye.retinaBackground}
               layers={eye.retinaLayers}
+              annotationOpacity={eye.retinaAnnotationOpacity}
             />
           </div>
           {legend.length > 0 && (

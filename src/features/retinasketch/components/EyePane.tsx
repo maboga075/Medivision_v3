@@ -4,6 +4,7 @@ import { useStore } from "@/features/retinasketch/store/useStore";
 import type { Laterality } from "@/features/retinasketch/lib/types";
 import BackgroundImage from "./BackgroundImage";
 import SelectionPicker from "./SelectionPicker";
+import SlotGallery from "./SlotGallery";
 import { computeAutoFrame } from "@/features/retinasketch/lib/geometry/autoframe";
 
 // Konva nécessite le DOM : chargement paresseux (équivalent du `dynamic` Next).
@@ -33,6 +34,16 @@ export default function EyePane({ eye, active, layout }: Props) {
   const setBackgroundImage = useStore((s) => s.setBackgroundImage);
   const updateBackground = useStore((s) => s.updateBackground);
   const fileName = useStore((s) => s.backgrounds[eye].fileName);
+  // Type du slot actif : le recadrage auto ne s'applique qu'aux rétinographies.
+  const activeKind = useStore((s) => {
+    const id = s.activeSlot[eye];
+    return s.slots[eye].find((sl) => sl.id === id)?.kind ?? "retino";
+  });
+  // Géométrie du slot actif : forme de l'overlay de dépôt (cercle/carré/rectangle).
+  const activeGeometry = useStore((s) => {
+    const id = s.activeSlot[eye];
+    return s.slots[eye].find((sl) => sl.id === id)?.geometry ?? "circle";
+  });
 
   const ref = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
@@ -58,8 +69,9 @@ export default function EyePane({ eye, active, layout }: Props) {
     const img = new Image();
     img.onload = () => {
       setBackgroundImage(url, file.name, eye);
-      // Recadrage automatique (centre + remplit le champ, retire le liseré noir).
-      const frame = computeAutoFrame(img);
+      // Recadrage automatique (centre + remplit le champ, retire le liseré noir)
+      // — calibré pour les rétinographies rondes ; neutre pour les autres types.
+      const frame = activeKind === "retino" ? computeAutoFrame(img) : null;
       updateBackground(
         { natW: img.naturalWidth, natH: img.naturalHeight, ...(frame ?? {}) },
         eye,
@@ -81,10 +93,12 @@ export default function EyePane({ eye, active, layout }: Props) {
 
   return (
     <div
-      className={`relative h-full min-w-0 flex-1 bg-white transition-[box-shadow] ${
+      className={`flex h-full min-w-0 flex-1 flex-col bg-white transition-[box-shadow] ${
         dual && active ? "shadow-[inset_0_0_0_2px_rgb(37,99,235)]" : ""
       }`}
     >
+      {/* Zone de dessin (occupe l'espace restant au-dessus de la galerie) */}
+      <div className="relative min-h-0 flex-1">
       {/* Le survol active l'œil (user-friendly) : le clic sert alors uniquement
           à dessiner, et changer d'œil ne crée plus de lésion par mégarde. */}
       <div
@@ -124,12 +138,20 @@ export default function EyePane({ eye, active, layout }: Props) {
           </>
         )}
 
-        {/* Retour visuel du glisser-déposer */}
+        {/* Retour visuel du glisser-déposer — forme selon la géométrie du slot. */}
         {dragOver && (
           <div className="pointer-events-none absolute inset-0 z-30 grid place-items-center bg-blue-50/40">
-            <div className="aspect-square h-[88%] rounded-full border-4 border-dashed border-blue-400/80" />
+            <div
+              className={`border-4 border-dashed border-blue-400/80 ${
+                activeGeometry === "circle"
+                  ? "aspect-square h-[88%] rounded-full"
+                  : activeGeometry === "square"
+                    ? "aspect-square h-[80%] rounded-lg"
+                    : "h-[55%] w-[92%] rounded-lg"
+              }`}
+            />
             <span className="absolute rounded-full bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white shadow-lg">
-              Déposer la rétinographie · {eye === "OD" ? "OD" : "OG"}
+              Déposer l'image · {eye === "OD" ? "OD" : "OG"}
             </span>
           </div>
         )}
@@ -167,6 +189,10 @@ export default function EyePane({ eye, active, layout }: Props) {
 
       {/* Choix d'une lésion parmi plusieurs superposées (mode Sélection) */}
       <SelectionPicker eye={eye} />
+      </div>
+
+      {/* Galerie multi-images de cet œil (rétino / OCT-A / en-face / B-scan) */}
+      <SlotGallery eye={eye} />
     </div>
   );
 }

@@ -45,11 +45,30 @@ export interface RetinaBackgroundSnapshot {
   brightness: number;  // %, 100 = neutre
   contrast: number;    // %, 100 = neutre
   saturation: number;  // %, 100 = neutre
+  // Tons & netteté (0 = neutre) — optionnels : anciens CR sans ces réglages restent valides
+  sharpness?: number;   // 0..100
+  highlights?: number;  // -100..100
+  shadows?: number;     // -100..100
+  whites?: number;      // -100..100
+  blacks?: number;      // -100..100
   // Alignement
   scale: number;       // multiplicateur, 1 = ajusté au contour
   offsetXMm: number;
   offsetYMm: number;
   rotationDeg: number;
+}
+
+/**
+ * Instantané d'un slot de la galerie multi-images (Lot B) : type/géométrie +
+ * image + annotations propres au slot. Persisté par œil dans `retinaSlots`.
+ */
+export interface RetinaSlotSnapshot {
+  id: string;
+  kind: import('../features/retinasketch/lib/types').ImageKind;
+  geometry: import('../features/retinasketch/lib/types').ImageGeometry;
+  label: string;
+  background: RetinaBackgroundSnapshot | null;
+  annotations: import('../features/retinasketch/lib/types').Annotation[];
 }
 
 export interface EyeState {
@@ -58,8 +77,10 @@ export interface EyeState {
   acquisitionQuality?: 'bon' | 'faible' | 'impossible';
   acquisitionQualityReasons?: string[];
 
-  // Acquisition difficile : exclut RNFL/GCL de l'interprétation et du compte rendu.
-  excludeRnflGcl?: boolean;
+  // Exclusions facultatives — indépendantes de l'indice d'acquisition.
+  // Le praticien peut retirer ces paramètres de l'interprétation et du compte rendu.
+  excludeRnflGcl?: boolean; // RNFL/GCL + leur suivi
+  excludeDisc?: boolean; // C/D vertical + surface discale
 
   hasFollowUp: boolean;
   followUpDate: string;
@@ -77,8 +98,13 @@ export interface EyeState {
   retinaAnnotations?: import('../features/retinasketch/lib/types').Annotation[];
 
   // Image de rétinographie + calques persistés depuis RetinaSketch (pour le CR).
+  // `retinaBackground`/`retinaAnnotations` = slot rétino (pont avec le CR actuel).
   retinaBackground?: RetinaBackgroundSnapshot | null;
   retinaLayers?: RetinaLayers;
+  // Galerie multi-images (Lot B) : tous les slots de l'œil (rétino inclus).
+  retinaSlots?: RetinaSlotSnapshot[];
+  // Opacité globale des annotations (0.2..1) — reproduite dans le schéma du CR.
+  retinaAnnotationOpacity?: number;
 
   cornealThickness: string;
   obsAnterieur: string[];

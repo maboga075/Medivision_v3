@@ -3,7 +3,21 @@
 import type { AIProviderKey, AIResultLegacy, AISeverite } from './ai';
 import type { EyeState, RetinaBackgroundSnapshot, RetinaLayers } from './clinical';
 import type { RnflSectors, GclSectors } from '../utils/rnflGcl';
-import type { Annotation } from '../features/retinasketch/lib/types';
+import type { Annotation, ImageKind, ImageGeometry } from '../features/retinasketch/lib/types';
+
+/**
+ * Slot d'imagerie complémentaire (Lot B) remonté au compte rendu : B-scan,
+ * OCT-A ou OCT en-face avec son image et ses annotations, pour un rendu visuel
+ * en page imagerie (Lot C). Le slot rétino reste rendu via le schéma existant.
+ */
+export interface ReportImageSlot {
+  id: string;
+  kind: ImageKind;
+  geometry: ImageGeometry;
+  label: string;
+  src?: string; // dataURL de l'image (instantané persisté)
+  annotations?: Annotation[];
+}
 
 export type ExamenType = 'OCT' | 'Retinographie' | 'OCTA' | 'Pachymetrie' | 'Segment_Anterieur';
 export type SeveriteReport = 'normal' | 'surveillance' | 'alerte';
@@ -28,8 +42,9 @@ export interface EyeData {
   latin: string;
   acquisitionQuality?: 'bon' | 'faible' | 'impossible';
   acquisitionQualityReasons?: string[];
-  // Acquisition difficile : RNFL/GCL non interprétés (message dédié dans le CR).
+  // Exclusions facultatives : paramètres retirés du compte rendu.
   rnflGclExcluded?: boolean;
+  discExcluded?: boolean;
   // Boîtes de résumé en haut de la section biométriques
   discSurface?: string;
   cupDisc?: string;
@@ -44,6 +59,11 @@ export interface EyeData {
   // V3 — image de rétinographie + calques persistés (reproduits dans le schéma CR).
   retinaBackground?: RetinaBackgroundSnapshot | null;
   retinaLayers?: RetinaLayers;
+  // V3 — opacité globale des annotations (reproduite dans le schéma CR).
+  retinaAnnotationOpacity?: number;
+  // Lot B — imagerie complémentaire (B-scan / OCT-A / en-face) pour la page
+  // imagerie du CR (rendu Lot C). Le slot rétino n'y figure pas (schéma dédié).
+  imagerySlots?: ReportImageSlot[];
   // V3 — suivi RNFL/GCL (affiché près des anneaux : « Diminué » / « Stable »).
   followUp?: {
     date?: string;

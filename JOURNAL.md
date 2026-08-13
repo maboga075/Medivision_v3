@@ -8,8 +8,8 @@
 ## État général du projet
 
 **Branche active :** `feat/retinasketch-v2-port`  
-**Dernière session :** 2026-08-12  
-**Build :** ✅ Compilé sans erreurs (`tsc` app + node, 18 tests Vitest verts, `vite build` OK)  
+**Dernière session :** 2026-08-13  
+**Build :** ✅ Compilé sans erreurs (`tsc --noEmit` 0 erreur, 18 tests Vitest verts)  
 **Stack :** React + TypeScript + Vite · Firebase (Auth + Firestore) · Tailwind CSS · Konva + ONNX Runtime Web (RetinaSketch) · Framer Motion · jsPDF · Fonctions serverless Vercel (`api/ai`)
 
 ---
@@ -42,6 +42,46 @@ api/ai/generate-report  Fonction serverless (OpenAI/Anthropic/Gemini/DeepSeek).
 ---
 
 ## Historique des sessions
+
+---
+
+### Session 2026-08-13 — Lot A : combobox médecins + exclusions RNFL/GCL & disque
+
+**Demandé par :** Yoan
+**Statut :** ✅ Terminé — `tsc --noEmit` 0 erreur, 18 tests Vitest verts. Vérif UI live des 2 features non faite (nécessite une consultation avec patient en salle d'attente → éviter de polluer Firestore).
+**Branche :** `feat/retinasketch-v2-port`
+**Contexte :** premier des 3 lots planifiés (Lot A = saisie ; Lot B = RetinaSketch multi-images cercle/carré/rectangle ; Lot C = rapport OCT multipage).
+
+#### A1 — Combobox médecins (recherche + tri alphabétique)
+- [x] Nouveau composant [`DoctorCombobox.tsx`](src/components/forms/DoctorCombobox.tsx) : choix unique, filtrage au clavier (nom/prénom, insensible casse+accents), navigation ↑/↓/↵/échap, bouton effacer. Tri alphabétique sur `nom` en **occultant** tout préfixe civilité (`Dr.`/`Pr.`/`Docteur`/`Professeur`) via `stripTitle`, tri secondaire sur le prénom.
+- [x] [`ExamTypeSelector.tsx`](src/features/consultation/components/ExamTypeSelector.tsx) : le `<select>` médecin est remplacé par `<DoctorCombobox>`. Source unique = `settings.doctors` (la liste en dur de `constants.ts` reste ignorée).
+
+#### A2 — Exclure RNFL/GCL et disque quel que soit l'indice d'acquisition
+- [x] **Découplage de l'indice d'acquisition** : la condition `&& (acquisitionQuality === 'faible' | 'impossible')` est retirée. Les exclusions agissent désormais même en acquisition « bon ». Impacté : [`reportDataMapper.tsx`](src/utils/reportDataMapper.tsx), [`clinicalPayload.ts`](src/utils/clinicalPayload.ts), [`EyeExamSection.tsx`](src/components/forms/EyeExamSection.tsx).
+- [x] **Deux cases indépendantes** : nouveau champ `excludeDisc` (à côté de `excludeRnflGcl`) dans [`types/clinical.ts`](src/types/clinical.ts) + défaut `false` dans [`clinicalData.ts`](src/utils/clinicalData.ts). UI : deux boutons-bascule dans `EyeExamSection` (RNFL/GCL toujours dispo en OCT ; disque dispo en OCT/nerf optique) ; le bloc C/D + surface est masqué si le disque est exclu.
+- [x] **Propagation compte rendu** : `excludeDisc` → `discSurface`/`cupDisc`/`cupDiscFlag` mis à `undefined` dans le mapper (les jauges C/D disparaissent naturellement du CR) ; flag `discExcluded` ajouté à `EyeData` ([`types/report.ts`](src/types/report.ts)).
+- [x] **Propagation payload IA** : `discExcluded` → clé `disque_non_interpretable: true`, `cup_disc_vertical`/`discSurface` retirés du payload quand exclus.
+- [x] **Compatibilité** : `excludeDisc` optionnel à défaut `false` → dossiers déjà enregistrés inchangés.
+
+#### Lot B (en cours) — RetinaSketch galerie multi-images (cercle/carré/rectangle)
+**Décision d'architecture (Yoan)** : refonte unifiée (pas de feature « OCTSketch » séparée) ; la rétino devient le 1er slot d'une galerie de N images/œil, chacune avec sa géométrie. Pas de migration des anciens scans (logiciel en dev). Livraison **par phases vérifiables**.
+- [x] **Phase 1 — modèle + store** : types `ImageKind`/`ImageGeometry` + mapping type→forme (rétino = cercle ; OCT-A + en-face = carré ; B-scan = rectangle) dans [`lib/types.ts`](src/features/retinasketch/lib/types.ts). Store [`useStore.ts`](src/features/retinasketch/store/useStore.ts) : chaque œil porte `slots: SlotMeta[]` + `activeSlot` + `slotStash`. Mécanisme d'**échange** : les données du slot actif restent dans les champs existants (`backgrounds`/`anatomy`/`views`/`annotations`), les inactifs sont rangés dans le stash → **aucun des 15 composants consommateurs n'est touché**, comportement identique (1 slot rétino/œil au départ). Actions `addSlot`/`selectSlot`/`removeSlot`/`updateSlotMeta` ; `resetAll` réinitialisé. Vérif : `tsc` 0, 18 tests verts, Vite compile.
+- [x] **Phase 2a — galerie UI** : nouveau [`SlotGallery.tsx`](src/features/retinasketch/components/SlotGallery.tsx) (bande de miniatures sous chaque œil, pastille de forme, bouton « + » → menu 4 types, sélection/suppression). [`EyePane.tsx`](src/features/retinasketch/components/EyePane.tsx) restructuré en colonne flex (zone de dessin + galerie).
+- [x] **Phase 2b — persistance multi-slots** : `RetinaSlotSnapshot` + `EyeState.retinaSlots` ([`clinical.ts`](src/types/clinical.ts)) ; `RetinaCommit` enrichi (`odSlots`/`ogSlots`) + sérialisation de toute la galerie à la fermeture via `collectEyeSlots`, restauration via `hydrateEyeSlots` ([`RetinaEditor.tsx`](src/features/retinasketch/components/RetinaEditor.tsx), [`useStore.ts`](src/features/retinasketch/store/useStore.ts)) ; [`Consultation.tsx`](src/pages/Consultation.tsx) passe/persiste `retinaSlots` (+ pont slot rétino → `retinaBackground`/`retinaAnnotations` pour le CR actuel). ⚠️ **Risque taille Firestore** : N images JPEG par consultation → un document pourrait dépasser ~1 Mo (stockage image hors-document à prévoir).
+- [x] **Phase 3 — stage géométrique** : helpers `fieldShape`/`fieldHalfExtentsMm` ([`template.ts`](src/features/retinasketch/lib/geometry/template.ts)). [`RetinaStage.tsx`](src/features/retinasketch/components/RetinaStage.tsx) : contour + `clipFunc` cercle/carré/rectangle selon la géométrie du slot actif ; repères rétiniens (périphérie/fovéa/quadrants/ETDRS/anatomie/vaisseaux + anatomie détectée) réservés au type rétino. [`BackgroundImage.tsx`](src/features/retinasketch/components/BackgroundImage.tsx) : clip d'image rond (masque radial) pour cercle, net pour carré/rectangle. `EyePane` : recadrage auto sauté hors rétino.
+- [x] **Phase 4 — remontée CR** : type `ReportImageSlot` + `EyeData.imagerySlots` ([`report.ts`](src/types/report.ts)) ; [`reportDataMapper.tsx`](src/utils/reportDataMapper.tsx) remonte les slots complémentaires (B-scan/OCT-A/en-face + image + annotations) hors rétino. **Pont prêt pour le Lot C** (rendu multipage à venir ; les images ne sont pas encore affichées dans le CR).
+
+**Vérifs Lot B** : `tsc --noEmit` 0, 18 tests Vitest verts, `vite build` OK. ⚠️ Non vérifié visuellement (éditeur accessible seulement via une consultation avec patient — non créée pour ne pas polluer Firestore).
+
+#### Lot B — correctifs post-recette (retours Yoan)
+- [x] **OCT-A carré** : `GEOMETRY_FOR_KIND.octa` passe de `circle` à `square` (acquisition carrée comme l'en-face) — [`types.ts`](src/features/retinasketch/lib/types.ts).
+- [x] **Menu « + » masqué** : la bande galerie clippait son menu (`overflow-x-auto`) et passait derrière la zone de dessin. [`SlotGallery.tsx`](src/features/retinasketch/components/SlotGallery.tsx) : miniatures dans un conteneur scrollable interne, bouton « + » HORS scroll, bande en `relative z-30`, menu `z-50`.
+- [x] **Barre « à identifier ↵ » disparue** : la `DraftBar` (`bottom-6 z-20`) était recouverte par la galerie (`z-30`). Remontée à `bottom-28 z-40` — [`DraftBar.tsx`](src/features/retinasketch/components/DraftBar.tsx).
+- [x] **Overlay de dépôt rond sur slots carrés/rect** : forme de l'overlay adaptée à la géométrie du slot actif — [`EyePane.tsx`](src/features/retinasketch/components/EyePane.tsx).
+- [x] **Flèche non effaçable après identification** : au clic simple, une flèche (brouillon OU validée) sous le curseur est désormais effacée ; limite de dessin (`insideField`) adaptée à la forme cercle/carré/rectangle — [`RetinaStage.tsx`](src/features/retinasketch/components/RetinaStage.tsx).
+- [x] **Identification multi-images en une fois** : `assignLesion` valide tous les brouillons de la galerie (slots actifs + rangés, deux yeux) → une même lésion marquée sur B-scan + rétino + œil controlatéral s'identifie d'un geste. Décompte « à identifier » via `countAllDrafts` (actifs + rangés) dans `DraftBar`/`Workspace`/`CommandPalette` — [`useStore.ts`](src/features/retinasketch/store/useStore.ts).
+- [x] **Responsive barre d'outils** : `header` en `flex-wrap` + `min-h-12` → « Terminer » reste visible sur petit écran (plus de débordement) — [`Workspace.tsx`](src/features/retinasketch/components/Workspace.tsx).
+- [ ] **Impression multi-vues selon les coupes sélectionnées** (reporté au **Lot C**) : nécessite la refonte de la mise en page d'impression (aperçu `DoubleEyeView` + rapport multipage) — traité avec le Lot C.
 
 ---
 

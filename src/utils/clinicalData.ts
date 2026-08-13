@@ -8,6 +8,7 @@ export const createEyeState = (): EyeState => ({
   acquisitionQuality: 'bon',
   acquisitionQualityReasons: [],
   excludeRnflGcl: false,
+  excludeDisc: false,
   hasFollowUp: false,
   followUpDate: '',
   rnflEvolution: '',

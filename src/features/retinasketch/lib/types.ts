@@ -10,6 +10,39 @@ import { z } from "zod";
 export const Laterality = z.enum(["OD", "OS"]);
 export type Laterality = z.infer<typeof Laterality>;
 
+/**
+ * Type d'image d'un slot de galerie :
+ * - `retino`  : rétinographie (surface circulaire, anatomie fovéa/papille active).
+ * - `octa`    : OCT-angiographie (surface carrée, sans anatomie rétinienne).
+ * - `enface`  : OCT « de face » / en-face (surface carrée).
+ * - `bscan`   : coupe B-scan OCT (surface rectangulaire).
+ */
+export const ImageKind = z.enum(["retino", "octa", "enface", "bscan"]);
+export type ImageKind = z.infer<typeof ImageKind>;
+
+/** Géométrie de la surface de travail (forme du clip). */
+export const ImageGeometry = z.enum(["circle", "square", "rect"]);
+export type ImageGeometry = z.infer<typeof ImageGeometry>;
+
+/** Géométrie par défaut associée à chaque type d'image. */
+export const GEOMETRY_FOR_KIND: Record<ImageKind, ImageGeometry> = {
+  retino: "circle",
+  octa: "square", // OCT-A : acquisition carrée (comme l'OCT en-face)
+  enface: "square",
+  bscan: "rect",
+};
+
+/** Seuls les slots rétino portent l'anatomie rétinienne (fovéa/papille/ETDRS). */
+export const kindHasRetinalAnatomy = (kind: ImageKind): boolean => kind === "retino";
+
+/** Libellé court par défaut pour un type d'image (numéroté à l'ajout). */
+export const LABEL_FOR_KIND: Record<ImageKind, string> = {
+  retino: "Rétinographie",
+  octa: "OCT-A",
+  enface: "OCT en-face",
+  bscan: "B-scan",
+};
+
 export const Quadrant = z.enum(["TS", "TI", "NS", "NI"]);
 export type Quadrant = z.infer<typeof Quadrant>;
 
@@ -57,7 +90,14 @@ export type DerivedAttributes = z.infer<typeof DerivedAttributes>;
 
 export const Annotation = z.object({
   id: z.string(),
-  kind: z.enum(["point", "polygon"]),
+  /**
+   * Type de tracé :
+   * - `point`   : spot ponctuel (rayon `radiusMm`).
+   * - `polygon` : détourage de surface fermé.
+   * - `arrow`   : flèche de désignation, `points = [xQueue,yQueue,xPointe,yPointe]`,
+   *               couleur héritée de la lésion (pas de remplissage ni d'aire).
+   */
+  kind: z.enum(["point", "polygon", "arrow"]),
   /** Coordonnées en mm, espace fovéal, format plat [x0,y0,x1,y1,...]. */
   points: z.array(z.number()),
   /** Rayon en mm pour un spot ponctuel (diamètre ajustable). */

@@ -79,8 +79,14 @@ export function generateReport(
   annotations: Annotation[],
   laterality: Laterality,
 ): string {
+  // Les flèches sont de pures désignations visuelles : exclues du décompte des
+  // lésions (elles ne doivent pas gonfler « présence de N … »).
   const validated = annotations.filter(
-    (a) => a.status === "validated" && a.laterality === laterality && a.lesionId,
+    (a) =>
+      a.status === "validated" &&
+      a.laterality === laterality &&
+      a.lesionId &&
+      a.kind !== "arrow",
   );
   const eye = laterality === "OD" ? "Œil droit (OD)" : "Œil gauche (OG)";
   if (validated.length === 0) {

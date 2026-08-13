@@ -1,7 +1,9 @@
 
 import { useStore } from "@/features/retinasketch/store/useStore";
 import type { Laterality } from "@/features/retinasketch/lib/types";
-import { TEMPLATE, createViewport, fieldCircle } from "@/features/retinasketch/lib/geometry/template";
+import { createViewport, fieldShape } from "@/features/retinasketch/lib/geometry/template";
+import { displayFilterCss, isNeutralTone } from "@/features/retinasketch/lib/image/filters";
+import { HiddenImageFilter } from "./RetinaImageFilters";
 
 interface Props {
   width: number;
@@ -29,17 +31,40 @@ interface Props {
 export default function BackgroundImage({ width, height, eye, applyView = true }: Props) {
   const bg = useStore((s) => s.backgrounds[eye]);
   const storeView = useStore((s) => s.views[eye]);
+  // Géométrie du slot actif (cercle/carré/rectangle) → forme du clip de l'image.
+  const geometry = useStore((s) => {
+    const id = s.activeSlot[eye];
+    return s.slots[eye].find((sl) => sl.id === id)?.geometry ?? "circle";
+  });
   const view = applyView ? storeView : { scale: 1, x: 0, y: 0 };
   if (!bg.src || !bg.visible) return null;
 
-  // Échelle px/mm (mirror non appliqué à l'image) + cercle du champ rétinien.
+  // Échelle px/mm (mirror non appliqué à l'image) + forme du champ.
   const vp = createViewport(width, height, 1);
   const { pxPerMm } = vp;
-  const { cx, cy, r } = fieldCircle(vp);
-  const boxW = 2 * TEMPLATE.retina.halfWidthMm * pxPerMm;
-  const boxH = 2 * TEMPLATE.retina.halfHeightMm * pxPerMm;
+  const f = fieldShape(geometry, vp);
+  const isCircle = f.kind === "circle";
+  // Boîte du champ (px) : diamètre pour le cercle, largeur/hauteur pour le rect.
+  const fieldW = f.kind === "circle" ? 2 * f.r : 2 * f.halfW;
+  const fieldH = f.kind === "circle" ? 2 * f.r : 2 * f.halfH;
+  const cx = f.cx;
+  const cy = f.cy;
+  const boxW = fieldW;
+  const boxH = fieldH;
   const tx = bg.offsetXMm * pxPerMm;
   const ty = bg.offsetYMm * pxPerMm;
+
+  // Tons & netteté (filtre SVG) : id unique par œil ; null si réglages neutres.
+  const tone = {
+    sharpness: bg.sharpness,
+    highlights: bg.highlights,
+    shadows: bg.shadows,
+    whites: bg.whites,
+    blacks: bg.blacks,
+  };
+  const filterId = `rsk-ed-adj-${eye}`;
+  const svgFilterId = isNeutralTone(tone) ? null : filterId;
+  const imgFilter = displayFilterCss(bg.brightness, bg.contrast, bg.saturation, svgFilterId);
 
   // Transform de l'image, identique pour la photo et le calque vaisseaux.
   const imgTransform = `translate(${tx}px, ${ty}px) scale(${bg.scale}) rotate(${bg.rotationDeg}deg)`;
@@ -56,6 +81,8 @@ export default function BackgroundImage({ width, height, eye, applyView = true }
 
   return (
     <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
+      {/* Définition du filtre SVG « tons + netteté » (référencé ci-dessous). */}
+      <HiddenImageFilter id={filterId} tone={tone} />
       {/* Transform de vue globale (zoom/pan), identique au Stage Konva. */}
       <div
         className="absolute inset-0"
@@ -64,21 +91,25 @@ export default function BackgroundImage({ width, height, eye, applyView = true }
           transform: `translate(${view.x}px, ${view.y}px) scale(${view.scale})`,
         }}
       >
-        {/* Clip circulaire = champ rétinien (centré sur le cercle du schéma).
-            Un masque radial estompe l'anneau extérieur : le liseré noir des
-            rétinographies (cadre du capteur) se fond dans le fond du schéma au
-            lieu de rester visible, sans décaler l'alignement de l'image. */}
+        {/* Clip du champ (centré sur le schéma). En cercle (rétino/OCT-A), un
+            masque radial estompe l'anneau extérieur : le liseré noir des
+            rétinographies (cadre du capteur) se fond dans le fond du schéma.
+            En carré/rectangle (en-face/B-scan), clip rectangulaire net. */}
         <div
-          className="absolute overflow-hidden rounded-full"
+          className={`absolute overflow-hidden ${isCircle ? "rounded-full" : "rounded-sm"}`}
           style={{
-            left: cx - r,
-            top: cy - r,
-            width: 2 * r,
-            height: 2 * r,
-            WebkitMaskImage:
-              "radial-gradient(circle at center, #000 0%, #000 97%, transparent 100%)",
-            maskImage:
-              "radial-gradient(circle at center, #000 0%, #000 97%, transparent 100%)",
+            left: cx - fieldW / 2,
+            top: cy - fieldH / 2,
+            width: fieldW,
+            height: fieldH,
+            ...(isCircle
+              ? {
+                  WebkitMaskImage:
+                    "radial-gradient(circle at center, #000 0%, #000 97%, transparent 100%)",
+                  maskImage:
+                    "radial-gradient(circle at center, #000 0%, #000 97%, transparent 100%)",
+                }
+              : {}),
           }}
         >
           {/* Photo (centrée sur le centre du cercle) */}
@@ -93,7 +124,7 @@ export default function BackgroundImage({ width, height, eye, applyView = true }
                 transformOrigin: "center",
                 transform: imgTransform,
                 opacity: bg.opacity,
-                filter: `brightness(${bg.brightness}%) contrast(${bg.contrast}%) saturate(${bg.saturation}%)`,
+                filter: imgFilter,
               }}
             />
           </div>

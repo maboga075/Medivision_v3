@@ -1,6 +1,6 @@
 
 import { useEffect, useRef, useState } from "react";
-import { useStore } from "@/features/retinasketch/store/useStore";
+import { useStore, countAllDrafts } from "@/features/retinasketch/store/useStore";
 import FloatingControls from "./FloatingControls";
 import InfoPanel from "./InfoPanel";
 import DraftBar from "./DraftBar";
@@ -8,6 +8,7 @@ import CommandPalette from "./CommandPalette";
 
 import type { RetinaPrintInfo } from "@/features/retinasketch/lib/printInfo";
 import EyePane from "./EyePane";
+import DrawToolControls from "./DrawToolControls";
 import BackgroundControls from "./BackgroundControls";
 import AlignOverlay from "./AlignOverlay";
 import AdjustImageOverlay from "./AdjustImageOverlay";
@@ -21,7 +22,7 @@ import SelectionToolbar from "./SelectionToolbar";
 interface WorkspaceProps {
   onClose?: () => void;
   /** Crée et enregistre une lésion personnalisée depuis la palette d'identification. */
-  onCreateLesion?: (name: string) => Promise<{ id: string } | null>;
+  onCreateLesion?: (name: string, color?: string) => Promise<{ id: string } | null>;
   /** Infos patient/clinique pour l'en-tête d'impression et d'export. */
   printInfo?: RetinaPrintInfo;
 }
@@ -40,9 +41,7 @@ export default function Workspace({ onClose, onCreateLesion, printInfo }: Worksp
   const deleteAnnotation = useStore((s) => s.deleteAnnotation);
   const overlapPick = useStore((s) => s.overlapPick);
   const setOverlapPick = useStore((s) => s.setOverlapPick);
-  const draftCount = useStore(
-    (s) => s.annotations.filter((a) => a.status === "draft").length,
-  );
+  const draftCount = useStore(countAllDrafts);
 
   const mainRef = useRef<HTMLElement>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
@@ -102,8 +101,10 @@ export default function Workspace({ onClose, onCreateLesion, printInfo }: Worksp
 
   return (
     <div className="flex h-screen w-screen flex-col overflow-hidden bg-slate-50 text-slate-900">
-      {/* Barre supérieure (les menus déroulants doivent passer au-dessus du canvas) */}
-      <header className="relative z-50 flex h-12 shrink-0 items-center gap-2 border-b border-slate-200 bg-white px-4">
+      {/* Barre supérieure (les menus déroulants doivent passer au-dessus du canvas).
+          `flex-wrap` : sur petit écran la barre s'enroule → « Terminer » reste
+          toujours visible au lieu de déborder hors cadre. */}
+      <header className="relative z-50 flex min-h-12 shrink-0 flex-wrap items-center gap-x-2 gap-y-1.5 border-b border-slate-200 bg-white px-4 py-1.5">
         <div className="flex items-center gap-2">
           <div className="grid h-6 w-6 place-items-center rounded-md bg-slate-900 text-[11px] font-bold text-white">
             R
@@ -126,6 +127,9 @@ export default function Workspace({ onClose, onCreateLesion, printInfo }: Worksp
           <kbd className="rounded bg-slate-100 px-1">Espace</kbd> = diamètre · molette = zoom image ·{" "}
           <kbd className="rounded bg-slate-100 px-1">Maj</kbd>+glisser = déplacer l’image
         </span>
+
+        {/* Outil de tracé (Lésion / Flèche) + opacité des annotations */}
+        <DrawToolControls />
 
         {/* Bascule Dessiner / Sélectionner (sélection des couches superposées) */}
         <div className="flex rounded-lg border border-slate-200 p-0.5">

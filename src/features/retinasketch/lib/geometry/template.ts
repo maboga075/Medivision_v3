@@ -97,3 +97,36 @@ export function isInsideRetina(xMm: number, yMm: number, tol = 0.2): boolean {
 export function fieldCircle(vp: Viewport) {
   return { cx: vp.cx, cy: vp.cy, r: TEMPLATE.retina.halfWidthMm * vp.pxPerMm };
 }
+
+/**
+ * Demi-extents (mm) du champ de travail selon la géométrie du slot (Lot B) :
+ * - `circle` (rétino, OCT-A) : cercle de rayon halfWidthMm.
+ * - `square` (OCT en-face)   : carré de côté 2·halfWidthMm.
+ * - `rect`   (B-scan)        : rectangle large 2:1 (demi-hauteur réduite).
+ */
+export function fieldHalfExtentsMm(geometry: import("../types").ImageGeometry): {
+  halfW: number;
+  halfH: number;
+} {
+  const R = TEMPLATE.retina.halfWidthMm;
+  if (geometry === "rect") return { halfW: R, halfH: R * 0.5 };
+  return { halfW: R, halfH: R }; // circle & square
+}
+
+/**
+ * Forme du champ en coordonnées écran (px), pour le contour, le clip du canvas
+ * et le clip de l'image de fond. Union discriminée par `kind`.
+ */
+export function fieldShape(geometry: import("../types").ImageGeometry, vp: Viewport) {
+  if (geometry === "circle") {
+    return { kind: "circle" as const, cx: vp.cx, cy: vp.cy, r: TEMPLATE.retina.halfWidthMm * vp.pxPerMm };
+  }
+  const { halfW, halfH } = fieldHalfExtentsMm(geometry);
+  return {
+    kind: "rect" as const,
+    cx: vp.cx,
+    cy: vp.cy,
+    halfW: halfW * vp.pxPerMm,
+    halfH: halfH * vp.pxPerMm,
+  };
+}

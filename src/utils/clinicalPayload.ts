@@ -122,8 +122,9 @@ const normalizeEyeData = (eye: EyeState, laterality: 'OD' | 'OG'): EyeDataNormal
   const isDegraded = quality === 'faible' || quality === 'impossible';
   const reasons = (eye.acquisitionQualityReasons ?? []).filter(Boolean);
 
-  // Acquisition difficile : le praticien peut exclure RNFL/GCL de l'interprétation.
-  const rnflGclExcluded = eye.excludeRnflGcl === true && isDegraded;
+  // Exclusions facultatives, indépendantes de l'indice d'acquisition.
+  const rnflGclExcluded = eye.excludeRnflGcl === true;
+  const discExcluded = eye.excludeDisc === true;
 
   // octaPerformed : n'inclure que si true — false est implicite (absence = non réalisé, à ne pas mentionner)
   const rnflStatut = normalizeStatut(eye.rnfl);
@@ -141,9 +142,10 @@ const normalizeEyeData = (eye: EyeState, laterality: 'OD' | 'OG'): EyeDataNormal
     ...(!rnflGclExcluded && gclStatut !== 'dans_normes' ? { gcl_statut: gclStatut } : {}),
     ...(!rnflGclExcluded && eye.rnfl?.location ? { rnfl_localisation: eye.rnfl.location } : {}),
     ...(!rnflGclExcluded && eye.gcl?.location ? { gcl_localisation: eye.gcl.location } : {}),
-    ...(eye.cupDisc ? { cup_disc_vertical: toNumberIfPossible(eye.cupDisc) } : {}),
+    ...(discExcluded ? { disque_non_interpretable: true } : {}),
+    ...(!discExcluded && eye.cupDisc ? { cup_disc_vertical: toNumberIfPossible(eye.cupDisc) } : {}),
     ...(eye.cornealThickness ? { pachymetrie: toNumberIfPossible(eye.cornealThickness) } : {}),
-    ...(eye.discSurface ? { discSurface: eye.discSurface } : {}),
+    ...(!discExcluded && eye.discSurface ? { discSurface: eye.discSurface } : {}),
     ...(eye.octaPerformed ? { octaPerformed: true } : {}),
     ...(eye.obsFree ? { obsFree: eye.obsFree } : {}),
     observations,

@@ -1,12 +1,16 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { useStore } from "@/features/retinasketch/store/useStore";
-import { searchLesions } from "@/features/retinasketch/lib/ontology/lesions";
+import { useStore, countAllDrafts } from "@/features/retinasketch/store/useStore";
+import { searchLesions, RETINA_LESION_COLORS } from "@/features/retinasketch/lib/ontology/lesions";
 
 interface CommandPaletteProps {
-  /** Crée et enregistre une nouvelle lésion en mémoire ; retourne son id pour l'assigner. */
-  onCreateLesion?: (name: string) => Promise<{ id: string } | null>;
+  /**
+   * Crée et enregistre une nouvelle lésion en mémoire ; retourne son id pour
+   * l'assigner. `color` = couleur choisie par le clinicien (optionnelle : à
+   * défaut, une couleur est attribuée automatiquement).
+   */
+  onCreateLesion?: (name: string, color?: string) => Promise<{ id: string } | null>;
 }
 
 export default function CommandPalette({ onCreateLesion }: CommandPaletteProps) {
@@ -16,9 +20,8 @@ export default function CommandPalette({ onCreateLesion }: CommandPaletteProps) 
   const setAnnotationLesion = useStore((s) => s.setAnnotationLesion);
   const selectedId = useStore((s) => s.selectedAnnotationId);
   const selectAnnotation = useStore((s) => s.selectAnnotation);
-  const draftCount = useStore(
-    (s) => s.annotations.filter((a) => a.status === "draft").length,
-  );
+  // Brouillons de toutes les images (identification multi-images en une fois).
+  const draftCount = useStore(countAllDrafts);
 
   // Une lésion sélectionnée → on (ré)identifie CETTE lésion (édition de couche) ;
   // sinon on valide tous les brouillons (flux d'identification habituel).
@@ -27,6 +30,7 @@ export default function CommandPalette({ onCreateLesion }: CommandPaletteProps) 
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
   const [creating, setCreating] = useState(false);
+  const [createColor, setCreateColor] = useState<string>(RETINA_LESION_COLORS[0]);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const results = useMemo(() => searchLesions(query), [query]);
@@ -43,7 +47,7 @@ export default function CommandPalette({ onCreateLesion }: CommandPaletteProps) 
     if (!onCreateLesion || !trimmed || creating) return;
     setCreating(true);
     try {
-      const lesion = await onCreateLesion(trimmed);
+      const lesion = await onCreateLesion(trimmed, createColor);
       if (lesion) choose(lesion.id);
     } finally {
       setCreating(false);
@@ -54,6 +58,7 @@ export default function CommandPalette({ onCreateLesion }: CommandPaletteProps) 
     if (open) {
       setQuery("");
       setActive(0);
+      setCreateColor(RETINA_LESION_COLORS[0]);
       setTimeout(() => inputRef.current?.focus(), 10);
     }
   }, [open]);
@@ -157,7 +162,10 @@ export default function CommandPalette({ onCreateLesion }: CommandPaletteProps) 
                   disabled={creating}
                   className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition hover:bg-teal-50 disabled:opacity-50"
                 >
-                  <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-teal-600 text-white">
+                  <span
+                    className="grid h-5 w-5 shrink-0 place-items-center rounded-full text-white ring-1 ring-black/5"
+                    style={{ backgroundColor: createColor }}
+                  >
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
                   </span>
                   <span className="flex-1 text-sm font-medium text-slate-800">
@@ -165,6 +173,40 @@ export default function CommandPalette({ onCreateLesion }: CommandPaletteProps) 
                   </span>
                   <span className="text-xs text-teal-600">Nouvelle</span>
                 </button>
+
+                {/* Choix de la couleur : pastilles prédéfinies + sélecteur libre */}
+                <div className="mt-1 flex items-center gap-1.5 px-3 pb-1.5">
+                  <span className="mr-0.5 text-[11px] text-slate-400">Couleur</span>
+                  {RETINA_LESION_COLORS.map((c) => (
+                    <button
+                      key={c}
+                      type="button"
+                      onClick={() => setCreateColor(c)}
+                      title={c}
+                      className={`h-4 w-4 shrink-0 rounded-full ring-1 transition ${
+                        createColor.toLowerCase() === c.toLowerCase()
+                          ? "ring-2 ring-slate-900 ring-offset-1"
+                          : "ring-black/10 hover:scale-110"
+                      }`}
+                      style={{ backgroundColor: c }}
+                    />
+                  ))}
+                  <label
+                    className="relative ml-0.5 grid h-4 w-4 shrink-0 cursor-pointer place-items-center rounded-full ring-1 ring-black/10"
+                    title="Couleur personnalisée"
+                    style={{
+                      background:
+                        "conic-gradient(#ef4444,#eab308,#22c55e,#06b6d4,#3b82f6,#a855f7,#ef4444)",
+                    }}
+                  >
+                    <input
+                      type="color"
+                      value={createColor}
+                      onChange={(e) => setCreateColor(e.target.value)}
+                      className="absolute inset-0 cursor-pointer opacity-0"
+                    />
+                  </label>
+                </div>
               </div>
             )}
 

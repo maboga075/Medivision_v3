@@ -12,6 +12,8 @@
 import { TEMPLATE, mirrorFor } from '../../../features/retinasketch/lib/geometry/template';
 import { arcadePolylines } from '../../../features/retinasketch/lib/geometry/engine';
 import { getLesion } from '../../../features/retinasketch/lib/ontology/lesions';
+import { displayFilterCss, isNeutralTone } from '../../../features/retinasketch/lib/image/filters';
+import { ImageFilterDef } from '../../../features/retinasketch/components/RetinaImageFilters';
 import type { Annotation } from '../../../features/retinasketch/lib/types';
 import type { RetinaBackgroundSnapshot, RetinaLayers } from '../../../types/clinical';
 
@@ -20,7 +22,12 @@ interface Props {
   annotations?: Annotation[];
   background?: RetinaBackgroundSnapshot | null;
   layers?: RetinaLayers;
+  /** Opacité globale des annotations (0.2..1). Défaut 1 (rétrocompatible). */
+  annotationOpacity?: number;
 }
+
+/** Taille de la tête de flèche (mm) — identique à l'éditeur (ARROW_HEAD_MM). */
+const ARROW_HEAD_MM = 0.7;
 
 // Champ rétinien circulaire (~50°) : viewBox quasi carré pour exploiter pleinement
 // l'espace et agrandir le schéma dans le compte rendu.
@@ -48,7 +55,7 @@ const LEGACY_LAYERS: RetinaLayers = {
   periphery: false,
 };
 
-export default function RetinaSchemaSvg({ side, annotations = [], background = null, layers }: Props) {
+export default function RetinaSchemaSvg({ side, annotations = [], background = null, layers, annotationOpacity = 1 }: Props) {
   // Convention clinicien : OD → papille à droite (mirror -1), OG → papille à gauche (+1).
   const mirror = mirrorFor(side);
   const toX = (mx: number) => CX + mx * PX * mirror;
@@ -76,13 +83,34 @@ export default function RetinaSchemaSvg({ side, annotations = [], background = n
   const bgVisible = background && background.visible && background.src;
   const boxSize = 2 * FIELD_R;
   const clipId = `rsk-clip-${side}`;
-  let bgTransform = '';
-  if (bgVisible) {
-    const tx = background!.offsetXMm * PX;
-    const ty = background!.offsetYMm * PX;
-    bgTransform =
+
+  // Tons & netteté (filtre SVG) — id unique par côté ; null si neutre ou absent.
+  const tone = background
+    ? {
+        sharpness: background.sharpness ?? 0,
+        highlights: background.highlights ?? 0,
+        shadows: background.shadows ?? 0,
+        whites: background.whites ?? 0,
+        blacks: background.blacks ?? 0,
+      }
+    : null;
+  const filterId = `rsk-adj-${side}`;
+  const svgFilterId = tone && !isNeutralTone(tone) ? filterId : null;
+
+  // Transform d'alignement (zoom/pan/rotation de la photo) : dans l'éditeur, les
+  // annotations sont rendues SOUS ce même transform (elles suivent l'image). On le
+  // reproduit ici pour l'image ET pour les annotations, sinon un zoom/déplacement
+  // de la photo décale les lésions à l'impression. Calculé dès qu'un instantané
+  // d'image existe (même masqué : les coordonnées des annotations restent
+  // exprimées dans le repère aligné). Les anciens CR sans image gardent le repère
+  // template pur (transform vide) → rétrocompatibilité.
+  let alignTransform = '';
+  if (background) {
+    const tx = background.offsetXMm * PX;
+    const ty = background.offsetYMm * PX;
+    alignTransform =
       `translate(${tx.toFixed(2)} ${ty.toFixed(2)}) ` +
-      `translate(${CX} ${CY}) rotate(${background!.rotationDeg}) scale(${background!.scale}) translate(${-CX} ${-CY})`;
+      `translate(${CX} ${CY}) rotate(${background.rotationDeg}) scale(${background.scale}) translate(${-CX} ${-CY})`;
   }
 
   return (
@@ -91,6 +119,7 @@ export default function RetinaSchemaSvg({ side, annotations = [], background = n
         <clipPath id={clipId}>
           <circle cx={CX} cy={CY} r={FIELD_R} />
         </clipPath>
+        {tone && <ImageFilterDef id={filterId} tone={tone} />}
       </defs>
 
       {/* Rétinographie réelle importée (fond, sous le schéma et les annotations) */}
@@ -103,10 +132,10 @@ export default function RetinaSchemaSvg({ side, annotations = [], background = n
             width={boxSize}
             height={boxSize}
             preserveAspectRatio="xMidYMid slice"
-            transform={bgTransform}
+            transform={alignTransform}
             opacity={background!.opacity}
             style={{
-              filter: `brightness(${background!.brightness}%) contrast(${background!.contrast}%) saturate(${background!.saturation}%)`,
+              filter: displayFilterCss(background!.brightness, background!.contrast, background!.saturation, svgFilterId),
             }}
           />
         </g>
@@ -161,8 +190,12 @@ export default function RetinaSchemaSvg({ side, annotations = [], background = n
       )}
 
       {/* Annotations validées (toujours au-dessus) — clippées au cercle rétinien
-          pour qu'aucune lésion ne déborde de l'espace dédié (fix bug OD/OG). */}
+          pour qu'aucune lésion ne déborde de l'espace dédié (fix bug OD/OG). Le
+          clip reste HORS du transform d'alignement (coords écran fixes), et les
+          annotations SUIVENT l'image (zoom/pan/rotation) via `alignTransform` →
+          plus de décalage lésions/photo à l'impression après un zoom. */}
       <g clipPath={`url(#${clipId})`}>
+       <g transform={alignTransform || undefined} opacity={annotationOpacity}>
         {validated.map((a) => {
           const color = getLesion(a.lesionId)?.color ?? DRAFT;
           if (a.kind === 'point') {
@@ -171,6 +204,9 @@ export default function RetinaSchemaSvg({ side, annotations = [], background = n
             // reste visible sous le spot ; seul le contour est plein.
             return <circle key={a.id} cx={toX(a.points[0])} cy={toY(a.points[1])} r={r} fill={hexToRgba(color, 0.28)} stroke={color} strokeWidth={1.4} />;
           }
+          if (a.kind === 'arrow') {
+            return renderArrow(a, color, toX, toY, PX);
+          }
           let d = '';
           for (let i = 0; i < a.points.length; i += 2) {
             d += `${i === 0 ? 'M' : 'L'}${toX(a.points[i]).toFixed(1)} ${toY(a.points[i + 1]).toFixed(1)} `;
@@ -178,6 +214,7 @@ export default function RetinaSchemaSvg({ side, annotations = [], background = n
           d += 'Z';
           return <path key={a.id} d={d} fill={hexToRgba(color, 0.28)} stroke={color} strokeWidth={1.6} />;
         })}
+       </g>
       </g>
 
       {/* Étiquettes anatomiques — uniquement en mode hérité (retirées en mode fidèle
@@ -192,6 +229,40 @@ export default function RetinaSchemaSvg({ side, annotations = [], background = n
         </>
       )}
     </svg>
+  );
+}
+
+/**
+ * Rendu SVG d'une flèche de désignation (trait + tête pleine), couleur de la
+ * lésion. `toX/toY` projettent les mm en px ; la tête est dimensionnée en px
+ * template (`PX`) puis suit l'échelle via le groupe `alignTransform` parent.
+ */
+function renderArrow(
+  a: Annotation,
+  color: string,
+  toX: (mx: number) => number,
+  toY: (my: number) => number,
+  PX: number,
+) {
+  const x0 = toX(a.points[0]);
+  const y0 = toY(a.points[1]);
+  const x1 = toX(a.points[2]);
+  const y1 = toY(a.points[3]);
+  const ang = Math.atan2(y1 - y0, x1 - x0);
+  const head = ARROW_HEAD_MM * PX;
+  const halfW = head * 0.5;
+  // Base de la tête (recul depuis la pointe le long de l'axe), + deux ailerons.
+  const bx = x1 - head * Math.cos(ang);
+  const by = y1 - head * Math.sin(ang);
+  const leftX = bx - halfW * Math.sin(ang);
+  const leftY = by + halfW * Math.cos(ang);
+  const rightX = bx + halfW * Math.sin(ang);
+  const rightY = by - halfW * Math.cos(ang);
+  return (
+    <g key={a.id}>
+      <line x1={x0} y1={y0} x2={bx} y2={by} stroke={color} strokeWidth={2} strokeLinecap="round" />
+      <polygon points={`${x1},${y1} ${leftX},${leftY} ${rightX},${rightY}`} fill={color} />
+    </g>
   );
 }
 

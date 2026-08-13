@@ -398,6 +398,54 @@ export default function BackgroundControls() {
               onChange={(v) => updateBackground({ saturation: v })}
             />
 
+            {/* Tons & netteté (retouche rapide type app Photos) */}
+            <SectionLabel>Tons &amp; netteté</SectionLabel>
+            <Slider
+              label="Netteté"
+              value={bg.sharpness}
+              min={0}
+              max={100}
+              step={1}
+              display={`${bg.sharpness}`}
+              onChange={(v) => updateBackground({ sharpness: v })}
+            />
+            <Slider
+              label="Hautes lumières"
+              value={bg.highlights}
+              min={-100}
+              max={100}
+              step={1}
+              display={signed(bg.highlights)}
+              onChange={(v) => updateBackground({ highlights: v })}
+            />
+            <Slider
+              label="Ombres"
+              value={bg.shadows}
+              min={-100}
+              max={100}
+              step={1}
+              display={signed(bg.shadows)}
+              onChange={(v) => updateBackground({ shadows: v })}
+            />
+            <Slider
+              label="Point blanc"
+              value={bg.whites}
+              min={-100}
+              max={100}
+              step={1}
+              display={signed(bg.whites)}
+              onChange={(v) => updateBackground({ whites: v })}
+            />
+            <Slider
+              label="Point noir"
+              value={bg.blacks}
+              min={-100}
+              max={100}
+              step={1}
+              display={signed(bg.blacks)}
+              onChange={(v) => updateBackground({ blacks: v })}
+            />
+
             {/* Alignement */}
             <SectionLabel>Alignement</SectionLabel>
             <div className="mb-1.5 flex gap-2">
@@ -599,6 +647,11 @@ export default function BackgroundControls() {
       </AnimatePresence>
     </div>
   );
+}
+
+/** Affichage signé d'un réglage tonal (-100..100), « 0 » restant neutre. */
+function signed(v: number): string {
+  return v > 0 ? `+${v}` : `${v}`;
 }
 
 function SectionLabel({ children }: { children: React.ReactNode }) {

@@ -267,10 +267,23 @@ function buildEyeData(
     return undefined;
   })();
 
-  // Acquisition difficile : le praticien a pu exclure RNFL/GCL de l'interprétation.
-  const excludeRnflGcl =
-    eye.excludeRnflGcl === true &&
-    (acquisitionQuality === 'faible' || acquisitionQuality === 'impossible');
+  // Exclusions facultatives, indépendantes de l'indice d'acquisition :
+  // le praticien peut retirer RNFL/GCL et/ou les paramètres du disque.
+  const excludeRnflGcl = eye.excludeRnflGcl === true;
+  const excludeDisc = eye.excludeDisc === true;
+
+  // Lot B — imagerie complémentaire (B-scan / OCT-A / en-face) pour la page
+  // imagerie du CR (rendu Lot C). Le slot rétino est rendu via le schéma dédié.
+  const imagerySlots = (eye.retinaSlots ?? [])
+    .filter((sl) => sl.kind !== 'retino' && sl.background?.src)
+    .map((sl) => ({
+      id: sl.id,
+      kind: sl.kind,
+      geometry: sl.geometry,
+      label: sl.label,
+      src: sl.background?.src,
+      annotations: sl.annotations,
+    }));
 
   // Données du rendu visuel (V3) — recopiées telles quelles depuis la saisie.
   // Les anneaux RNFL/GCL et leur suivi sont des paramètres OCT : exclus en rétinographie
@@ -281,6 +294,7 @@ function buildEyeData(
     // Image de rétinographie + calques (reproduits fidèlement dans le schéma CR).
     ...(eye.retinaBackground ? { retinaBackground: eye.retinaBackground } : {}),
     ...(eye.retinaLayers ? { retinaLayers: eye.retinaLayers } : {}),
+    ...(eye.retinaAnnotationOpacity != null ? { retinaAnnotationOpacity: eye.retinaAnnotationOpacity } : {}),
     ...(showRings
       ? {
           rnflSectors: eye.rnflSectors,
@@ -307,11 +321,13 @@ function buildEyeData(
       acquisitionQuality: 'impossible',
       acquisitionQualityReasons: eye.acquisitionQualityReasons ?? [],
       rnflGclExcluded: excludeRnflGcl,
-      discSurface: eye.discSurface || undefined,
-      cupDisc: eye.cupDisc || undefined,
-      cupDiscFlag,
+      discExcluded: excludeDisc,
+      discSurface: excludeDisc ? undefined : eye.discSurface || undefined,
+      cupDisc: excludeDisc ? undefined : eye.cupDisc || undefined,
+      cupDiscFlag: excludeDisc ? undefined : cupDiscFlag,
       morphology: [],
       biometrics: [],
+      ...(imagerySlots.length ? { imagerySlots } : {}),
       ...visual,
     };
   }
@@ -325,11 +341,13 @@ function buildEyeData(
     acquisitionQualityReasons:
       acquisitionQuality === 'faible' ? eye.acquisitionQualityReasons ?? [] : undefined,
     rnflGclExcluded: excludeRnflGcl,
-    discSurface: eye.discSurface || undefined,
-    cupDisc: eye.cupDisc || undefined,
-    cupDiscFlag,
+    discExcluded: excludeDisc,
+    discSurface: excludeDisc ? undefined : eye.discSurface || undefined,
+    cupDisc: excludeDisc ? undefined : eye.cupDisc || undefined,
+    cupDiscFlag: excludeDisc ? undefined : cupDiscFlag,
     morphology: buildMorphologyRows(eye, anteriorSegmentDone, octaDone),
     biometrics: buildBiometricRows(eye, showNeuro, excludeRnflGcl),
+    ...(imagerySlots.length ? { imagerySlots } : {}),
     ...visual,
   };
 }

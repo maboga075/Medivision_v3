@@ -1,16 +1,15 @@
 
 import { AnimatePresence, motion } from "framer-motion";
-import { useStore } from "@/features/retinasketch/store/useStore";
+import { useStore, countAllDrafts } from "@/features/retinasketch/store/useStore";
 
 export default function DraftBar() {
-  const draftCount = useStore(
-    (s) => s.annotations.filter((a) => a.status === "draft").length,
-  );
+  // Brouillons de TOUTES les images (galerie complète, deux yeux).
+  const draftCount = useStore(countAllDrafts);
   const setPaletteOpen = useStore((s) => s.setPaletteOpen);
   const selectAnnotation = useStore((s) => s.selectAnnotation);
 
   return (
-    <div className="pointer-events-none absolute bottom-6 left-1/2 z-20 -translate-x-1/2">
+    <div className="pointer-events-none absolute bottom-28 left-1/2 z-40 -translate-x-1/2">
       <AnimatePresence>
         {draftCount > 0 && (
           <motion.button

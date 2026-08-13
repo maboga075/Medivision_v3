@@ -18,10 +18,8 @@ import { callNativeAI } from '../services/aiManager';
 import EyeExamSection from '../components/forms/EyeExamSection';
 import RetinaEditor from '../features/retinasketch/components/RetinaEditor';
 import type { RetinaPrintInfo } from '../features/retinasketch/lib/printInfo';
+import { RETINA_LESION_COLORS } from '../features/retinasketch/lib/ontology/lesions';
 import type { CustomLesion } from '../types/settings';
-
-// Palette d'attribution automatique des couleurs pour les lésions créées à la volée.
-const RETINA_LESION_COLORS = ['#14B8A6', '#8B5CF6', '#EC4899', '#F5A524', '#3B82F6', '#E5484D', '#0EA5E9', '#A11D2B'];
 import { useConsultationDrafts } from '../hooks/useConsultationDrafts';
 import { normalizeClinicalData } from '../utils/clinicalPayload';
 import { buildClinicalSummary } from '../utils/clinicalSummary';
@@ -628,21 +626,42 @@ export default function Consultation() {
           }
           backgroundOD={form.eyeOD.retinaBackground}
           backgroundOG={form.eyeOG.retinaBackground}
+          retinaSlotsOD={form.eyeOD.retinaSlots}
+          retinaSlotsOG={form.eyeOG.retinaSlots}
           layers={form.eyeOD.retinaLayers ?? form.eyeOG.retinaLayers}
+          annotationOpacity={form.eyeOD.retinaAnnotationOpacity ?? form.eyeOG.retinaAnnotationOpacity}
           onCommit={(commit) => {
-            // Persiste l'image + les calques (partagés) sur chaque œil pour le CR.
-            form.setEyeOD((prev) => ({ ...prev, retinaBackground: commit.od, retinaLayers: commit.layers }));
-            form.setEyeOG((prev) => ({ ...prev, retinaBackground: commit.og, retinaLayers: commit.layers }));
+            // Persiste toute la galerie + l'image/annotations du slot rétino (pont
+            // avec le CR actuel) + calques + opacité sur chaque œil.
+            const odRetinoAnns = commit.odSlots.find((s) => s.kind === 'retino')?.annotations;
+            const ogRetinoAnns = commit.ogSlots.find((s) => s.kind === 'retino')?.annotations;
+            form.setEyeOD((prev) => ({
+              ...prev,
+              retinaBackground: commit.od,
+              retinaSlots: commit.odSlots,
+              ...(odRetinoAnns ? { retinaAnnotations: odRetinoAnns } : {}),
+              retinaLayers: commit.layers,
+              retinaAnnotationOpacity: commit.annotationOpacity,
+            }));
+            form.setEyeOG((prev) => ({
+              ...prev,
+              retinaBackground: commit.og,
+              retinaSlots: commit.ogSlots,
+              ...(ogRetinoAnns ? { retinaAnnotations: ogRetinoAnns } : {}),
+              retinaLayers: commit.layers,
+              retinaAnnotationOpacity: commit.annotationOpacity,
+            }));
           }}
           onClose={() => setRetinaOpen(false)}
-          onCreateLesion={async (name) => {
+          onCreateLesion={async (name, color) => {
             const existing = settings?.customLesions ?? [];
             const dup = existing.find((l) => l.name.toLowerCase() === name.toLowerCase());
             if (dup) return { id: dup.id };
             const lesion: CustomLesion = {
               id: `custom_${Date.now().toString(36)}`,
               name,
-              color: RETINA_LESION_COLORS[existing.length % RETINA_LESION_COLORS.length],
+              // Couleur choisie par le clinicien, sinon rotation par défaut.
+              color: color ?? RETINA_LESION_COLORS[existing.length % RETINA_LESION_COLORS.length],
               category: 'Personnalisée',
               terms: [name.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[-'\s]+/g, '_')],
             };

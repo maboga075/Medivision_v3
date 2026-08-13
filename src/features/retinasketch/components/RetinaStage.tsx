@@ -1,9 +1,10 @@
 
 import { useRef, useState, useMemo, useCallback, useEffect } from "react";
-import { Stage, Layer, Group, Circle, Ellipse, Line, Text } from "react-konva";
+import { Stage, Layer, Group, Circle, Ellipse, Line, Arrow, Text, Rect } from "react-konva";
 import type Konva from "konva";
 import { useStore, IMG_MIN_SCALE, IMG_MAX_SCALE } from "@/features/retinasketch/store/useStore";
-import { TEMPLATE, createViewport, toScreen, mirrorFor, isInsideRetina } from "@/features/retinasketch/lib/geometry/template";
+import type { Annotation } from "@/features/retinasketch/lib/types";
+import { TEMPLATE, createViewport, toScreen, mirrorFor, isInsideRetina, fieldShape, fieldHalfExtentsMm } from "@/features/retinasketch/lib/geometry/template";
 import { imagePxToHomeMm, imagePxLenToMm } from "@/features/retinasketch/lib/geometry/project";
 import { arcadePolylines } from "@/features/retinasketch/lib/geometry/engine";
 import { getLesion } from "@/features/retinasketch/lib/ontology/lesions";
@@ -27,6 +28,9 @@ const C = {
 };
 
 const DRAG_THRESHOLD_MM = 0.8; // au-delà → surface libre, sinon → spot
+
+/** Taille de la tête de flèche (mm, espace rétinien). */
+const ARROW_HEAD_MM = 0.7;
 
 /** Sensibilité du zoom à la molette (plus petit = plus doux). */
 const ZOOM_SENSITIVITY = 0.0012;
@@ -58,8 +62,11 @@ export default function RetinaStage({ width, height, eye, readOnly, stageRef }: 
   const allAnnotations = useStore((s) => s.annotations);
   const hiddenLesionIds = useStore((s) => s.hiddenLesionIds);
   const spotRadiusMm = useStore((s) => s.spotRadiusMm);
+  const drawTool = useStore((s) => s.drawTool);
+  const annotationOpacity = useStore((s) => s.annotationOpacity);
   const addSpot = useStore((s) => s.addSpot);
   const addFreeform = useStore((s) => s.addFreeform);
+  const addArrow = useStore((s) => s.addArrow);
   const deleteAnnotation = useStore((s) => s.deleteAnnotation);
   const adjustSpotRadius = useStore((s) => s.adjustSpotRadius);
   const updateBackground = useStore((s) => s.updateBackground);
@@ -69,6 +76,14 @@ export default function RetinaStage({ width, height, eye, readOnly, stageRef }: 
   const setOverlapPick = useStore((s) => s.setOverlapPick);
 
   const laterality = eye ?? storeLaterality;
+  // Type/géométrie du slot actif de cet œil (Lot B) : détermine la forme du
+  // champ (cercle/carré/rectangle) et si les repères rétiniens s'appliquent.
+  const activeMeta = useStore((s) => {
+    const id = s.activeSlot[laterality];
+    return s.slots[laterality].find((sl) => sl.id === id) ?? null;
+  });
+  const geometry = activeMeta?.geometry ?? "circle";
+  const isRetino = (activeMeta?.kind ?? "retino") === "retino";
   // Image de fond de cet œil : son transform (zoom/pan/rotation) est appliqué
   // AUSSI aux annotations → les lésions suivent l'image quand on la manipule.
   const bg = useStore((s) => s.backgrounds[laterality]);
@@ -97,8 +112,9 @@ export default function RetinaStage({ width, height, eye, readOnly, stageRef }: 
   };
 
   // Anatomie détectée → mm « domicile » (rendue sous `imageFrame` → suit l'image).
+  // Réservée aux slots rétino (papille/macula n'ont pas de sens sur B-scan/en-face).
   const anatomyShapes =
-    anatomyVisible && anatomy && bg.src
+    isRetino && anatomyVisible && anatomy && bg.src
       ? {
           // Papille (indépendante) : présente uniquement si détectée.
           disc: anatomy.disc
@@ -195,9 +211,7 @@ export default function RetinaStage({ width, height, eye, readOnly, stageRef }: 
         const hits = useStore
           .getState()
           .annotations.filter(
-            (a) =>
-              a.laterality === laterality &&
-              (a.kind === "point" ? spotHit(a, p.x, p.y) : polyHit(a.points, p.x, p.y)),
+            (a) => a.laterality === laterality && annHit(a, p.x, p.y),
           );
         if (hits.length <= 1) {
           selectAnnotation(hits[0]?.id ?? null);
@@ -274,41 +288,56 @@ export default function RetinaStage({ width, height, eye, readOnly, stageRef }: 
     // Le dessin est rattaché à l'œil de CE panneau (pas seulement à l'œil actif).
     // On rejette toute lésion dont le centre est hors du contour rétinien.
     const buf = buffer.current;
-    if (moved.current) {
-      // Glissé → surface libre (un glissé ne sert jamais à effacer).
-      const c = polygonCentroid(buf);
-      if (isInsideRetina(c.x, c.y)) addFreeform(buf, laterality);
-    } else {
-      // Clic simple : re-cliquer sur une lésion NON VALIDÉE (brouillon) l'efface ;
-      // sinon on crée un spot (les lésions validées sont verrouillées → on peut
-      // dessiner par-dessus sans les effacer). En cas de chevauchement, on efface
-      // le brouillon du dessus (le dernier dessiné).
+    // Limite de dessin adaptée à la forme du slot (cercle/carré/rectangle).
+    const insideField = (mx: number, my: number, tol = 0.2) => {
+      if (geometry === "circle") return isInsideRetina(mx, my, tol);
+      const { halfW, halfH } = fieldHalfExtentsMm(geometry);
+      return Math.abs(mx) <= halfW + tol && Math.abs(my) <= halfH + tol;
+    };
+    // Annotation du dessus (de cet œil) sous le clic vérifiant `pred`.
+    const findHit = (pred: (a: Annotation) => boolean): Annotation | undefined => {
       const all = useStore.getState().annotations;
-      let draftHit: (typeof all)[number] | undefined;
       for (let i = all.length - 1; i >= 0; i--) {
         const a = all[i];
-        if (
-          a.laterality === laterality &&
-          a.status === "draft" &&
-          (a.kind === "point"
-            ? spotHit(a, buf[0], buf[1])
-            : polyHit(a.points, buf[0], buf[1]))
-        ) {
-          draftHit = a;
-          break;
-        }
+        if (a.laterality === laterality && pred(a) && annHit(a, buf[0], buf[1])) return a;
       }
-      if (draftHit) {
-        deleteAnnotation(draftHit.id);
-      } else if (isInsideRetina(buf[0], buf[1])) {
-        addSpot(buf[0], buf[1], laterality);
+      return undefined;
+    };
+
+    if (drawTool === "arrow") {
+      if (moved.current && buf.length >= 4) {
+        // Glissé = queue → pointe. La POINTE (ce que la flèche désigne) doit être
+        // dans le champ ; un clic sans glissé ne crée pas de flèche.
+        const x1 = buf[buf.length - 2];
+        const y1 = buf[buf.length - 1];
+        if (insideField(x1, y1)) addArrow([buf[0], buf[1], x1, y1], laterality);
+      } else if (!moved.current) {
+        // Clic simple en mode flèche : efface la flèche sous le clic (brouillon OU validée).
+        const h = findHit((a) => a.kind === "arrow");
+        if (h) deleteAnnotation(h.id);
+      }
+    } else if (moved.current) {
+      // Glissé → surface libre (un glissé ne sert jamais à effacer).
+      const c = polygonCentroid(buf);
+      if (insideField(c.x, c.y)) addFreeform(buf, laterality);
+    } else {
+      // Clic simple : une FLÈCHE sous le clic est toujours effaçable (pure
+      // désignation) ; sinon un brouillon (spot/surface) sous le clic est effacé ;
+      // sinon on crée un spot. Les lésions validées non-flèche restent verrouillées.
+      const arrowHit = findHit((a) => a.kind === "arrow");
+      if (arrowHit) {
+        deleteAnnotation(arrowHit.id);
+      } else {
+        const draftHit = findHit((a) => a.status === "draft");
+        if (draftHit) deleteAnnotation(draftHit.id);
+        else if (insideField(buf[0], buf[1])) addSpot(buf[0], buf[1], laterality);
       }
     }
     active.current = false;
     moved.current = false;
     buffer.current = [];
     setDraftLine([]);
-  }, [addFreeform, addSpot, deleteAnnotation, laterality]);
+  }, [addFreeform, addSpot, addArrow, drawTool, deleteAnnotation, laterality, geometry]);
 
   // Molette = zoom de l'IMAGE de fond À L'INTÉRIEUR du cercle, centré sur le
   // curseur. Borné à [IMG_MIN_SCALE, IMG_MAX_SCALE] : on ne dézoome jamais
@@ -378,18 +407,37 @@ export default function RetinaStage({ width, height, eye, readOnly, stageRef }: 
         >
           {/* Template + couches : non-interactifs, on dessine au travers */}
           <Group listening={false}>
-            {/* Cercle rétinien = champ ~50° (toujours visible) */}
-            <Circle
-              x={0}
-              y={0}
-              radius={TEMPLATE.retina.halfWidthMm}
-              stroke={C.contour}
-              strokeWidth={1.6}
-              strokeScaleEnabled={false}
-            />
+            {/* Contour du champ : cercle (rétino/OCT-A), carré (en-face) ou
+                rectangle (B-scan) selon la géométrie du slot actif. */}
+            {geometry === "circle" ? (
+              <Circle
+                x={0}
+                y={0}
+                radius={TEMPLATE.retina.halfWidthMm}
+                stroke={C.contour}
+                strokeWidth={1.6}
+                strokeScaleEnabled={false}
+              />
+            ) : (
+              (() => {
+                const { halfW, halfH } = fieldHalfExtentsMm(geometry);
+                return (
+                  <Rect
+                    x={-halfW}
+                    y={-halfH}
+                    width={2 * halfW}
+                    height={2 * halfH}
+                    stroke={C.contour}
+                    strokeWidth={1.6}
+                    strokeScaleEnabled={false}
+                  />
+                );
+              })()
+            )}
 
-            {/* Périphérie */}
-            {layers.periphery && (
+            {/* Repères rétiniens (périphérie/fovéa/quadrants/ETDRS/anatomie) :
+                réservés aux slots rétino. */}
+            {isRetino && layers.periphery && (
               <Circle
                 x={0}
                 y={0}
@@ -402,7 +450,7 @@ export default function RetinaStage({ width, height, eye, readOnly, stageRef }: 
             )}
 
             {/* Distance à la fovéa */}
-            {layers.fovea &&
+            {isRetino && layers.fovea &&
               [1, 3, 6, 12].map((r) => (
                 <Circle
                   key={r}
@@ -417,7 +465,7 @@ export default function RetinaStage({ width, height, eye, readOnly, stageRef }: 
               ))}
 
             {/* Quadrants : croix centrée papille */}
-            {layers.quadrants && (
+            {isRetino && layers.quadrants && (
               <>
                 <Line
                   points={[
@@ -447,7 +495,7 @@ export default function RetinaStage({ width, height, eye, readOnly, stageRef }: 
             )}
 
             {/* Grille ETDRS */}
-            {layers.etdrs && (
+            {isRetino && layers.etdrs && (
               <>
                 {[
                   TEMPLATE.etdrs.inner,
@@ -490,7 +538,7 @@ export default function RetinaStage({ width, height, eye, readOnly, stageRef }: 
                 UNIQUEMENT via la couche « Zones anatomiques » (mode démonstration,
                 désactivé par défaut). On abandonne progressivement ce repère fixe ;
                 la structuration reste calculée sur les constantes du TEMPLATE. */}
-            {layers.anatomy && (
+            {isRetino && layers.anatomy && (
               <>
                 {/* Papille + zone péripapillaire */}
                 <Circle
@@ -527,7 +575,7 @@ export default function RetinaStage({ width, height, eye, readOnly, stageRef }: 
             )}
 
             {/* Arcades vasculaires — masquées par défaut, visibles via la couche « Vaisseaux ». */}
-            {layers.vessels &&
+            {isRetino && layers.vessels &&
               arcades.map((line, i) => (
                 <Line
                   key={i}
@@ -553,7 +601,12 @@ export default function RetinaStage({ width, height, eye, readOnly, stageRef }: 
           // compris quand on zoome l'image (fix bug « lésion hors zone au zoom »).
           clipFunc={(ctx) => {
             ctx.beginPath();
-            ctx.arc(vp.cx, vp.cy, TEMPLATE.retina.halfWidthMm * vp.pxPerMm, 0, Math.PI * 2, false);
+            const f = fieldShape(geometry, vp);
+            if (f.kind === "circle") {
+              ctx.arc(f.cx, f.cy, f.r, 0, Math.PI * 2, false);
+            } else {
+              ctx.rect(f.cx - f.halfW, f.cy - f.halfH, 2 * f.halfW, 2 * f.halfH);
+            }
             ctx.closePath();
           }}
         >
@@ -653,11 +706,45 @@ export default function RetinaStage({ width, height, eye, readOnly, stageRef }: 
                     fill={fill}
                     stroke={stroke}
                     strokeWidth={sw}
+                    opacity={annotationOpacity}
                     strokeScaleEnabled={false}
                   />
                 </Group>
               );
             }
+
+            if (a.kind === "arrow") {
+              // Flèche pleine (pas de remplissage de surface) : la tête et le trait
+              // portent la couleur de la lésion. Contour non mis à l'échelle → trait
+              // d'épaisseur constante quel que soit le zoom de l'image.
+              return (
+                <Group key={a.id}>
+                  {selected && (
+                    <Line
+                      points={a.points}
+                      stroke={C.select}
+                      strokeWidth={6}
+                      opacity={0.5}
+                      lineCap="round"
+                      strokeScaleEnabled={false}
+                    />
+                  )}
+                  <Arrow
+                    points={a.points}
+                    stroke={stroke}
+                    fill={stroke}
+                    strokeWidth={selected ? 3 : 2.2}
+                    pointerLength={ARROW_HEAD_MM}
+                    pointerWidth={ARROW_HEAD_MM}
+                    lineCap="round"
+                    lineJoin="round"
+                    opacity={annotationOpacity}
+                    strokeScaleEnabled={false}
+                  />
+                </Group>
+              );
+            }
+
             return (
               <Group key={a.id}>
                 {selected && (
@@ -678,22 +765,43 @@ export default function RetinaStage({ width, height, eye, readOnly, stageRef }: 
                   stroke={stroke}
                   strokeWidth={sw}
                   tension={0.4}
+                  opacity={annotationOpacity}
                   strokeScaleEnabled={false}
                 />
               </Group>
             );
           })}
 
-          {/* Tracé main levée en cours */}
+          {/* Tracé en cours : flèche droite (queue → curseur) en mode flèche,
+              sinon aperçu main levée de la surface. */}
           {moved.current && draftLine.length >= 4 && (
-            <Line
-              points={draftLine}
-              stroke={C.draft}
-              strokeWidth={1.6}
-              tension={0.4}
-              dash={[4, 3]}
-              strokeScaleEnabled={false}
-            />
+            drawTool === "arrow" ? (
+              <Arrow
+                points={[
+                  draftLine[0],
+                  draftLine[1],
+                  draftLine[draftLine.length - 2],
+                  draftLine[draftLine.length - 1],
+                ]}
+                stroke={C.preview}
+                fill={C.preview}
+                strokeWidth={2.2}
+                pointerLength={ARROW_HEAD_MM}
+                pointerWidth={ARROW_HEAD_MM}
+                dash={[4, 3]}
+                lineCap="round"
+                strokeScaleEnabled={false}
+              />
+            ) : (
+              <Line
+                points={draftLine}
+                stroke={C.draft}
+                strokeWidth={1.6}
+                tension={0.4}
+                dash={[4, 3]}
+                strokeScaleEnabled={false}
+              />
+            )
           )}
 
           {/* Aperçu du diamètre du spot (touche Espace) */}
@@ -792,6 +900,31 @@ function etdrsLabels(vp: Vp) {
     { text: "IE", ...toScreen(ro * diag, ro * diag, vp) },
     { text: "SE", ...toScreen(0, -ro, vp) },
   ];
+}
+
+/** Hit-test générique d'une annotation (mm), selon son type. */
+function annHit(
+  a: { kind: string; points: number[]; radiusMm: number | null },
+  mx: number,
+  my: number,
+) {
+  if (a.kind === "point") return spotHit(a, mx, my);
+  if (a.kind === "arrow") return arrowHit(a.points, mx, my);
+  return polyHit(a.points, mx, my);
+}
+
+/** Hit-test d'une flèche (mm) : distance point↔segment sous une tolérance de visée. */
+function arrowHit(pts: number[], mx: number, my: number) {
+  if (pts.length < 4) return false;
+  const [x0, y0, x1, y1] = pts;
+  const dx = x1 - x0;
+  const dy = y1 - y0;
+  const len2 = dx * dx + dy * dy;
+  const t = len2 > 0 ? Math.max(0, Math.min(1, ((mx - x0) * dx + (my - y0) * dy) / len2)) : 0;
+  const px = x0 + t * dx;
+  const py = y0 + t * dy;
+  const TOL = 0.35; // mm
+  return (mx - px) ** 2 + (my - py) ** 2 <= TOL * TOL;
 }
 
 /** Hit-test d'un spot (mm) : le point est-il dans le disque de la lésion ? */

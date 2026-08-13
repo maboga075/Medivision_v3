@@ -74,9 +74,10 @@ export default function EyeExamSection({
   const [showCustomInput, setShowCustomInput] = useState(false);
 
   const isImpossible = eye.acquisitionQuality === 'impossible';
-  // Acquisition dégradée (faible ou impossible) → propose d'exclure RNFL/GCL.
-  const isDegraded = eye.acquisitionQuality === 'faible' || eye.acquisitionQuality === 'impossible';
-  const excludeRnflGcl = eye.excludeRnflGcl === true && isDegraded;
+  // Exclusions facultatives — le praticien peut retirer RNFL/GCL et/ou les
+  // paramètres du disque, quel que soit l'indice d'acquisition.
+  const excludeRnflGcl = eye.excludeRnflGcl === true;
+  const excludeDisc = eye.excludeDisc === true;
   const annotationCount = (eye.retinaAnnotations ?? []).filter((a) => a.status === 'validated').length;
 
   const update = <K extends keyof EyeState>(k: K, v: EyeState[K]) =>
@@ -354,32 +355,44 @@ export default function EyeExamSection({
             </div>
 
             <div className={`p-4 space-y-4 ${isImpossible ? 'opacity-50 pointer-events-none select-none' : ''}`}>
-                {/* Acquisition difficile : bouton pour exclure RNFL/GCL de l'interprétation.
-                    Visible uniquement quand la qualité est Faible ou Impossible. */}
-                {isOCT && isDegraded && (
+                {/* Exclusions facultatives — disponibles quel que soit l'indice
+                    d'acquisition. Deux cases indépendantes : RNFL/GCL et disque. */}
+                <div className="flex flex-col sm:flex-row gap-2">
+                  {isOCT && (
+                    <button
+                      type="button"
+                      onClick={() => update('excludeRnflGcl', !eye.excludeRnflGcl)}
+                      className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold border transition-all active:scale-[0.99] ${
+                        excludeRnflGcl
+                          ? 'bg-amber-500 border-amber-500 text-white shadow-sm'
+                          : 'bg-white border-amber-300 text-amber-700 hover:bg-amber-50'
+                      }`}
+                    >
+                      {excludeRnflGcl ? '✓ RNFL/GCL exclus' : 'Ne pas interpréter RNFL/GCL'}
+                    </button>
+                  )}
                   <button
                     type="button"
-                    onClick={() => update('excludeRnflGcl', !eye.excludeRnflGcl)}
-                    className={`w-full flex items-center justify-between gap-3 px-4 py-2.5 rounded-xl text-sm font-bold border transition-all active:scale-[0.99] ${
-                      excludeRnflGcl
+                    onClick={() => update('excludeDisc', !eye.excludeDisc)}
+                    className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold border transition-all active:scale-[0.99] ${
+                      excludeDisc
                         ? 'bg-amber-500 border-amber-500 text-white shadow-sm'
                         : 'bg-white border-amber-300 text-amber-700 hover:bg-amber-50'
                     }`}
                   >
-                    <span>
-                      {excludeRnflGcl ? '✓ RNFL/GCL exclus de l’interprétation' : 'Ne pas interpréter RNFL/GCL'}
-                    </span>
-                    <span className="text-xs font-medium opacity-90">
-                      acquisition {eye.acquisitionQuality}
-                    </span>
+                    {excludeDisc ? '✓ Disque exclu' : 'Ne pas interpréter le disque'}
                   </button>
-                )}
+                </div>
 
-                {/* Message affiché quand RNFL/GCL sont exclus */}
+                {/* Message affiché quand des paramètres sont exclus */}
                 {isOCT && excludeRnflGcl && (
                   <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-xs font-semibold text-amber-700">
-                    RNFL et GCL non interprétables en raison d'un indice d'acquisition faible.
-                    Ces paramètres n'apparaîtront pas dans le compte rendu.
+                    RNFL et GCL exclus de l'interprétation : ces paramètres n'apparaîtront pas dans le compte rendu.
+                  </div>
+                )}
+                {excludeDisc && (
+                  <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-xs font-semibold text-amber-700">
+                    Paramètres du disque (C/D, surface) exclus : ils n'apparaîtront pas dans le compte rendu.
                   </div>
                 )}
 
@@ -407,7 +420,8 @@ export default function EyeExamSection({
                   </div>
                 )}
 
-                {/* C/D + Surface discale — toujours visible */}
+                {/* C/D + Surface discale — masqués si le disque est exclu */}
+                {!excludeDisc && (
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-bold text-slate-500 uppercase mb-2">
@@ -445,6 +459,7 @@ export default function EyeExamSection({
                     />
                   </div>
                 </div>
+                )}
 
                 {/* Suivi RNFL/GCL — OCT uniquement, masqué si RNFL/GCL exclus */}
                 {isOCT && !excludeRnflGcl && (

@@ -201,16 +201,20 @@ export default function PatientEditModal({ isOpen, onClose, patient, onUpdate }:
                 <button
                   type="button"
                   onClick={() => setFormData({ ...formData, sexe: 'M' })}
-                  className={`flex-1 px-4 py-4 rounded-2xl text-lg font-bold border-2 transition-all active:scale-95 ${formData.sexe === 'M' ? 'bg-indigo-500 border-indigo-500 text-white shadow-md' : 'bg-white border-slate-200 text-slate-600 hover:border-indigo-300'}`}
+                  aria-label="Homme"
+                  title="Homme"
+                  className={`flex-1 min-w-0 px-4 py-4 rounded-2xl text-lg font-bold border-2 transition-all active:scale-95 ${formData.sexe === 'M' ? 'bg-indigo-500 border-indigo-500 text-white shadow-md' : 'bg-white border-slate-200 text-slate-600 hover:border-indigo-300'}`}
                 >
-                  Homme
+                  H
                 </button>
                 <button
                   type="button"
                   onClick={() => setFormData({ ...formData, sexe: 'F' })}
-                  className={`flex-1 px-4 py-4 rounded-2xl text-lg font-bold border-2 transition-all active:scale-95 ${formData.sexe === 'F' ? 'bg-indigo-500 border-indigo-500 text-white shadow-md' : 'bg-white border-slate-200 text-slate-600 hover:border-indigo-300'}`}
+                  aria-label="Femme"
+                  title="Femme"
+                  className={`flex-1 min-w-0 px-4 py-4 rounded-2xl text-lg font-bold border-2 transition-all active:scale-95 ${formData.sexe === 'F' ? 'bg-indigo-500 border-indigo-500 text-white shadow-md' : 'bg-white border-slate-200 text-slate-600 hover:border-indigo-300'}`}
                 >
-                  Femme
+                  F
                 </button>
               </div>
             </div>

@@ -60,7 +60,7 @@ export default function SelectionPicker({ eye }: Props) {
                     {lesion ? lesion.name : "Brouillon"}
                   </span>
                   <span className="shrink-0 text-[10px] text-slate-400">
-                    {a.kind === "point" ? "spot" : "surface"} · {a.attrs.anatomicalZone}
+                    {a.kind === "point" ? "spot" : a.kind === "arrow" ? "flèche" : "surface"} · {a.attrs.anatomicalZone}
                   </span>
                 </button>
               </li>

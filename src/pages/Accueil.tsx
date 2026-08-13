@@ -220,24 +220,28 @@ export default function Accueil() {
                 <button
                   type="button"
                   onClick={() => setFormData({ ...formData, sexe: 'M' })}
-                  className={`flex-1 px-3 py-2.5 rounded-xl text-base font-bold border-2 transition-all active:scale-95 ${
+                  aria-label="Homme"
+                  title="Homme"
+                  className={`flex-1 min-w-0 px-3 py-2.5 rounded-xl text-base font-bold border-2 transition-all active:scale-95 ${
                     formData.sexe === 'M'
                       ? 'bg-teal-500 border-teal-500 text-white shadow-md'
                       : 'bg-white border-slate-200 text-slate-600 hover:border-teal-300'
                   }`}
                 >
-                  Homme
+                  H
                 </button>
                 <button
                   type="button"
                   onClick={() => setFormData({ ...formData, sexe: 'F' })}
-                  className={`flex-1 px-3 py-2.5 rounded-xl text-base font-bold border-2 transition-all active:scale-95 ${
+                  aria-label="Femme"
+                  title="Femme"
+                  className={`flex-1 min-w-0 px-3 py-2.5 rounded-xl text-base font-bold border-2 transition-all active:scale-95 ${
                     formData.sexe === 'F'
                       ? 'bg-teal-500 border-teal-500 text-white shadow-md'
                       : 'bg-white border-slate-200 text-slate-600 hover:border-teal-300'
                   }`}
                 >
-                  Femme
+                  F
                 </button>
               </div>
             </div>

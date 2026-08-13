@@ -5,6 +5,7 @@ import type { BackgroundState } from "@/features/retinasketch/store/useStore";
 import type { RetinaPrintInfo } from "@/features/retinasketch/lib/printInfo";
 import { generateReport } from "@/features/retinasketch/lib/report/generate";
 import { TEMPLATE, createViewport, mirrorFor, type Viewport } from "@/features/retinasketch/lib/geometry/template";
+import { applyToneSharpen, colorCss } from "@/features/retinasketch/lib/image/filters";
 
 function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -15,10 +16,13 @@ function loadImage(src: string): Promise<HTMLImageElement> {
   });
 }
 
-/** Dessine une image avec le même transform que BackgroundImage (cover + offset/scale/rotation). */
+/** Dessine une source (image ou canvas) avec le même transform que BackgroundImage
+ * (cover + offset/scale/rotation). `natW/natH` = dimensions naturelles de la source. */
 function drawTransformed(
   ctx: CanvasRenderingContext2D,
-  img: HTMLImageElement,
+  source: CanvasImageSource,
+  natW: number,
+  natH: number,
   bg: BackgroundState,
   vp: Viewport,
   W: number,
@@ -29,18 +33,20 @@ function drawTransformed(
   const boxW = 2 * TEMPLATE.retina.halfWidthMm * pxPerMm;
   const boxH = 2 * TEMPLATE.retina.halfHeightMm * pxPerMm;
   // « cover » : l'image remplit la boîte du cercle (recadrée), comme à l'écran.
-  const k = Math.max(boxW / img.naturalWidth, boxH / img.naturalHeight);
-  const dispW = img.naturalWidth * k;
-  const dispH = img.naturalHeight * k;
+  const k = Math.max(boxW / natW, boxH / natH);
+  const dispW = natW * k;
+  const dispH = natH * k;
   ctx.save();
   ctx.translate(W / 2 + bg.offsetXMm * pxPerMm, H / 2 + bg.offsetYMm * pxPerMm);
   ctx.rotate((bg.rotationDeg * Math.PI) / 180);
   ctx.scale(bg.scale, bg.scale);
   if (withFilter) {
     ctx.globalAlpha = bg.opacity;
-    ctx.filter = `brightness(${bg.brightness}%) contrast(${bg.contrast}%) saturate(${bg.saturation}%)`;
+    // Tons + netteté sont déjà appliqués sur les pixels de `source` (pré-passe) ;
+    // ici on ne pose que la colorimétrie native (même ordre que l'affichage).
+    ctx.filter = colorCss(bg.brightness, bg.contrast, bg.saturation);
   }
-  ctx.drawImage(img, -dispW / 2, -dispH / 2, dispW, dispH);
+  ctx.drawImage(source, -dispW / 2, -dispH / 2, dispW, dispH);
   ctx.restore();
 }
 
@@ -64,15 +70,27 @@ async function renderEyeCanvas(
   const vp = createViewport(W, H, mirrorFor(eye));
   if (showBg && bg.src && bg.visible) {
     const img = await loadImage(bg.src);
+    const natW = img.naturalWidth;
+    const natH = img.naturalHeight;
+    // Pré-passe tons + netteté sur les pixels (canvas taille naturelle) ; l'image
+    // d'origine est conservée si les réglages sont neutres.
+    const processed = applyToneSharpen(img, {
+      sharpness: bg.sharpness,
+      highlights: bg.highlights,
+      shadows: bg.shadows,
+      whites: bg.whites,
+      blacks: bg.blacks,
+    });
+    const source: CanvasImageSource = processed ?? img;
     // Clip circulaire = champ rétinien : masque le cadre noir, rien hors du cercle.
     ctx.save();
     ctx.beginPath();
     ctx.arc(W / 2, H / 2, TEMPLATE.retina.halfWidthMm * vp.pxPerMm, 0, Math.PI * 2);
     ctx.clip();
-    drawTransformed(ctx, img, bg, vp, W, H, true);
+    drawTransformed(ctx, source, natW, natH, bg, vp, W, H, true);
     if (bg.showVessels && bg.vesselsSrc) {
       const v = await loadImage(bg.vesselsSrc);
-      drawTransformed(ctx, v, bg, vp, W, H, false);
+      drawTransformed(ctx, v, v.naturalWidth, v.naturalHeight, bg, vp, W, H, false);
     }
     ctx.restore();
   }

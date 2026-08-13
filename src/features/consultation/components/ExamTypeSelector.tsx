@@ -1,6 +1,7 @@
 import { REPORT_TYPES } from '../../../utils/constants';
 import type { ReportType } from '../../../utils/constants';
 import type { Doctor } from '../../../types/settings';
+import DoctorCombobox from '../../../components/forms/DoctorCombobox';
 
 interface ExamTypeSelectorProps {
   reportType: ReportType;
@@ -52,18 +53,11 @@ export default function ExamTypeSelector({
             <label className="text-sm font-black uppercase text-slate-500 tracking-wider">
               Médecin examinateur
             </label>
-            <select
-              className="p-3 border-2 border-slate-200 rounded-xl text-sm font-bold outline-none bg-slate-50 w-full sm:w-64"
-              value={selectedDoctorId}
-              onChange={(e) => onDoctorChange(e.target.value)}
-            >
-              <option value="">— Sélectionner —</option>
-              {doctors.map((d) => (
-                <option key={d.id} value={d.id}>
-                  Dr. {d.prenom} {d.nom}
-                </option>
-              ))}
-            </select>
+            <DoctorCombobox
+              doctors={doctors}
+              selectedId={selectedDoctorId}
+              onChange={onDoctorChange}
+            />
           </div>
         )}
       </div>

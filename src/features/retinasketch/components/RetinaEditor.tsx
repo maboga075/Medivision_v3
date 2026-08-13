@@ -1,16 +1,22 @@
 import { useEffect, useRef } from "react";
-import { useStore } from "../store/useStore";
+import { useStore, collectEyeSlots } from "../store/useStore";
 import type { Annotation } from "../lib/types";
 import type { RetinaPrintInfo } from "../lib/printInfo";
-import type { RetinaBackgroundSnapshot, RetinaLayers } from "@/types/clinical";
+import type { RetinaBackgroundSnapshot, RetinaLayers, RetinaSlotSnapshot } from "@/types/clinical";
 import { snapshotBackground } from "../lib/export/backgroundSnapshot";
 import Workspace from "./Workspace";
 
 /** Instantané complet remonté à la fermeture (images + calques par œil). */
 export interface RetinaCommit {
+  /** Slot rétino de chaque œil (pont avec le CR actuel). */
   od: RetinaBackgroundSnapshot | null;
   og: RetinaBackgroundSnapshot | null;
+  /** Galerie complète de chaque œil (rétino + OCT-A + en-face + B-scan). */
+  odSlots: RetinaSlotSnapshot[];
+  ogSlots: RetinaSlotSnapshot[];
   layers: RetinaLayers;
+  /** Opacité globale des annotations au moment de la fermeture. */
+  annotationOpacity: number;
 }
 
 interface RetinaEditorProps {
@@ -22,15 +28,20 @@ interface RetinaEditorProps {
   onChangeOG: (annotations: Annotation[]) => void;
   /** Ferme la modale (bouton « Terminer »). */
   onClose: () => void;
-  /** Crée et enregistre une lésion personnalisée en mémoire. */
-  onCreateLesion?: (name: string) => Promise<{ id: string } | null>;
+  /** Crée et enregistre une lésion personnalisée en mémoire (couleur optionnelle). */
+  onCreateLesion?: (name: string, color?: string) => Promise<{ id: string } | null>;
   /** Infos patient/clinique pour l'en-tête d'impression/export. */
   printInfo?: RetinaPrintInfo;
-  /** Instantanés d'image existants (restaurés au montage). */
+  /** Instantanés d'image existants (restaurés au montage). Legacy : slot rétino seul. */
   backgroundOD?: RetinaBackgroundSnapshot | null;
   backgroundOG?: RetinaBackgroundSnapshot | null;
+  /** Galerie multi-images persistée (prioritaire sur backgroundOD/OG si présente). */
+  retinaSlotsOD?: RetinaSlotSnapshot[];
+  retinaSlotsOG?: RetinaSlotSnapshot[];
   /** Calques persistés (restaurés au montage). */
   layers?: RetinaLayers;
+  /** Opacité globale des annotations (restaurée au montage). */
+  annotationOpacity?: number;
   /** Remonte images + calques à la fermeture (persistance CR). */
   onCommit?: (commit: RetinaCommit) => void;
 }
@@ -49,6 +60,12 @@ function seedBackground(snap: RetinaBackgroundSnapshot | null | undefined, eye: 
       brightness: snap.brightness,
       contrast: snap.contrast,
       saturation: snap.saturation,
+      // Tons & netteté (rétrocompat : anciens instantanés sans ces champs → neutre).
+      sharpness: snap.sharpness ?? 0,
+      highlights: snap.highlights ?? 0,
+      shadows: snap.shadows ?? 0,
+      whites: snap.whites ?? 0,
+      blacks: snap.blacks ?? 0,
       scale: snap.scale,
       offsetXMm: snap.offsetXMm,
       offsetYMm: snap.offsetYMm,
@@ -74,7 +91,10 @@ export default function RetinaEditor({
   printInfo,
   backgroundOD,
   backgroundOG,
+  retinaSlotsOD,
+  retinaSlotsOG,
   layers,
+  annotationOpacity,
   onCommit,
 }: RetinaEditorProps) {
   const annotations = useStore((s) => s.annotations);
@@ -84,15 +104,25 @@ export default function RetinaEditor({
   // selon sa source (robuste même si la donnée stockée est incohérente). On
   // restaure aussi les images de fond et l'état des calques du CR précédent.
   useEffect(() => {
-    const seed: Annotation[] = [
-      ...odAnnotations.map((a) => ({ ...a, laterality: "OD" as const })),
-      ...ogAnnotations.map((a) => ({ ...a, laterality: "OS" as const })),
-    ];
-    useStore.getState().setLayout("dual");
-    useStore.getState().loadAnnotations(seed);
-    seedBackground(backgroundOD, "OD");
-    seedBackground(backgroundOG, "OS");
+    const st = useStore.getState();
+    st.setLayout("dual");
+    // Galerie multi-images persistée (Lot B) prioritaire ; sinon chemin legacy
+    // (une seule rétino par œil via backgroundOD/OG + annotations à plat).
+    const hasSlots = !!(retinaSlotsOD?.length || retinaSlotsOG?.length);
+    if (hasSlots) {
+      if (retinaSlotsOD?.length) st.hydrateEyeSlots("OD", retinaSlotsOD);
+      if (retinaSlotsOG?.length) st.hydrateEyeSlots("OS", retinaSlotsOG);
+    } else {
+      const seed: Annotation[] = [
+        ...odAnnotations.map((a) => ({ ...a, laterality: "OD" as const })),
+        ...ogAnnotations.map((a) => ({ ...a, laterality: "OS" as const })),
+      ];
+      st.loadAnnotations(seed);
+      seedBackground(backgroundOD, "OD");
+      seedBackground(backgroundOG, "OS");
+    }
     if (layers) useStore.getState().setLayers(layers);
+    if (annotationOpacity != null) useStore.getState().setAnnotationOpacity(annotationOpacity);
     mounted.current = true;
     return () => {
       mounted.current = false;
@@ -112,30 +142,47 @@ export default function RetinaEditor({
   // Fermeture : capture les images + calques puis remonte le tout avant de fermer.
   const handleClose = async () => {
     const st = useStore.getState();
-    // Lésions dessinées mais non renseignées (brouillons) : on avertit avant de
-    // quitter ; si le clinicien confirme, on les supprime (elles ne sont pas
-    // exploitables sans type). Sinon on annule la fermeture pour les compléter.
+    // Lésions dessinées mais non renseignées (brouillons) : on prévient le
+    // clinicien et on DEMANDE confirmation avant de fermer. « Annuler » revient à
+    // l'éditeur pour terminer l'identification ; « OK » ferme sans rien supprimer
+    // (les brouillons sont conservés — inertes dans les comptes rendus tant qu'ils
+    // ne sont pas identifiés — pour pouvoir être repris plus tard).
     const drafts = st.annotations.filter((a) => a.status === "draft");
     if (drafts.length > 0) {
       const s = drafts.length > 1 ? "s" : "";
       const ok = window.confirm(
-        `${drafts.length} lésion${s} non renseignée${s}. Quitter quand même ?\n` +
-          `La${drafts.length > 1 ? "es" : ""} lésion${s} non renseignée${s} sera${drafts.length > 1 ? "ont" : ""} supprimée${s}.`,
+        `${drafts.length} lésion${s} en cours d'identification (non renseignée${s}).\n` +
+          `Voulez-vous quand même fermer RetinaSketch ?\n\n` +
+          `Elle${s} ser${drafts.length > 1 ? "ont" : "a"} conservée${s} en brouillon.`,
       );
       if (!ok) return;
-      // Remonte immédiatement les annotations conservées (évite toute course
-      // avec le démontage qui réinitialise le store).
-      const kept = st.annotations.filter((a) => a.status !== "draft");
-      onChangeOD(kept.filter((a) => a.laterality === "OD"));
-      onChangeOG(kept.filter((a) => a.laterality === "OS"));
     }
     if (onCommit) {
       try {
-        const [od, og] = await Promise.all([
-          snapshotBackground(st.backgrounds.OD),
-          snapshotBackground(st.backgrounds.OS),
-        ]);
-        onCommit({ od, og, layers: { ...st.layers } });
+        // Sérialise toute la galerie de chaque œil (slot actif + slots rangés).
+        const buildSlots = (eye: "OD" | "OS"): Promise<RetinaSlotSnapshot[]> =>
+          Promise.all(
+            collectEyeSlots(eye).map(async ({ meta, data }) => ({
+              id: meta.id,
+              kind: meta.kind,
+              geometry: meta.geometry,
+              label: meta.label,
+              background: data.background.src ? await snapshotBackground(data.background) : null,
+              annotations: data.annotations,
+            })),
+          );
+        const [odSlots, ogSlots] = await Promise.all([buildSlots("OD"), buildSlots("OS")]);
+        // Pont avec le CR actuel : image du slot rétino de chaque œil.
+        const odRetino = odSlots.find((s) => s.kind === "retino")?.background ?? null;
+        const ogRetino = ogSlots.find((s) => s.kind === "retino")?.background ?? null;
+        onCommit({
+          od: odRetino,
+          og: ogRetino,
+          odSlots,
+          ogSlots,
+          layers: { ...st.layers },
+          annotationOpacity: st.annotationOpacity,
+        });
       } catch {
         /* la capture ne doit jamais empêcher la fermeture */
       }
