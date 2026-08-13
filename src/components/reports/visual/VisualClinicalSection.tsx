@@ -123,7 +123,21 @@ function EyeSchemaColumn({ eye }: { eye: EyeData }) {
   );
 }
 
-export default function VisualClinicalSection({ od, og }: { od: EyeData; og: EyeData }) {
+/**
+ * `mode` (Lot C — rapport multipage) :
+ *   - `full`   : schémas rétine + encadré neuro (comportement historique / mono-page).
+ *   - `neuro`  : uniquement l'encadré RNFL/GCL/disc/CD (page 1 du rapport multipage).
+ *   - `schema` : uniquement les schémas rétine + légendes lésions (annexe images).
+ */
+export default function VisualClinicalSection({
+  od,
+  og,
+  mode = 'full',
+}: {
+  od: EyeData;
+  og: EyeData;
+  mode?: 'full' | 'neuro' | 'schema';
+}) {
   const odHasRings = !!(od.rnflSectors || od.gclSectors);
   const ogHasRings = !!(og.rnflSectors || og.gclSectors);
   const hasAnyRings = odHasRings || ogHasRings;
@@ -147,12 +161,16 @@ export default function VisualClinicalSection({ od, og }: { od: EyeData; og: Eye
 
   return (
     <div className="visual-clinical">
-      {/* Schémas rétiniens */}
+      {/* Schémas rétiniens (masqués en mode « neuro ») */}
+      {mode !== 'neuro' && (
       <div className="vc-pair">
         <EyeSchemaColumn eye={od} />
         <EyeSchemaColumn eye={og} />
       </div>
+      )}
 
+      {/* Encadré neuro (masqué en mode « schema ») */}
+      {mode !== 'schema' && (<>
       {/* Bloc neuro 3 colonnes : [OD rings+bar] [labels] [OG bar+rings] */}
       <div className="vc-neuro-row">
 
@@ -217,6 +235,7 @@ export default function VisualClinicalSection({ od, og }: { od: EyeData; og: Eye
           <span className="vc-sev-def"><b>GCL</b> : complexe cellules ganglionnaires</span>
         </div>
       )}
+      </>)}
     </div>
   );
 }

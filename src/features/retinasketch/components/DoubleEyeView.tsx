@@ -1,10 +1,12 @@
-import { useRef, useState, lazy, Suspense } from "react";
+import { useEffect, useRef, useState, lazy, Suspense } from "react";
 import type Konva from "konva";
 import { useStore } from "@/features/retinasketch/store/useStore";
 import { generateReport } from "@/features/retinasketch/lib/report/generate";
 import { exportDoubleEyePDF } from "@/features/retinasketch/lib/export/pdf";
 import type { RetinaPrintInfo } from "@/features/retinasketch/lib/printInfo";
+import type { Laterality } from "@/features/retinasketch/lib/types";
 import BackgroundImage from "./BackgroundImage";
+import ImagerySlotSvg from "@/components/reports/visual/ImagerySlotSvg";
 
 const RetinaStage = lazy(() => import("./RetinaStage"));
 
@@ -29,10 +31,25 @@ export default function DoubleEyeView({ printInfo }: { printInfo?: RetinaPrintIn
   const annotations = useStore((s) => s.annotations);
   const backgrounds = useStore((s) => s.backgrounds);
 
+  const slotsMap = useStore((s) => s.slots);
+  const selectSlot = useStore((s) => s.selectSlot);
+
   const odStage = useRef<Konva.Stage>(null);
   const osStage = useRef<Konva.Stage>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+
+  // À l'ouverture de l'aperçu impression : la rétinographie est prioritaire →
+  // on rend le slot rétino actif de chaque œil (sinon l'aperçu affiche le slot
+  // actif courant, potentiellement un B-scan/OCT-A « au hasard »).
+  useEffect(() => {
+    if (!doubleView) return;
+    (["OD", "OS"] as const).forEach((eye) => {
+      const retino = slotsMap[eye].find((s) => s.kind === "retino");
+      if (retino) selectSlot(retino.id, eye);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [doubleView]);
 
   if (!doubleView) return null;
 
@@ -91,20 +108,26 @@ export default function DoubleEyeView({ printInfo }: { printInfo?: RetinaPrintIn
         {printInfo && <PrintHeader info={printInfo} />}
 
         <div className="flex flex-1 items-start justify-center gap-6">
-          <EyePanel
-            eye="OD"
-            title="Œil droit (OD)"
-            stageRef={odStage}
-            showBg={backgrounds.OD.src != null}
-            report={generateReport(annotations, "OD")}
-          />
-          <EyePanel
-            eye="OS"
-            title="Œil gauche (OG)"
-            stageRef={osStage}
-            showBg={backgrounds.OS.src != null}
-            report={generateReport(annotations, "OS")}
-          />
+          <div className="flex flex-1 flex-col gap-3">
+            <EyePanel
+              eye="OD"
+              title="Œil droit (OD)"
+              stageRef={odStage}
+              showBg={backgrounds.OD.src != null}
+              report={generateReport(annotations, "OD")}
+            />
+            <EyeImagery eye="OD" />
+          </div>
+          <div className="flex flex-1 flex-col gap-3">
+            <EyePanel
+              eye="OS"
+              title="Œil gauche (OG)"
+              stageRef={osStage}
+              showBg={backgrounds.OS.src != null}
+              report={generateReport(annotations, "OS")}
+            />
+            <EyeImagery eye="OS" />
+          </div>
         </div>
       </div>
     </div>
@@ -171,6 +194,77 @@ function EyePanel({
       <pre className="mt-3 w-full max-w-[540px] whitespace-pre-line text-left text-xs leading-relaxed text-slate-700">
         {report}
       </pre>
+    </div>
+  );
+}
+
+/**
+ * Imagerie complémentaire d'un œil dans l'aperçu impression : bande de
+ * sélection (miniatures cliquables — masquée à l'impression) + rendu des scans
+ * SÉLECTIONNÉS (B-scan/OCT-A/en-face). La sélection (`printSelected`) pilote à
+ * la fois l'impression et le compte rendu.
+ */
+function EyeImagery({ eye }: { eye: Laterality }) {
+  const slots = useStore((s) => s.slots[eye]);
+  const activeId = useStore((s) => s.activeSlot[eye]);
+  const activeBg = useStore((s) => s.backgrounds[eye]);
+  const activeAnns = useStore((s) => s.annotations);
+  const stash = useStore((s) => s.slotStash);
+  const toggleSlotPrint = useStore((s) => s.toggleSlotPrint);
+
+  const side = eye === "OD" ? "OD" : "OG";
+  const items = slots
+    .filter((m) => m.kind !== "retino")
+    .map((m) => {
+      const active = m.id === activeId;
+      const bg = active ? activeBg : stash[m.id]?.background;
+      const anns = active ? activeAnns.filter((a) => a.laterality === eye) : stash[m.id]?.annotations ?? [];
+      return { meta: m, bg, anns };
+    })
+    .filter((x) => x.bg?.src);
+
+  if (items.length === 0) return null;
+  const selected = items.filter((x) => x.meta.printSelected);
+
+  return (
+    <div className="w-full max-w-[560px]">
+      {/* Sélecteur de coupes (non imprimé) */}
+      <div className="no-print mb-2 flex flex-wrap gap-2">
+        {items.map(({ meta, bg }) => (
+          <button
+            key={meta.id}
+            type="button"
+            onClick={() => toggleSlotPrint(meta.id, eye)}
+            title={meta.printSelected ? `Retirer ${meta.label}` : `Ajouter ${meta.label}`}
+            className={`flex items-center gap-1.5 rounded-lg border-2 p-1 pr-2 text-[11px] font-semibold transition ${
+              meta.printSelected
+                ? "border-teal-500 bg-teal-50 text-teal-800"
+                : "border-slate-200 bg-white text-slate-400 opacity-70"
+            }`}
+          >
+            <img
+              src={bg!.src!}
+              alt={meta.label}
+              className={`h-8 w-8 rounded object-cover ${meta.printSelected ? "" : "grayscale"}`}
+            />
+            {meta.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Scans sélectionnés (imprimés) */}
+      {selected.length > 0 && (
+        <div className="grid grid-cols-2 gap-2">
+          {selected.map(({ meta, bg, anns }) => (
+            <figure key={meta.id} className="m-0">
+              <div className="overflow-hidden rounded-lg border border-slate-200">
+                <ImagerySlotSvg side={side} geometry={meta.geometry} background={bg} annotations={anns} />
+              </div>
+              <figcaption className="mt-1 text-[10px] text-slate-500">{meta.label}</figcaption>
+            </figure>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

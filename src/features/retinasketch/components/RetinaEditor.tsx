@@ -167,6 +167,7 @@ export default function RetinaEditor({
               kind: meta.kind,
               geometry: meta.geometry,
               label: meta.label,
+              printSelected: meta.printSelected,
               background: data.background.src ? await snapshotBackground(data.background) : null,
               annotations: data.annotations,
             })),

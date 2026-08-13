@@ -13,7 +13,10 @@
 import * as React from "react";
 import "./OCTReport.css";
 import type { PillVariant, ParamRow, EyeData, OCTReportData } from "../../types/report";
+import type { Annotation } from "../../features/retinasketch/lib/types";
 import VisualClinicalSection from "./visual/VisualClinicalSection";
+import { lesionLegend } from "./visual/RetinaSchemaSvg";
+import ImagerySlotSvg from "./visual/ImagerySlotSvg";
 import RetinographyReport from "./RetinographyReport";
 import { highlightText } from "./highlight";
 
@@ -53,17 +56,9 @@ function resolveConseil(d: OCTReportData): string {
   return '';
 }
 
-/* ───────────────────────── Main component ───────────────────────── */
+/* ───────────────────────── Sections partagées ───────────────────────── */
 
-const OCTReport: React.FC<{ data: OCTReportData }> = ({ data }) => {
-  const d = data;
-  // Rétinographie pure → mise en page paysage dédiée (schémas agrandis).
-  if (d.layout === 'landscape') {
-    return <RetinographyReport data={d} />;
-  }
-  return (
-    <div className="page">
-      {/* ══ HEADER ══ */}
+const Masthead: React.FC<{ d: OCTReportData }> = ({ d }) => (
       <header className="masthead">
         <div className="masthead-top">
           <div className="kicker">Compte rendu · N°&nbsp;<span contentEditable="true" suppressContentEditableWarning={true}>{d.reportNumber}</span></div>
@@ -89,8 +84,9 @@ const OCTReport: React.FC<{ data: OCTReportData }> = ({ data }) => {
           </div>
         </div>
       </header>
+);
 
-      {/* ══ META ══ */}
+const MetaSection: React.FC<{ d: OCTReportData }> = ({ d }) => (
       <section className="meta">
         <div className="meta-cell">
           <div className="meta-label">Patient</div>
@@ -120,13 +116,9 @@ const OCTReport: React.FC<{ data: OCTReportData }> = ({ data }) => {
           <div className="meta-value" contentEditable="true" suppressContentEditableWarning={true}>{d.history}</div>
         </div>
       </section>
+);
 
-      {/* ══ CLINICAL — bloc visuel : schéma rétine + anneaux RNFL/GCL (V3) ══ */}
-      <section className="clinical">
-        <VisualClinicalSection od={d.eyes.od} og={d.eyes.og} />
-      </section>
-
-      {/* ══ 4 BLOCS CLINIQUES ══ */}
+const ClinicalTextBlocks: React.FC<{ d: OCTReportData }> = ({ d }) => (
       <section className="clin-sections">
 
         {/* 1 — Analyse clinique */}
@@ -191,8 +183,9 @@ const OCTReport: React.FC<{ data: OCTReportData }> = ({ data }) => {
         </div>
 
       </section>
+);
 
-      {/* ══ SIGNATURE ══ (date + clinique déjà en en-tête → non répétés ici) */}
+const SignatureFooter: React.FC<{ d: OCTReportData }> = ({ d }) => (
       <footer className="sign-block">
         <div className="sign-right">
           <div className="sign-doctor">
@@ -206,7 +199,124 @@ const OCTReport: React.FC<{ data: OCTReportData }> = ({ data }) => {
           <div className="sign-line" />
         </div>
       </footer>
+);
+
+/* ─── En-tête compact des pages de texte (continuité multipage) ─── */
+const RunningHeader: React.FC<{ d: OCTReportData }> = ({ d }) => (
+  <div className="page-running">
+    <span className="pr-title">{d.examTitle}</span>
+    <span className="pr-meta">{d.patient.surname} · N°&nbsp;{d.reportNumber}</span>
+  </div>
+);
+
+/* ─── Légende des lésions (codes couleurs) sous une image ─── */
+const LesionLegend: React.FC<{ annotations?: Annotation[] }> = ({ annotations }) => {
+  const legend = lesionLegend(annotations ?? []);
+  if (legend.length === 0) return null;
+  return (
+    <div className="imagery-legend">
+      {legend.map((l) => (
+        <span key={l.id} className="imagery-legend-item">
+          <i style={{ background: l.color }} />
+          {l.name}
+        </span>
+      ))}
     </div>
+  );
+};
+
+/* ─── Annexe images (pages ≥ 2) ───
+   Rétinographies (schémas + annotations) puis autres coupes (B-scan, OCT-A,
+   en-face, cornée, angle IC). Sous chaque image : légende des lésions (codes
+   couleurs) en évidence. */
+const ImageryEyeColumn: React.FC<{ eye: EyeData }> = ({ eye }) => {
+  const slots = (eye.imagerySlots ?? []).filter((s) => s.background?.src);
+  if (slots.length === 0) return null;
+  const opacity = eye.retinaAnnotationOpacity;
+  return (
+    <div className="imagery-col">
+      <div className="imagery-eye">{eye.code === 'OD' ? 'Œil droit · OD' : 'Œil gauche · OG'}</div>
+      {slots.map((s) => (
+        <figure key={s.id} className={s.geometry === 'rect' ? 'imagery-bscan' : 'imagery-square'}>
+          <ImagerySlotSvg
+            side={eye.code}
+            geometry={s.geometry}
+            background={s.background}
+            annotations={s.annotations}
+            annotationOpacity={opacity}
+          />
+          <figcaption>{s.label}</figcaption>
+          <LesionLegend annotations={s.annotations} />
+        </figure>
+      ))}
+    </div>
+  );
+};
+
+const ImageAnnex: React.FC<{ d: OCTReportData }> = ({ d }) => {
+  const hasImagery =
+    !!d.eyes.od.imagerySlots?.some((s) => s.background?.src) ||
+    !!d.eyes.og.imagerySlots?.some((s) => s.background?.src);
+  return (
+    <section className="imagery">
+      <div className="section-title">Imagerie</div>
+      {/* Rétinographies (schémas + annotations + légendes lésions) */}
+      <VisualClinicalSection od={d.eyes.od} og={d.eyes.og} mode="schema" />
+      {/* Autres coupes par œil */}
+      {hasImagery && (
+        <div className="imagery-grid">
+          <ImageryEyeColumn eye={d.eyes.od} />
+          <ImageryEyeColumn eye={d.eyes.og} />
+        </div>
+      )}
+    </section>
+  );
+};
+
+/* ───────────────────────── Main component ───────────────────────── */
+
+const OCTReport: React.FC<{ data: OCTReportData }> = ({ data }) => {
+  const d = data;
+  // Rétinographie pure → mise en page paysage dédiée (schémas agrandis).
+  if (d.layout === 'landscape') return <RetinographyReport data={d} />;
+
+  // Contenu visuel présent (rétinographie annotée et/ou imagerie complémentaire)
+  // → une annexe images en pages ≥ 2 ; page 1 réservée au résumé clinique.
+  const hasImagery =
+    !!d.eyes.od.imagerySlots?.some((s) => s.background?.src) ||
+    !!d.eyes.og.imagerySlots?.some((s) => s.background?.src);
+  const hasRetinaVisual =
+    !!d.eyes.od.retinaBackground?.src ||
+    !!d.eyes.og.retinaBackground?.src ||
+    !!d.eyes.od.annotations?.length ||
+    !!d.eyes.og.annotations?.length;
+  const hasAnnex = hasImagery || hasRetinaVisual;
+
+  // Page 1 (résumé clinique) : infos patient + encadré RNFL/GCL/disc/CD + textes.
+  const clinicalPage = (
+    <div className="page">
+      <Masthead d={d} />
+      <MetaSection d={d} />
+      <section className="clinical">
+        <VisualClinicalSection od={d.eyes.od} og={d.eyes.og} mode="neuro" />
+      </section>
+      <ClinicalTextBlocks d={d} />
+      <SignatureFooter d={d} />
+    </div>
+  );
+
+  // Sans aucun visuel : le résumé clinique suffit (une page).
+  if (!hasAnnex) return clinicalPage;
+
+  // Sinon : page 1 clinique + annexe images (pages ≥ 2).
+  return (
+    <>
+      {clinicalPage}
+      <div className="page">
+        <RunningHeader d={d} />
+        <ImageAnnex d={d} />
+      </div>
+    </>
   );
 };
 

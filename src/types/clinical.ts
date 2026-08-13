@@ -69,6 +69,8 @@ export interface RetinaSlotSnapshot {
   label: string;
   background: RetinaBackgroundSnapshot | null;
   annotations: import('../features/retinasketch/lib/types').Annotation[];
+  /** Inclus dans l'impression et le compte rendu (sélection menu impression). */
+  printSelected?: boolean;
 }
 
 export interface EyeState {

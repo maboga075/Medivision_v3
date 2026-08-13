@@ -20,16 +20,26 @@ export async function exportReportToPDF(
   // Supprimer les éléments non destinés à l'impression
   cloned.querySelectorAll('.no-print, button, [data-no-print]').forEach((el) => el.remove());
 
-  // On capture la page A4 elle-même (sans le wrapper).
-  const page = (cloned.querySelector('.page') as HTMLElement) ?? cloned;
+  // Rapport multipage (Lot C) : plusieurs `.page` (imagerie + texte). On capture
+  // alors le conteneur entier et on laisse la pagination A4 découper chaque page ;
+  // en mono-page, on capture la `.page` seule (hauteur adaptée au contenu).
+  const pageEls = cloned.querySelectorAll('.page');
+  const multipage = pageEls.length > 1;
+  const page = multipage ? cloned : ((cloned.querySelector('.page') as HTMLElement) ?? cloned);
 
-  // Neutraliser ce qui casse le rendu html2canvas et provoque coupure / 2e page :
-  //  - `.page` a height:297mm + overflow:hidden → clippe le contenu (rapport « coupé »)
-  //  - le décor `::before` et les ombres sont mal rendus par html2canvas
-  // On laisse la hauteur s'adapter au contenu et on s'appuie sur pagebreak pour
-  // ne jamais couper un bloc au milieu.
+  // Neutraliser ce qui casse le rendu html2canvas :
+  //  - décor `::before` et ombres mal rendus ; marges/overflow parasites.
+  // Mono-page : hauteur auto (le contenu ne doit pas être clippé à 297mm).
+  // Multipage : on conserve min-height 297mm par page → chaque `.page` occupe
+  //   exactement une feuille A4 (découpage propre par html2pdf).
   const override = document.createElement('style');
-  override.textContent = `
+  override.textContent = multipage
+    ? `
+    .page { overflow: visible !important; box-shadow: none !important; margin: 0 !important; }
+    .page::before { display: none !important; }
+    [contenteditable="true"] { outline: none !important; background: transparent !important; }
+  `
+    : `
     .page { height: auto !important; min-height: auto !important; overflow: visible !important;
             box-shadow: none !important; margin: 0 !important; }
     .page::before { display: none !important; }
@@ -58,10 +68,11 @@ export async function exportReportToPDF(
       orientation: (landscape ? 'landscape' : 'portrait') as 'portrait' | 'landscape',
       compress: true,
     },
-    // Empêche de couper un bloc clinique au milieu si le contenu déborde sur une 2e page.
+    // Empêche de couper un bloc au milieu ; en multipage, chaque `.page` (297mm)
+    // occupe une feuille A4 → découpage propre.
     pagebreak: {
       mode: ['css', 'legacy'] as string[],
-      avoid: ['.section', '.clin-block', '.clin-sections', '.sign-block', '.visual-clinical', '.vc-col', '.vc-neuro-row', '.masthead', '.meta'],
+      avoid: ['.section', '.clin-block', '.clin-sections', '.sign-block', '.visual-clinical', '.vc-col', '.vc-neuro-row', '.masthead', '.meta', '.imagery-col', '.imagery-bscan', '.imagery-vignette', '.page-running'],
     },
   };
 

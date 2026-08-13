@@ -722,7 +722,57 @@
   }
   /* Rétinographie paysage : largeur A4 paysage à l'impression */
   .page.rl-landscape { width: 297mm; min-height: 200mm; }
+  /* Rapport multipage : chaque .page démarre sur une nouvelle feuille. */
+  .page { break-after: page; page-break-after: always; }
+  .page:last-child { break-after: auto; page-break-after: auto; }
+  .imagery-bscan, .imagery-vignette, .imagery-col { break-inside: avoid; page-break-inside: avoid; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   IMAGERIE COMPLÉMENTAIRE (Lot C) — page imagerie du rapport OCT multipage
+   ═══════════════════════════════════════════════════════════════════════════ */
+.imagery { margin-top: 12px; }
+.imagery-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 8px; }
+.imagery-col { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.imagery-eye {
+  font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+  color: var(--teal);
+}
+.imagery-bscan { margin: 0; }
+.imagery-bscan svg, .imagery-bscan img {
+  width: 100%; display: block;
+  border: 1px solid var(--line); border-radius: 6px;
+}
+.imagery-bscan figcaption,
+.imagery-vignette figcaption { font-size: 10px; color: var(--mute); margin-top: 3px; }
+.imagery-vignettes { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 2px; }
+.imagery-vignette { margin: 0; width: 96px; }
+.imagery-vignette svg, .imagery-vignette img {
+  width: 96px; height: auto; display: block;
+  border: 1px solid var(--line); border-radius: 6px;
+}
+/* Coupes carrées (OCT-A / en-face) en annexe : pleine largeur de colonne. */
+.imagery-square { margin: 0; }
+.imagery-square svg {
+  width: 100%; display: block; border: 1px solid var(--line); border-radius: 6px;
+}
+/* Légende des lésions (codes couleurs) sous chaque image — en évidence. */
+.imagery-legend { display: flex; flex-wrap: wrap; gap: 5px 12px; margin-top: 5px; }
+.imagery-legend-item {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 11px; font-weight: 700; color: var(--ink-soft);
+}
+.imagery-legend-item i {
+  width: 11px; height: 11px; border-radius: 3px; display: inline-block;
+  box-shadow: 0 0 0 1px rgba(11,27,43,.12);
+}
+/* En-tête compact des pages de texte (continuité multipage). */
+.page-running {
+  display: flex; align-items: baseline; justify-content: space-between;
+  padding-bottom: 8px; margin-bottom: 12px; border-bottom: 1px solid var(--line);
+}
+.page-running .pr-title { font-size: 13px; font-weight: 700; color: var(--ink); letter-spacing: -.01em; }
+.page-running .pr-meta { font-size: 11px; color: var(--mute); }
 
 /* ═══════════════════════════════════════════════════════════════════════════
    RÉTINOGRAPHIE — mise en page A4 PAYSAGE (inspirée de l'impression RetinaSketch)

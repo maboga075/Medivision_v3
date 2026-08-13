@@ -155,6 +155,8 @@ export interface SlotMeta {
   kind: ImageKind;
   geometry: ImageGeometry;
   label: string;
+  /** Inclus dans l'impression et le compte rendu (sélection menu impression). */
+  printSelected: boolean;
 }
 
 /** Données de travail rangées d'un slot inactif. */
@@ -170,7 +172,13 @@ const newSlotId = () => `s${Date.now().toString(36)}${(slotCounter++).toString(3
 
 /** Crée un slot rétino vierge (slot de base de chaque œil). */
 function freshRetinoSlot(): SlotMeta {
-  return { id: newSlotId(), kind: "retino", geometry: GEOMETRY_FOR_KIND.retino, label: LABEL_FOR_KIND.retino };
+  return {
+    id: newSlotId(),
+    kind: "retino",
+    geometry: GEOMETRY_FOR_KIND.retino,
+    label: LABEL_FOR_KIND.retino,
+    printSelected: true,
+  };
 }
 
 /** Données vierges pour un nouveau slot (image vide, aucune annotation). */
@@ -343,8 +351,10 @@ interface State {
   selectSlot: (id: string, eye?: Laterality) => void;
   /** Supprime un slot (≥ 1 slot conservé par œil). */
   removeSlot: (id: string, eye?: Laterality) => void;
-  /** Modifie les métadonnées d'un slot (libellé). */
-  updateSlotMeta: (id: string, patch: Partial<Pick<SlotMeta, "label">>, eye?: Laterality) => void;
+  /** Modifie les métadonnées d'un slot (libellé, inclusion impression/CR). */
+  updateSlotMeta: (id: string, patch: Partial<Pick<SlotMeta, "label" | "printSelected">>, eye?: Laterality) => void;
+  /** Inverse l'inclusion d'un slot dans l'impression et le compte rendu. */
+  toggleSlotPrint: (id: string, eye?: Laterality) => void;
   /** Restaure la galerie d'un œil depuis des instantanés persistés (au montage). */
   hydrateEyeSlots: (eye: Laterality, snaps: RetinaSlotSnapshot[]) => void;
 
@@ -642,7 +652,7 @@ export const useStore = create<State>((set, get) => ({
     const k = eye ?? get().laterality;
     const sameKind = get().slots[k].filter((sl) => sl.kind === kind).length;
     const label = sameKind === 0 ? LABEL_FOR_KIND[kind] : `${LABEL_FOR_KIND[kind]} ${sameKind + 1}`;
-    const meta: SlotMeta = { id: newSlotId(), kind, geometry: GEOMETRY_FOR_KIND[kind], label };
+    const meta: SlotMeta = { id: newSlotId(), kind, geometry: GEOMETRY_FOR_KIND[kind], label, printSelected: true };
     set((s) => ({
       slots: { ...s.slots, [k]: [...s.slots[k], meta] },
       slotStash: { ...s.slotStash, [meta.id]: freshSlotData() },
@@ -718,6 +728,19 @@ export const useStore = create<State>((set, get) => ({
       };
     }),
 
+  toggleSlotPrint: (id, eye) =>
+    set((s) => {
+      const k = eye ?? s.laterality;
+      return {
+        slots: {
+          ...s.slots,
+          [k]: s.slots[k].map((sl) =>
+            sl.id === id ? { ...sl, printSelected: !sl.printSelected } : sl,
+          ),
+        },
+      };
+    }),
+
   hydrateEyeSlots: (eye, snaps) =>
     set((s) => {
       if (snaps.length === 0) return {};
@@ -726,6 +749,7 @@ export const useStore = create<State>((set, get) => ({
         kind: sn.kind,
         geometry: sn.geometry,
         label: sn.label,
+        printSelected: sn.printSelected ?? true,
       }));
       const toData = (sn: RetinaSlotSnapshot): SlotData => ({
         background: sn.background ? backgroundStateFromSnapshot(sn.background) : freshBackground(),

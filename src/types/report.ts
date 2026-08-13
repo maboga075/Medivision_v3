@@ -15,7 +15,9 @@ export interface ReportImageSlot {
   kind: ImageKind;
   geometry: ImageGeometry;
   label: string;
-  src?: string; // dataURL de l'image (instantané persisté)
+  // Instantané complet (image + alignement + colorimétrie) pour reproduire
+  // fidèlement l'affichage et projeter les annotations comme dans l'éditeur.
+  background?: RetinaBackgroundSnapshot | null;
   annotations?: Annotation[];
 }
 

@@ -275,13 +275,14 @@ function buildEyeData(
   // Lot B — imagerie complémentaire (B-scan / OCT-A / en-face) pour la page
   // imagerie du CR (rendu Lot C). Le slot rétino est rendu via le schéma dédié.
   const imagerySlots = (eye.retinaSlots ?? [])
-    .filter((sl) => sl.kind !== 'retino' && sl.background?.src)
+    // Hors rétino, avec image, et sélectionné pour l'impression/le CR.
+    .filter((sl) => sl.kind !== 'retino' && sl.background?.src && sl.printSelected !== false)
     .map((sl) => ({
       id: sl.id,
       kind: sl.kind,
       geometry: sl.geometry,
       label: sl.label,
-      src: sl.background?.src,
+      background: sl.background,
       annotations: sl.annotations,
     }));
 

@@ -16,8 +16,10 @@ export type Laterality = z.infer<typeof Laterality>;
  * - `octa`    : OCT-angiographie (surface carrée, sans anatomie rétinienne).
  * - `enface`  : OCT « de face » / en-face (surface carrée).
  * - `bscan`   : coupe B-scan OCT (surface rectangulaire).
+ * - `cornea`  : OCT segment antérieur — cornée (coupe rectangulaire).
+ * - `angle`   : OCT segment antérieur — angle irido-cornéen (coupe rectangulaire).
  */
-export const ImageKind = z.enum(["retino", "octa", "enface", "bscan"]);
+export const ImageKind = z.enum(["retino", "octa", "enface", "bscan", "cornea", "angle"]);
 export type ImageKind = z.infer<typeof ImageKind>;
 
 /** Géométrie de la surface de travail (forme du clip). */
@@ -30,6 +32,8 @@ export const GEOMETRY_FOR_KIND: Record<ImageKind, ImageGeometry> = {
   octa: "square", // OCT-A : acquisition carrée (comme l'OCT en-face)
   enface: "square",
   bscan: "rect",
+  cornea: "rect", // OCT antérieur cornée : coupe rectangulaire
+  angle: "rect", // OCT antérieur angle IC : coupe rectangulaire
 };
 
 /** Seuls les slots rétino portent l'anatomie rétinienne (fovéa/papille/ETDRS). */
@@ -41,6 +45,8 @@ export const LABEL_FOR_KIND: Record<ImageKind, string> = {
   octa: "OCT-A",
   enface: "OCT en-face",
   bscan: "B-scan",
+  cornea: "OCT cornée",
+  angle: "OCT angle IC",
 };
 
 export const Quadrant = z.enum(["TS", "TI", "NS", "NI"]);
