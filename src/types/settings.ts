@@ -23,6 +23,8 @@ export interface FormulaireSettings {
   motifs?: string[];
   antecedents?: string[];
   diagnostics?: string[];
+  divers?: string[];
+  hypothesesLibres?: string[];
 }
 
 export interface ExportSettings {

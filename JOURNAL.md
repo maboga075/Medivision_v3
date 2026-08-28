@@ -7,10 +7,23 @@
 
 ## État général du projet
 
-**Branche active :** `feat/retinasketch-v2-port`  
-**Dernière session :** 2026-08-13  
-**Build :** ✅ Compilé sans erreurs (`tsc --noEmit` 0 erreur, 18 tests Vitest verts)  
+**Branche active :** `main` (→ Vercel `medivision-v3`)  
+**Dernière session :** 2026-08-14  
+**Build :** ✅ `tsc --noEmit` 0 erreur, **24 tests Vitest verts**, `vite build` OK  
 **Stack :** React + TypeScript + Vite · Firebase (Auth + Firestore) · Tailwind CSS · Konva + ONNX Runtime Web (RetinaSketch) · Framer Motion · jsPDF · Fonctions serverless Vercel (`api/ai`)
+
+---
+
+## 🧾 Récapitulatif session 2026-08-14 (détails dans les entrées ci-dessous)
+
+Grosse session, 4 chantiers (tous ✅, `tsc`/tests/build verts). Non vérifiés visuellement en mobile connecté (app derrière login Firebase).
+
+1. **Infra / Vercel** — Push initial, fusion `feat/retinasketch-v2-port` → `main`, déploiement production `medivision-v3.vercel.app`. Clarification des 3 « noms » (dossier / repo / projet Vercel), lien `.vercel` corrigé, remote `medivision-v1` retiré, ancien dépôt `MEDIVISION_IA_V1` **archivé**. Combobox médecin prescripteur en auto-complétion triée (Accueil + PatientEditModal) → [`PrescriberCombobox`](src/components/forms/PrescriberCombobox.tsx).
+2. **Refonte UX Consultation (Lots 1–5)** — Divers & Hypothèse libre en tags mémorisés ([`TextTagField`](src/components/forms/TextTagField.tsx)) ; cases OCT antérieur/OCTA supprimées → dérivées des coupes RetinaSketch ; bouton RetinaSketch **unique** entre OD/OG ; presets RNFL supprimés ; **encadré commun disque** (surface→C/D, ordre Tab) + **suivi RNFL mutualisé** ([`SharedDiscFollowUpSection`](src/components/forms/SharedDiscFollowUpSection.tsx)).
+3. **Moteur d'attribution des lésions multi-coupe (Étapes A–E)** — Attributs typés par contexte de coupe (union discriminée `retino/bscan/cornea/octa`), `computeAttributes(centroid, kind)`, saisie manuelle de la **couche** (RNFL→EPR / cornéenne) avec emplacement IA réservé, `generateReport` par contexte, payload IA par coupe (`obs.bscan`/`cornea`) + consigne prompt, **légendes de coupe éditables** dans le CR. Recherche P1 : modèles ONNX de segmentation de couches (rétine/cornée) documentés pour plus tard.
+4. **Responsive / mobile** — Consultation utilisable en mobile (sidebar → `<select>` patient), header non débordant, grille identité Accueil empilée, cartes salle d'attente tronquées.
+
+**Note projet :** app en développement → **pas de rétrocompatibilité** à assurer (anciens CR archivés).
 
 ---
 
@@ -42,6 +55,69 @@ api/ai/generate-report  Fonction serverless (OpenAI/Anthropic/Gemini/DeepSeek).
 ---
 
 ## Historique des sessions
+
+---
+
+### Session 2026-08-14 (suite 3) — Corrections responsive / vue mobile
+
+**Demandé par :** Yoan (captures iPhone) · **Statut :** ✅ corrigé. `tsc` 0, 24 tests, `vite build` OK. **Non vérifié visuellement en mobile connecté** (app derrière login Firebase — login mobile OK, sans overflow-x).
+**Cause racine transverse :** conteneurs flex sans `min-w-0`/`truncate`/`overflow-x-hidden` → débordements horizontaux décalant toute la page.
+
+- **Bug 1 (critique) — Consultation invisible en mobile.** [`Consultation.tsx`](src/pages/Consultation.tsx) : `main` était `hidden sm:block`. Désormais visible en mobile ; la sidebar salle d'attente ([`WaitingQueue`](src/features/consultation/components/WaitingQueue.tsx)) passe `hidden sm:flex` et est **remplacée en mobile par un `<select>` de patient** en tête du formulaire (sticky). Barre d'actions rendue `flex-wrap` (plus de débordement).
+- **Bug 2 — Header ([`MainLayout`](src/layouts/MainLayout.tsx)) débordait en mobile.** Texte « MEDIVISION » `hidden sm:block`, nav mobile compacte (`NavItem compact`, `p-2`, icônes w-5), `overflow-x-hidden` sur le racine, `min-w-0` sur les groupes flex.
+- **Bug 3 — Grille identité [`Accueil`](src/pages/Accueil.tsx).** `grid-cols-2 md:grid-cols-4` → `grid-cols-1 sm:grid-cols-2 md:grid-cols-4` (le champ `type=date` ne déborde plus).
+- **Bug 4 — Cartes salle d'attente.** Nom patient `min-w-0 truncate`, badge heure `shrink-0`.
+
+---
+
+### Session 2026-08-14 (suite 2) — Moteur d'attribution des lésions multi-coupe
+
+**Demandé par :** Yoan · **Statut :** ✅ terminé (Étapes A–E). `tsc` 0, **24 tests verts**, `vite build` OK, console propre.
+**Problème identifié :** l'attribution des lésions était **mono-contexte** — `computeAttributes` (moteur `engine.ts`) appliquait *toujours* le référentiel rétinographie de face (fovéa/quadrant/ETDRS/arcades), même sur un B-scan ou une cornée → attributs cliniquement faux hors rétino. De plus le payload IA (`clinicalPayload`) n'interprète que les lésions du slot rétino (`obs.retina`), pas celles des coupes.
+**Recherche (P1) :** modèles IA de segmentation de couches exportables ONNX existants — rétine : CCU-INSEG (U-Net compressé), ENet, DeepGPET (MobileNetV3), U-Net+ResNet34 ; cornée AS-OCT : CUNEX (nnU-Net), CorneaNet, ScLNet. Faisable via l'infra ONNX Runtime Web déjà en place ; points d'attention : poids du modèle, licence *research-only*, conversion PyTorch→ONNX. **Décision : moteur d'abord, détection IA plus tard** (couche saisie manuellement, emplacement réservé).
+
+- [x] **Étape A — Modèle de données + moteur multi-coupe.** [`types.ts`](src/features/retinasketch/lib/types.ts) : `DerivedAttributes` devient une **union discriminée** par famille d'attribution (`AttrContext` = retino | bscan | cornea | octa, mappée depuis `ImageKind` via `attrContextForKind`) ; variantes `Retino/Bscan/Cornea/OctaAttributes` ; enums `RetinalLayer`/`CornealLayer`/`TransverseZone` ; helper `anatomicalLabel`. **Compat** : `z.preprocess` rattache à `retino` les annotations sans `context` (dossiers déjà enregistrés inchangés). [`engine.ts`](src/features/retinasketch/lib/geometry/engine.ts) : `computeAttributes(centroid, kind)` **dispatch** (rétino = inchangé ; coupes = position transverse centrale/paracentrale/périphérique, `layer` null à saisir). [`useStore.ts`](src/features/retinasketch/store/useStore.ts) : `buildAnnotation` reçoit le `kind` du slot actif (`activeKind`). Consommateurs adaptés (`SelectionToolbar`/`SelectionPicker` via `anatomicalLabel` ; `generate.ts` restreint au contexte rétino pour l'instant → comportement rétino identique).
+- [x] **Étape B — Saisie manuelle de la couche (UI).** Action store `setAnnotationLayer(id, layer)` ([`useStore.ts`](src/features/retinasketch/store/useStore.ts)) qui écrit `attrs.layer` selon le contexte (bscan → `RetinalLayer`, cornea → `CornealLayer`). Sélecteur de couche ajouté dans [`SelectionToolbar`](src/features/retinasketch/components/SelectionToolbar.tsx) — visible uniquement sur une lésion de coupe B-scan/cornée, alimenté par `RetinalLayer.options`/`CornealLayer.options` ; **bouton « ✨ IA » désactivé = emplacement réservé** à la future détection automatique. La couche persiste dans l'annotation (donc dans `retinaSlots`).
+- [x] **Étape C — `generateReport` par contexte.** [`generate.ts`](src/features/retinasketch/lib/report/generate.ts) refondu : regroupement par **(contexte, lésion)** puis dispatch de la phrase — `retino` (référentiel de face, **sortie strictement identique** à l'existant), `bscan` (« … sur le B-scan, couche X, en région Y »), `cornea` (« … sur la coupe de cornée, couche X, en région Y »), `octa` (« … en OCT-angiographie »). Helpers factorisés (`presenceCount`, `finalize`, `dominantLayer`). Comportement rétino inchangé (18 tests verts). Les phrases de coupe ne s'afficheront qu'une fois l'Étape D branchée (agrégation des slots).
+- [x] **Étape D — Payload IA multi-coupe.** [`clinicalPayload.ts`](src/utils/clinicalPayload.ts) : `buildObservations` agrège désormais les lésions de **tous les slots** — rétino (`obs.retina`, slot principal) + coupes non-rétino via `eye.retinaSlots` réparties par contexte dans `obs.bscan` / `obs.cornea` / `obs.octa` (extraction factorisée `lesionLines`). Nouvelles clés `bscan?`/`cornea?` sur `ObservationsNormalisees` ([`clinical.ts`](src/types/clinical.ts)). Consigne ajoutée au `SYSTEM_PROMPT` ([`api/ai/generate-report.ts`](api/ai/generate-report.ts)) : chaque coupe interprétée dans SON référentiel (couche rétinienne pour bscan, couche cornéenne pour cornea), sans transposition de localisation.
+- [x] **Nettoyage (consigne « pas de rétrocompat »)** : `z.preprocess` de compat retiré de `DerivedAttributes` ([`types.ts`](src/features/retinasketch/lib/types.ts)) → `discriminatedUnion` pur, `context` requis. Voir mémoire [[no-backward-compat]].
+- [x] **Étape E — Légendes de coupe dans le CR (éditables) + tests.** Le mapper ([`reportDataMapper.tsx`](src/utils/reportDataMapper.tsx)) génère une `caption` par slot de coupe (`slotCaption` via `generateReport`, interprétée par contexte) ; nouveau champ `caption?` sur `ReportImageSlot` ([`report.ts`](src/types/report.ts)). [`OCTReport`](src/components/reports/OCTReport.tsx) affiche la légende sous chaque image en **`contentEditable`** (modifiable en place, capturée à l'export comme le reste du CR), avec placeholder CSS quand vide ([`OCTReport.css`](src/components/reports/OCTReport.css)). **Tests** : nouveau [`generate.test.ts`](src/features/retinasketch/lib/report/__tests__/generate.test.ts) (5 cas : rétino/bscan/cornée/sans couche/groupement) + cas `obs.bscan` ajouté à `clinicalPayload.test.ts`. Total 24 tests verts.
+
+**Bilan :** le moteur d'attribution est désormais multi-coupe de bout en bout (saisie → attribution → texte → payload IA → CR éditable). Détection IA de la couche = évolution future (emplacement « ✨ IA » déjà en place, cf. Étape B ; modèles candidats documentés dans la recherche P1).
+
+---
+
+### Session 2026-08-14 (suite) — Refonte UX Consultation (par lots)
+
+**Demandé par :** Yoan · **Statut :** ✅ terminé (Lots 1–5). `tsc --noEmit` 0 erreur, 18 tests Vitest verts, `vite build` OK, console/preview sans erreur.
+**Objectif :** rendre l'onglet Consultation plus minimaliste (moins de répétitions OD/OG, auto-complétion partout).
+**Décisions (validées) :** segment antérieur affiché auto selon coupe RetinaSketch (cornea/angle) ; suivi RNFL commun (toggle+date communs, évolutions par œil) ; Divers & Hypothèse libre en tags type Antécédents.
+**Non vérifié visuellement** (app derrière login Firebase — pas de saisie d'identifiants).
+
+- [x] **Lot 1 — Divers & Hypothèse libre en auto-complétion mémorisée.** Nouveau [`TextTagField.tsx`](src/components/forms/TextTagField.tsx) : adaptateur `string ↔ tags` autour de `TagAutocomplete` (**stockage reste `string`** → zéro impact CR/payload/dossiers existants ; conversion sur virgules). Branché dans [`EyeExamSection`](src/components/forms/EyeExamSection.tsx) (Divers, par œil) et [`HypothesesSection`](src/features/consultation/components/HypothesesSection.tsx). Nouvelles catégories `divers` / `hypothesesLibres` ([`defaultSuggestions.ts`](src/constants/defaultSuggestions.ts), [`settings.ts`](src/types/settings.ts)), mémoire via `updateBulles` (helper `persistSuggestion` dans [`Consultation.tsx`](src/pages/Consultation.tsx)).
+- [x] **Lot 2 — Retrait des cases OCT antérieur/OCTA + dérivation auto.** [`ExamTypeSelector`](src/features/consultation/components/ExamTypeSelector.tsx) réduit au type d'examen + médecin. Dans [`useConsultationForm`](src/features/consultation/hooks/useConsultationForm.ts), `octaDone`/`showAnterior` deviennent **dérivés** des `retinaSlots` des 2 yeux (coupe `octa` ⇒ OCTA ; `cornea`/`angle` ⇒ segment antérieur) — states `forceShowAnterior`/`forceShowPosterior`/`octaDone` supprimés ; `ConsultationDraft.forceShowAnterior`/`octaDone` passés optionnels (compat brouillons). BubblePicker « Observations OCTA » retiré d'`EyeExamSection`. Flags CR (`anteriorSegmentDone`/`octaDone` du payload) inchangés.
+- [x] **Lot 3 — Bouton RetinaSketch unique.** Boutons par œil retirés d'`EyeExamSection` (props `onOpenRetina`/`octaDone`, import `Pencil`, `annotationCount` supprimés) ; un seul bouton central entre les colonnes dans `Consultation` avec badge du total de lésions validées (`retinaLesionCount`).
+- [x] **Lot 4 — Suppression des presets RNFL.** Boutons « Tout normal / Arciforme inf/sup / Miroir N↔T » et fonctions `preset`/`mirror` retirés de [`RnflGclPicker`](src/components/forms/RnflGclPicker.tsx). Le cercle central « tout » (cycle) est conservé.
+- [x] **Lot 5 — Encadré commun disque + suivi.** Nouveau [`SharedDiscFollowUpSection`](src/components/forms/SharedDiscFollowUpSection.tsx) sous les colonnes : disque OD/OG (exclusion + **surface puis C/D**, ordre Tab Surface OD→C/D OD→Surface OG→C/D OG) et suivi RNFL/GCL mutualisé (interrupteur + date communs via helpers `setFollowUpEnabled`/`setFollowUpDate` du hook ; évolutions par œil). Helpers C/D extraits dans [`utils/cupDisc.ts`](src/utils/cupDisc.ts). `EyeExamSection` allégé (ne garde qu'exclusion RNFL/GCL + picker, `isOCT` only) ; sync suivi alambiquée retirée des `onUpdate` OD/OG.
+
+---
+
+### Session 2026-08-14 — Synchro Vercel + combobox médecin prescripteur (Accueil/Modif patient)
+
+**Demandé par :** Yoan
+**Statut :** ✅ Terminé — `tsc --noEmit` 0 erreur. Vite compile, aucune erreur console/serveur. Vérif UI live non faite (app derrière l'écran de connexion Firebase → pas de saisie d'identifiants).
+**Branche :** `feat/retinasketch-v2-port` → fusionnée dans `main`.
+
+#### Synchronisation Git/Vercel
+- Push des 4 commits en attente vers `origin` (`Medivision_v3`), puis fusion fast-forward dans `main` + push → déploiement **production** sur `medivision-v3.vercel.app`.
+- Clarification des environnements : le dossier `MEDIVISION v3 IA` a longtemps eu 2 remotes (`origin` = `Medivision_v3` ; `medivision-v1` = `MEDIVISION_IA_V1`) alimentant 2 projets Vercel (`medivision-v3`, `medivision-ia-v1`). **Environnement actif retenu = v3.**
+- Nettoyage : `.vercel/project.json` local repointé vers `medivision-v3` ; remote `medivision-v1` supprimé ; dépôt GitHub `MEDIVISION_IA_V1` **archivé** (lecture seule, réversible). Suppression des projets Vercel obsolètes = à faire manuellement dans le dashboard (hors outillage).
+
+#### Correctif — champ « Médecin prescripteur »
+- **Cause** : le Lot A n'avait remplacé le `<select>` natif que dans `ExamTypeSelector`. Deux autres écrans utilisaient encore un `<select>` HTML (non trié, saut à la 1re lettre du texte « Dr. » inclus).
+- [x] Nouveau composant [`PrescriberCombobox.tsx`](src/components/forms/PrescriberCombobox.tsx) : jumeau de `DoctorCombobox` mais opérant sur `string[]` (source `settings.prescripteurs`). Filtrage clavier insensible casse/accents, tri alphabétique en occultant `Dr.`/`Pr.` (`stripTitle`), navigation ↑/↓/↵/échap, option « — Non spécifié — », bouton effacer.
+- [x] Branché dans [`Accueil.tsx`](src/pages/Accueil.tsx) et [`PatientEditModal.tsx`](src/components/modals/PatientEditModal.tsx), en conservant le bouton « + » d'ajout de médecin.
+- **Note dette technique** : deux modèles de « médecin » coexistent — objets `Doctor{id,prenom,nom}` (`settings.doctors`, via `DoctorCombobox`) vs noms libres `string[]` (`settings.prescripteurs`, via `PrescriberCombobox`). À unifier ultérieurement.
 
 ---
 

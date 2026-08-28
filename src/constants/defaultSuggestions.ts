@@ -88,11 +88,36 @@ export const DEFAULT_PRESCRIPTEURS = [
   'Dr. Mboussou',
 ];
 
+export const DEFAULT_DIVERS_SUGGESTIONS = [
+  'Bonne fixation',
+  'Fixation instable',
+  'Trouble des milieux',
+  'Artefacts de segmentation',
+  'Qualité d\'image limite',
+  'Coopération limitée',
+  'Larmoiement',
+  'Photophobie',
+  'À recontrôler',
+];
+
+export const DEFAULT_HYPOTHESE_LIBRE_SUGGESTIONS = [
+  'À corréler à la clinique',
+  'Aspect stable par rapport à l\'examen précédent',
+  'Surveillance rapprochée conseillée',
+  'Contrôle à 6 mois',
+  'Contrôle à 1 an',
+  'Examen complémentaire recommandé',
+  'Résultat à confirmer',
+  'Absence d\'argument pour une pathologie évolutive',
+];
+
 export const DEFAULT_SUGGESTIONS: Record<string, string[]> = {
-  macula:      DEFAULT_MACULA_SUGGESTIONS,
-  papille:     DEFAULT_PAPILLE_SUGGESTIONS,
-  peripherie:  DEFAULT_PERIPHERIE_SUGGESTIONS,
-  motifs:      DEFAULT_MOTIFS_SUGGESTIONS,
-  antecedents: DEFAULT_ANTECEDENTS_SUGGESTIONS,
-  diagnostics: DEFAULT_DIAGNOSTIC_SUGGESTIONS,
+  macula:           DEFAULT_MACULA_SUGGESTIONS,
+  papille:          DEFAULT_PAPILLE_SUGGESTIONS,
+  peripherie:       DEFAULT_PERIPHERIE_SUGGESTIONS,
+  motifs:           DEFAULT_MOTIFS_SUGGESTIONS,
+  antecedents:      DEFAULT_ANTECEDENTS_SUGGESTIONS,
+  diagnostics:      DEFAULT_DIAGNOSTIC_SUGGESTIONS,
+  divers:           DEFAULT_DIVERS_SUGGESTIONS,
+  hypothesesLibres: DEFAULT_HYPOTHESE_LIBRE_SUGGESTIONS,
 };

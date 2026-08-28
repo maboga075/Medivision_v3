@@ -745,6 +745,15 @@
 }
 .imagery-bscan figcaption,
 .imagery-vignette figcaption { font-size: 10px; color: var(--mute); margin-top: 3px; }
+/* Légende des lésions, éditable en place ; placeholder discret quand vide. */
+.imagery-caption {
+  font-size: 10.5px; color: var(--ink); margin-top: 3px; line-height: 1.35;
+  outline: none; border-radius: 4px;
+}
+.imagery-caption:hover, .imagery-caption:focus { background: var(--tint, #f5f7fa); }
+.imagery-caption:empty::before {
+  content: attr(data-placeholder); color: var(--mute); font-style: italic;
+}
 .imagery-vignettes { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 2px; }
 .imagery-vignette { margin: 0; width: 96px; }
 .imagery-vignette svg, .imagery-vignette img {

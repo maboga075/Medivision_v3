@@ -16,6 +16,7 @@ import { db, collection, onSnapshot, query, orderBy, where } from '../services/f
 import PatientEditModal from '../components/modals/PatientEditModal';
 import { callNativeAI } from '../services/aiManager';
 import EyeExamSection from '../components/forms/EyeExamSection';
+import SharedDiscFollowUpSection from '../components/forms/SharedDiscFollowUpSection';
 import RetinaEditor from '../features/retinasketch/components/RetinaEditor';
 import type { RetinaPrintInfo } from '../features/retinasketch/lib/printInfo';
 import { RETINA_LESION_COLORS } from '../features/retinasketch/lib/ontology/lesions';
@@ -50,6 +51,15 @@ export default function Consultation() {
   const { settings, updateBulles, updateCustomLesions } = useSettings();
   const { notify } = useToast();
   const { saveReport } = useReports();
+
+  // Suggestions mémorisées (settings, avec repli sur les valeurs par défaut).
+  const suggestionsFor = (category: string): string[] =>
+    settings?.formulario?.[category as keyof typeof settings.formulario] ?? DEFAULT_SUGGESTIONS[category] ?? [];
+  // Ajoute une nouvelle valeur à la mémoire persistante d'une catégorie.
+  const persistSuggestion = (category: string, item: string) => {
+    const effective = suggestionsFor(category);
+    if (!effective.includes(item)) updateBulles(category, [...effective, item]);
+  };
 
   // ── Sélection du médecin examinateur ──────────────────────────────────────
   const [selectedDoctorId, setSelectedDoctorId] = useState<string>('');
@@ -92,6 +102,12 @@ export default function Consultation() {
   // ── Formulaire clinique ────────────────────────────────────────────────────
   const form = useConsultationForm();
 
+  // Total de lésions validées sur les 2 yeux (badge du bouton RetinaSketch unique).
+  const retinaLesionCount = [
+    ...(form.eyeOD.retinaAnnotations ?? []),
+    ...(form.eyeOG.retinaAnnotations ?? []),
+  ].filter((a) => a.status === 'validated').length;
+
   // ── Brouillons ────────────────────────────────────────────────────────────
   const { loadAllDrafts, saveDraft, getDraft, deleteDraft, clearAllDrafts } = useConsultationDrafts();
   useEffect(() => { loadAllDrafts(); }, [loadAllDrafts]);
@@ -101,7 +117,7 @@ export default function Consultation() {
     saveDraft(selectedPatient.id, form.snapshotDraft());
   }, [
     selectedPatient,
-    form.reportType, form.eyeOD, form.eyeOG, form.forceShowAnterior, form.octaDone,
+    form.reportType, form.eyeOD, form.eyeOG,
     form.hypothesesDiagnostiques, form.hypotheseLibre,
     form.selectedCat, form.selectedHyp, form.selectedLat,
     saveDraft, form.snapshotDraft,
@@ -250,7 +266,29 @@ export default function Consultation() {
           onNewDayConfirmed={handleNewDayConfirmed}
         />
 
-        <main className="flex-1 relative overflow-y-auto hidden sm:block bg-slate-100">
+        <main className="flex-1 relative overflow-y-auto bg-slate-100">
+          {/* Sélecteur de patient — mobile uniquement (remplace la sidebar) */}
+          <div className="sm:hidden sticky top-0 z-40 bg-white border-b border-slate-200 p-3">
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+              Patient en cours
+            </label>
+            <select
+              value={selectedPatient?.id ?? ''}
+              onChange={(e) => {
+                const p = patients.find((x) => x.id === e.target.value);
+                if (p) handlePatientSelect(p);
+              }}
+              className="w-full px-4 py-3 rounded-xl border-2 border-slate-200 bg-white text-base font-bold text-slate-700 outline-none focus:border-teal-500"
+            >
+              <option value="">Sélectionner un patient…</option>
+              {patients.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.nom} · {p.date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </option>
+              ))}
+            </select>
+          </div>
+
           {isAnalyzing && (
             <div className="absolute inset-0 z-50 bg-slate-100/80 backdrop-blur-md flex flex-col items-center justify-center">
               <div className="bg-white p-8 rounded-3xl shadow-2xl flex flex-col items-center border border-teal-100">
@@ -278,7 +316,7 @@ export default function Consultation() {
             <div className="p-6 lg:p-8 max-w-7xl mx-auto pb-32 w-full animate-in fade-in">
               {/* Header sticky */}
               <div
-                className={`flex justify-between items-center mb-6 sticky top-0 z-20 transition-all py-4 -mx-6 px-6 lg:-mx-8 lg:px-8 border-b no-print ${
+                className={`flex flex-wrap justify-between items-center gap-3 mb-6 sticky top-0 z-20 transition-all py-4 -mx-6 px-6 lg:-mx-8 lg:px-8 border-b no-print ${
                   view === 'report'
                     ? 'bg-white shadow-sm border-slate-200'
                     : 'bg-slate-100/90 backdrop-blur-md border-slate-200/50'
@@ -302,10 +340,10 @@ export default function Consultation() {
                   </div>
                 )}
 
-                <div className="flex gap-3">
+                <div className="flex flex-wrap gap-2 sm:gap-3">
                   <button
                     onClick={() => setIsEditModalOpen(true)}
-                    className="px-5 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 font-bold rounded-xl flex items-center gap-2 shadow-sm transition-all active:scale-95"
+                    className="px-4 sm:px-5 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 font-bold rounded-xl flex items-center gap-2 shadow-sm transition-all active:scale-95"
                   >
                     <Pencil className="w-5 h-5" /> Modifier le dossier
                   </button>
@@ -453,81 +491,57 @@ export default function Consultation() {
                     onReportTypeChange={form.handleReportTypeChange}
                     selectedDoctorId={selectedDoctorId}
                     onDoctorChange={setSelectedDoctorId}
-                    showAnterior={form.showAnterior}
-                    isAnteriorBase={form.isAnteriorBase}
-                    onAnteriorChange={form.handleAnteriorChange}
-                    octaDone={form.octaDone}
-                    onOctaDoneChange={form.setOctaDone}
                     doctors={settings?.doctors}
                   />
 
-                  <div className="flex flex-col lg:flex-row gap-6 mb-6">
+                  <div className="flex flex-col lg:flex-row gap-4 mb-6 items-stretch">
                     <EyeExamSection
                       side="OD"
                       eye={form.eyeOD}
-                      onUpdate={(next) => {
-                        form.setEyeOD(next);
-                        // Activer le suivi RNFL/GCL sur un œil l'active automatiquement
-                        // sur l'autre (avec évolutions par défaut et date partagée).
-                        if (next.hasFollowUp) {
-                          form.setEyeOG((prev) =>
-                            prev.hasFollowUp && (!next.followUpDate || prev.followUpDate === next.followUpDate)
-                              ? prev
-                              : {
-                                  ...prev,
-                                  hasFollowUp: true,
-                                  rnflEvolution: prev.rnflEvolution || 'Stable',
-                                  gclEvolution: prev.gclEvolution || 'Stable',
-                                  followUpDate: next.followUpDate || prev.followUpDate,
-                                }
-                          );
-                        } else if (next.followUpDate) {
-                          // La date de suivi est saisie une seule fois : on la propage à l'OG.
-                          form.setEyeOG((prev) =>
-                            prev.followUpDate === next.followUpDate ? prev : { ...prev, followUpDate: next.followUpDate }
-                          );
-                        }
-                      }}
+                      onUpdate={form.setEyeOD}
                       isOCT={form.reportType.includes('OCT')}
-                      showOpticNerve={form.reportType === 'Compte rendu Rétinographie'}
                       showAnterior={form.showAnterior}
-                      octaDone={form.octaDone}
-                      onOpenRetina={() => setRetinaOpen(true)}
+                      diversSuggestions={suggestionsFor('divers')}
+                      onPersistDivers={(item) => persistSuggestion('divers', item)}
                       onNewSuggestion={(category, item) => {
                         const stored = settings?.formulario?.[category];
                         const effective = stored ?? DEFAULT_SUGGESTIONS[category] ?? [];
                         if (!effective.includes(item)) updateBulles(category, [...effective, item]);
                       }}
                     />
+
+                    {/* Bouton RetinaSketch unique, entre les colonnes OD et OG */}
+                    <div className="flex shrink-0 items-center justify-center lg:w-32">
+                      <button
+                        type="button"
+                        onClick={() => setRetinaOpen(true)}
+                        title="Ouvrir RetinaSketch — annotation des 2 yeux"
+                        className="flex lg:flex-col items-center justify-center gap-2 w-full px-5 py-4 rounded-2xl border-2 border-dashed border-teal-300 bg-teal-50 text-teal-700 font-bold hover:border-teal-500 hover:bg-teal-100 transition-all active:scale-95 shadow-sm"
+                      >
+                        <Pencil className="w-6 h-6" />
+                        <span className="text-sm text-center leading-tight">Annoter la rétine</span>
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-xs ${
+                            retinaLesionCount > 0
+                              ? 'bg-teal-600 text-white'
+                              : 'bg-white text-slate-500 border border-teal-200'
+                          }`}
+                        >
+                          {retinaLesionCount > 0
+                            ? `${retinaLesionCount} lésion${retinaLesionCount > 1 ? 's' : ''}`
+                            : 'aucune'}
+                        </span>
+                      </button>
+                    </div>
+
                     <EyeExamSection
                       side="OG"
                       eye={form.eyeOG}
-                      onUpdate={(next) => {
-                        form.setEyeOG(next);
-                        // Sync inverse : activer le suivi sur l'OG l'active sur l'OD.
-                        if (next.hasFollowUp) {
-                          form.setEyeOD((prev) =>
-                            prev.hasFollowUp && (!next.followUpDate || prev.followUpDate === next.followUpDate)
-                              ? prev
-                              : {
-                                  ...prev,
-                                  hasFollowUp: true,
-                                  rnflEvolution: prev.rnflEvolution || 'Stable',
-                                  gclEvolution: prev.gclEvolution || 'Stable',
-                                  followUpDate: next.followUpDate || prev.followUpDate,
-                                }
-                          );
-                        } else if (next.followUpDate) {
-                          form.setEyeOD((prev) =>
-                            prev.followUpDate === next.followUpDate ? prev : { ...prev, followUpDate: next.followUpDate }
-                          );
-                        }
-                      }}
+                      onUpdate={form.setEyeOG}
                       isOCT={form.reportType.includes('OCT')}
-                      showOpticNerve={form.reportType === 'Compte rendu Rétinographie'}
                       showAnterior={form.showAnterior}
-                      octaDone={form.octaDone}
-                      onOpenRetina={() => setRetinaOpen(true)}
+                      diversSuggestions={suggestionsFor('divers')}
+                      onPersistDivers={(item) => persistSuggestion('divers', item)}
                       onNewSuggestion={(category, item) => {
                         const stored = settings?.formulario?.[category];
                         const effective = stored ?? DEFAULT_SUGGESTIONS[category] ?? [];
@@ -535,6 +549,19 @@ export default function Consultation() {
                       }}
                     />
                   </div>
+
+                  {/* Encadré commun aux 2 yeux : disque optique (surface → C/D)
+                      et suivi RNFL/GCL mutualisé. */}
+                  <SharedDiscFollowUpSection
+                    eyeOD={form.eyeOD}
+                    eyeOG={form.eyeOG}
+                    onUpdateOD={form.setEyeOD}
+                    onUpdateOG={form.setEyeOG}
+                    isOCT={form.reportType.includes('OCT')}
+                    showOpticNerve={form.reportType === 'Compte rendu Rétinographie'}
+                    onSetFollowUpEnabled={form.setFollowUpEnabled}
+                    onSetFollowUpDate={form.setFollowUpDate}
+                  />
 
                   <HypothesesSection
                     hypothesesDiagnostiques={form.hypothesesDiagnostiques}
@@ -549,6 +576,8 @@ export default function Consultation() {
                     onSelectedLatChange={form.setSelectedLat}
                     eyeOD={form.eyeOD}
                     eyeOG={form.eyeOG}
+                    hypothesesLibresSuggestions={suggestionsFor('hypothesesLibres')}
+                    onPersistHypotheseLibre={(item) => persistSuggestion('hypothesesLibres', item)}
                   />
 
                   <ReportParamsSection

@@ -92,23 +92,6 @@ export default function RnflGclPicker({ side, rnfl, gcl, onChange, disabled }: R
     emit(r, { S: next, ST: next, IT: next, I: next, IN: next, SN: next });
   };
 
-  const preset = (name: 'normal' | 'inf' | 'sup') => {
-    if (disabled) return;
-    if (name === 'normal') return emit(createDefaultRnflSectors(), createDefaultGclSectors());
-    if (name === 'inf')
-      return emit({ S: 0, I: 2, N: 0, T: 1 }, { S: 0, ST: 0, IT: 2, I: 2, IN: 1, SN: 0 });
-    // sup
-    return emit({ S: 2, I: 0, N: 1, T: 0 }, { S: 2, ST: 2, IT: 0, I: 0, IN: 0, SN: 1 });
-  };
-
-  const mirror = () => {
-    if (disabled) return;
-    emit(
-      { ...r, N: r.T, T: r.N },
-      { ...g, ST: g.SN, SN: g.ST, IT: g.IN, IN: g.IT },
-    );
-  };
-
   /* RNFL : S haut, I bas ; N/T selon l'œil. */
   const Nside = side === 'OG' ? 270 : 90;
   const Tside = side === 'OG' ? 90 : 270;
@@ -209,14 +192,6 @@ export default function RnflGclPicker({ side, rnfl, gcl, onChange, disabled }: R
         <span className="inline-flex items-center gap-1.5"><i className="w-2.5 h-2.5 rounded-sm inline-block" style={{ background: GCL_COLORS[1] }} />Limite</span>
         <span className="inline-flex items-center gap-1.5"><i className="w-2.5 h-2.5 rounded-sm inline-block" style={{ background: GCL_COLORS[2] }} />Hors norme</span>
         <span className="inline-flex items-center gap-1.5"><i className="w-2.5 h-2.5 rounded-sm inline-block border border-slate-400" style={{ background: '#fff' }} />Au-dessus <span className="opacity-70">(RNFL)</span></span>
-      </div>
-
-      {/* Presets */}
-      <div className="flex flex-wrap gap-2 mt-3">
-        <button type="button" onClick={() => preset('normal')} className="text-xs border border-slate-200 bg-white text-slate-700 px-3 py-1.5 rounded-full hover:border-teal-400 hover:text-teal-600 transition-colors">Tout normal</button>
-        <button type="button" onClick={() => preset('inf')} className="text-xs border border-slate-200 bg-white text-slate-700 px-3 py-1.5 rounded-full hover:border-teal-400 hover:text-teal-600 transition-colors">Arciforme inférieur</button>
-        <button type="button" onClick={() => preset('sup')} className="text-xs border border-slate-200 bg-white text-slate-700 px-3 py-1.5 rounded-full hover:border-teal-400 hover:text-teal-600 transition-colors">Arciforme supérieur</button>
-        <button type="button" onClick={mirror} className="text-xs border border-dashed border-slate-300 bg-white text-slate-500 px-3 py-1.5 rounded-full hover:border-teal-400 hover:text-teal-600 transition-colors">⇄ Miroir N↔T</button>
       </div>
 
       {/* Résumé lisible */}

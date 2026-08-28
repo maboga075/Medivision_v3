@@ -4,6 +4,7 @@ import { db, collection, addDoc, serverTimestamp } from '../services/firebase';
 import { useSettings } from '../hooks/useSettings';
 import { useToast } from '../components/shared/ToastProvider';
 import TagAutocomplete from '../components/forms/TagAutocomplete';
+import PrescriberCombobox from '../components/forms/PrescriberCombobox';
 import type { PatientFormData } from '../types/patient';
 
 const COMMON_MOTIFS = [
@@ -187,7 +188,7 @@ export default function Accueil() {
 
         <div className="p-5 sm:p-6 space-y-6">
           {/* Identité — 4 champs regroupés sur une seule ligne (desktop) */}
-          <section className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <section className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
             <div className="border border-slate-200 p-3 rounded-2xl bg-slate-50/50">
               <label className="block text-sm font-bold text-slate-700 mb-2">
                 N° Dossier (Optionnel)
@@ -404,20 +405,11 @@ export default function Accueil() {
                 </div>
               ) : (
                 <div className="flex gap-2">
-                  <select
+                  <PrescriberCombobox
+                    options={[...availableDoctors, ...customDoctors.filter((d) => !availableDoctors.includes(d))]}
                     value={formData.medecinPrescripteur}
-                    onChange={(e) =>
-                      setFormData({ ...formData, medecinPrescripteur: e.target.value })
-                    }
-                    className="w-full px-4 py-2.5 rounded-xl border-2 border-slate-200 focus:ring-0 focus:border-teal-500 outline-none transition-all text-base bg-white appearance-none cursor-pointer"
-                  >
-                    <option value="">— Non spécifié —</option>
-                    {[...availableDoctors, ...customDoctors.filter((d) => !availableDoctors.includes(d))].map((d) => (
-                      <option key={d} value={d}>
-                        {d}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(v) => setFormData({ ...formData, medecinPrescripteur: v })}
+                  />
                   <button
                     onClick={() => setShowAddDoc(true)}
                     className="px-5 py-4 rounded-2xl border-2 border-dashed border-slate-300 text-slate-500 hover:bg-slate-50 transition-all flex items-center justify-center shrink-0"

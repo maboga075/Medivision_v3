@@ -19,6 +19,8 @@ export interface ReportImageSlot {
   // fidèlement l'affichage et projeter les annotations comme dans l'éditeur.
   background?: RetinaBackgroundSnapshot | null;
   annotations?: Annotation[];
+  /** Légende des lésions auto-générée (interprétée par coupe), éditable dans le CR. */
+  caption?: string;
 }
 
 export type ExamenType = 'OCT' | 'Retinographie' | 'OCTA' | 'Pachymetrie' | 'Segment_Anterieur';

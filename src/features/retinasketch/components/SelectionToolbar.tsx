@@ -1,11 +1,14 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import { useStore } from "@/features/retinasketch/store/useStore";
+import { anatomicalLabel, RetinalLayer, CornealLayer } from "@/features/retinasketch/lib/types";
+import type { RetinalLayer as RetinalLayerT, CornealLayer as CornealLayerT } from "@/features/retinasketch/lib/types";
 import { getLesion } from "@/features/retinasketch/lib/ontology/lesions";
 
 /**
  * Barre d'édition de la lésion SÉLECTIONNÉE (mode Sélection) : ré-identifier
- * (ouvre la palette) ou supprimer la couche. `Suppr` supprime aussi.
+ * (ouvre la palette), choisir la couche (coupes B-scan / cornée) ou supprimer.
+ * `Suppr` supprime aussi.
  */
 export default function SelectionToolbar() {
   const id = useStore((s) => s.selectedAnnotationId);
@@ -17,9 +20,19 @@ export default function SelectionToolbar() {
   const setPaletteOpen = useStore((s) => s.setPaletteOpen);
   const deleteAnnotation = useStore((s) => s.deleteAnnotation);
   const selectAnnotation = useStore((s) => s.selectAnnotation);
+  const setAnnotationLayer = useStore((s) => s.setAnnotationLayer);
 
   const lesion = annotation ? getLesion(annotation.lesionId) : undefined;
   const show = !!id && !!annotation;
+
+  // Couche : proposée uniquement sur les coupes transversales (B-scan / cornée).
+  const ctx = annotation?.attrs.context;
+  const layerOptions =
+    ctx === "bscan" ? RetinalLayer.options : ctx === "cornea" ? CornealLayer.options : null;
+  const currentLayer =
+    annotation && (annotation.attrs.context === "bscan" || annotation.attrs.context === "cornea")
+      ? annotation.attrs.layer
+      : null;
 
   return (
     <div className="pointer-events-none absolute bottom-20 left-1/2 z-30 -translate-x-1/2">
@@ -40,8 +53,42 @@ export default function SelectionToolbar() {
               {lesion ? lesion.name : "Brouillon"}
             </span>
             <span className="text-[11px] text-slate-400">
-              {annotation.kind === "point" ? "spot" : annotation.kind === "arrow" ? "flèche" : "surface"} · {annotation.attrs.anatomicalZone}
+              {annotation.kind === "point" ? "spot" : annotation.kind === "arrow" ? "flèche" : "surface"} · {anatomicalLabel(annotation.attrs)}
             </span>
+
+            {/* Sélecteur de couche — coupes B-scan / cornée uniquement */}
+            {layerOptions && (
+              <>
+                <span className="mx-0.5 h-4 w-px bg-slate-200" />
+                <select
+                  value={currentLayer ?? ""}
+                  onChange={(e) =>
+                    setAnnotationLayer(
+                      annotation.id,
+                      (e.target.value || null) as RetinalLayerT | CornealLayerT | null,
+                    )
+                  }
+                  title="Couche de la coupe"
+                  className="rounded-full border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 outline-none focus:border-teal-400"
+                >
+                  <option value="">Couche…</option>
+                  {layerOptions.map((l) => (
+                    <option key={l} value={l}>
+                      {l}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  disabled
+                  title="Détection automatique de la couche — à venir"
+                  className="cursor-not-allowed rounded-full px-2 py-1 text-xs font-medium text-slate-300"
+                >
+                  ✨ IA
+                </button>
+              </>
+            )}
+
             <span className="mx-0.5 h-4 w-px bg-slate-200" />
             <button
               onClick={() => setPaletteOpen(true)}

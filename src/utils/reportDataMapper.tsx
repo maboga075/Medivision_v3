@@ -1,7 +1,20 @@
 import type { RawConsultationData, EyeState } from '../types/clinical';
 import type { AIResult } from '../types/ai';
 import type { OCTReportData, EyeData, ParamRow, PillVariant, PatientSummary } from '../types/report';
+import type { Annotation } from '../features/retinasketch/lib/types';
+import { generateReport } from '../features/retinasketch/lib/report/generate';
 import { formatRNFLGCL } from './biometricFormatter';
+
+/** Légende texte des lésions d'un slot de coupe, interprétée dans son référentiel. */
+function slotCaption(annotations: Annotation[] | undefined, side: 'OD' | 'OG'): string {
+  const lat = side === 'OG' ? 'OS' : 'OD';
+  return generateReport(annotations ?? [], lat)
+    .split('\n')
+    .filter((l) => l.startsWith('•'))
+    .map((l) => l.replace(/^•\s*/, '').trim())
+    .filter(Boolean)
+    .join(' ');
+}
 
 /* ─── Praticien par défaut ─────────────────────────────────────── */
 
@@ -284,6 +297,7 @@ function buildEyeData(
       label: sl.label,
       background: sl.background,
       annotations: sl.annotations,
+      caption: slotCaption(sl.annotations, side),
     }));
 
   // Données du rendu visuel (V3) — recopiées telles quelles depuis la saisie.

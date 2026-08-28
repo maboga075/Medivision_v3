@@ -13,9 +13,6 @@ export function useConsultationForm() {
   const [reportType, setReportType] = useState<ReportType>('Compte rendu OCT');
   const [eyeOD, setEyeOD] = useState<EyeState>(createEyeState());
   const [eyeOG, setEyeOG] = useState<EyeState>(createEyeState());
-  const [forceShowAnterior, setForceShowAnterior] = useState(false);
-  const [, setForceShowPosterior] = useState(false);
-  const [octaDone, setOctaDone] = useState(false);
 
   const [hypothesesDiagnostiques, setHypothesesDiagnostiques] = useState<HypotheseDiagnostique[]>([]);
   const [hypotheseLibre, setHypotheseLibre] = useState('');
@@ -34,15 +31,21 @@ export function useConsultationForm() {
   const [complementaryExam, setComplementaryExam] = useState('');
 
   const isAnteriorBase = reportType === 'OCT du Segment Antérieur';
-  const showAnterior = isAnteriorBase || forceShowAnterior;
+  // OCTA et segment antérieur sont déduits des coupes ajoutées dans RetinaSketch
+  // (coupe « octa » ⇒ OCTA ; « cornea »/« angle » ⇒ segment antérieur), au lieu
+  // de cases à cocher manuelles.
+  const retinaSlotKinds = [
+    ...(eyeOD.retinaSlots ?? []),
+    ...(eyeOG.retinaSlots ?? []),
+  ].map((s) => s.kind);
+  const octaDone = retinaSlotKinds.includes('octa');
+  const showAnterior =
+    isAnteriorBase || retinaSlotKinds.includes('cornea') || retinaSlotKinds.includes('angle');
 
   const reset = useCallback(() => {
     setReportType('Compte rendu OCT');
     setEyeOD(createEyeState());
     setEyeOG(createEyeState());
-    setForceShowAnterior(false);
-    setForceShowPosterior(false);
-    setOctaDone(false);
     setHypothesesDiagnostiques([]);
     setHypotheseLibre('');
     setSelectedCat(INIT_CAT);
@@ -63,9 +66,6 @@ export function useConsultationForm() {
     setReportType(draft.reportType);
     setEyeOD(draft.eyeOD);
     setEyeOG(draft.eyeOG);
-    setForceShowAnterior(draft.forceShowAnterior);
-    setForceShowPosterior(false);
-    setOctaDone(draft.octaDone);
     setHypothesesDiagnostiques(draft.hypothesesDiagnostiques);
     setHypotheseLibre(draft.hypotheseLibre);
     setSelectedCat(draft.selectedCat);
@@ -79,14 +79,12 @@ export function useConsultationForm() {
     reportType,
     eyeOD,
     eyeOG,
-    forceShowAnterior,
-    octaDone,
     hypothesesDiagnostiques,
     hypotheseLibre,
     selectedCat,
     selectedHyp,
     selectedLat,
-  }), [reportType, eyeOD, eyeOG, forceShowAnterior, octaDone,
+  }), [reportType, eyeOD, eyeOG,
       hypothesesDiagnostiques, hypotheseLibre, selectedCat, selectedHyp, selectedLat]);
 
   const handleAddHypothese = useCallback(() => {
@@ -114,29 +112,45 @@ export function useConsultationForm() {
 
   const handleReportTypeChange = useCallback((type: ReportType) => {
     setReportType(type);
-    setForceShowAnterior(false);
-    setForceShowPosterior(false);
   }, []);
 
-  const handleAnteriorChange = useCallback((checked: boolean) => {
-    if (isAnteriorBase) setForceShowPosterior(checked);
-    else setForceShowAnterior(checked);
-  }, [isAnteriorBase]);
+  // ── Suivi RNFL/GCL commun aux deux yeux ──────────────────────────────────
+  // Un seul interrupteur et une seule date pilotent OD et OG simultanément ;
+  // les évolutions restent saisies par œil.
+  const setFollowUpEnabled = useCallback((enabled: boolean) => {
+    const patch = (prev: EyeState): EyeState =>
+      enabled
+        ? {
+            ...prev,
+            hasFollowUp: true,
+            rnflEvolution: prev.rnflEvolution || 'Stable',
+            gclEvolution: prev.gclEvolution || 'Stable',
+          }
+        : { ...prev, hasFollowUp: false };
+    setEyeOD(patch);
+    setEyeOG(patch);
+  }, []);
+
+  const setFollowUpDate = useCallback((date: string) => {
+    setEyeOD((prev) => ({ ...prev, followUpDate: date }));
+    setEyeOG((prev) => ({ ...prev, followUpDate: date }));
+  }, []);
 
   return {
-    reportType, eyeOD, eyeOG, forceShowAnterior, octaDone,
+    reportType, eyeOD, eyeOG, octaDone,
     hypothesesDiagnostiques, hypotheseLibre, selectedCat, selectedHyp, selectedLat,
     hypoError, hypoWarning,
     showBadge, badgeVariant, badgeCustomLabel, showBadgeCustom,
     nextControlDelay, customDelayText, complementaryExam,
     isAnteriorBase, showAnterior,
-    setEyeOD, setEyeOG, setOctaDone,
+    setEyeOD, setEyeOG,
     setHypothesesDiagnostiques, setHypotheseLibre,
     setSelectedCat, setSelectedHyp, setSelectedLat,
     setShowBadge, setBadgeVariant, setBadgeCustomLabel, setShowBadgeCustom,
     setNextControlDelay, setCustomDelayText, setComplementaryExam,
+    setFollowUpEnabled, setFollowUpDate,
     reset, applyDraft, snapshotDraft,
     handleAddHypothese, handleRemoveHypothese,
-    handleReportTypeChange, handleAnteriorChange,
+    handleReportTypeChange,
   };
 }

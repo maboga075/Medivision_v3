@@ -1,6 +1,7 @@
 
 import { useStore } from "@/features/retinasketch/store/useStore";
 import type { Laterality } from "@/features/retinasketch/lib/types";
+import { anatomicalLabel } from "@/features/retinasketch/lib/types";
 import { getLesion } from "@/features/retinasketch/lib/ontology/lesions";
 
 interface Props {
@@ -60,7 +61,7 @@ export default function SelectionPicker({ eye }: Props) {
                     {lesion ? lesion.name : "Brouillon"}
                   </span>
                   <span className="shrink-0 text-[10px] text-slate-400">
-                    {a.kind === "point" ? "spot" : a.kind === "arrow" ? "flèche" : "surface"} · {a.attrs.anatomicalZone}
+                    {a.kind === "point" ? "spot" : a.kind === "arrow" ? "flèche" : "surface"} · {anatomicalLabel(a.attrs)}
                   </span>
                 </button>
               </li>

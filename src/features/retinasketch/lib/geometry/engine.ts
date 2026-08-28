@@ -1,10 +1,14 @@
 import { TEMPLATE, FOVEA_BANDS } from "./template";
+import { attrContextForKind } from "../types";
 import type {
   AnatomicalZone,
   DerivedAttributes,
+  RetinoAttributes,
   EtdrsSector,
   Quadrant,
   FoveaBand,
+  ImageKind,
+  TransverseZone,
 } from "../types";
 
 /** Moteur géométrique pur : aucune dépendance UI. Calcule les 4 niveaux. */
@@ -95,8 +99,8 @@ function etdrsSector(pt: P, dFovea: number): EtdrsSector | null {
   return `${dir}${ring}` as EtdrsSector;
 }
 
-/** Calcule l'ensemble des attributs dérivés pour un point (mm, convention OD). */
-export function computeAttributes(centroidMm: P): DerivedAttributes {
+/** Attributs pour une rétinographie de face (référentiel fovéa/papille/ETDRS). */
+function computeRetinoAttributes(centroidMm: P): RetinoAttributes {
   const dFovea = dist(centroidMm, TEMPLATE.fovea);
   const dDisc = dist(centroidMm, TEMPLATE.disc);
   const dVessel = Math.min(
@@ -104,6 +108,7 @@ export function computeAttributes(centroidMm: P): DerivedAttributes {
   );
 
   return {
+    context: "retino",
     anatomicalZone: anatomicalZone(centroidMm, dFovea, dDisc),
     quadrant: quadrant(centroidMm),
     foveaBand: foveaBand(dFovea),
@@ -115,6 +120,54 @@ export function computeAttributes(centroidMm: P): DerivedAttributes {
       distanceToVesselMm: round(dVessel),
     },
   };
+}
+
+/**
+ * Zone transverse d'une coupe, selon l'éloignement du centre (rapporté à la
+ * demi-largeur du champ). Les coupes rect/carré sont centrées à l'origine.
+ */
+function transverseZone(relative: number): TransverseZone {
+  if (relative < 0.34) return "centrale";
+  if (relative < 0.67) return "paracentrale";
+  return "périphérique";
+}
+
+/**
+ * Calcule les attributs dérivés d'une lésion selon le type de coupe.
+ * - `retino` : référentiel anatomique de face (inchangé).
+ * - `bscan`/`cornea` : coupe transversale (position + couche à saisir).
+ * - `octa`/`enface` : secteur en-face simple.
+ * La couche (`layer`) n'est pas géométrique : elle reste `null` ici et sera
+ * renseignée manuellement (ou par un modèle IA ultérieur).
+ */
+export function computeAttributes(
+  centroidMm: P,
+  kind: ImageKind,
+): DerivedAttributes {
+  const R = TEMPLATE.retina.halfWidthMm;
+  switch (attrContextForKind(kind)) {
+    case "retino":
+      return computeRetinoAttributes(centroidMm);
+    case "bscan":
+      // Coupe rectangulaire : position le long de la coupe (axe x).
+      return {
+        context: "bscan",
+        transverseZone: transverseZone(Math.abs(centroidMm.x) / R),
+        layer: null,
+      };
+    case "cornea":
+      return {
+        context: "cornea",
+        transverseZone: transverseZone(Math.abs(centroidMm.x) / R),
+        layer: null,
+      };
+    case "octa":
+      // Champ carré : éloignement radial au centre.
+      return {
+        context: "octa",
+        transverseZone: transverseZone(Math.hypot(centroidMm.x, centroidMm.y) / R),
+      };
+  }
 }
 
 const round = (n: number) => Math.round(n * 100) / 100;

@@ -8,11 +8,6 @@ interface ExamTypeSelectorProps {
   onReportTypeChange: (type: ReportType) => void;
   selectedDoctorId: string;
   onDoctorChange: (id: string) => void;
-  showAnterior: boolean;
-  isAnteriorBase: boolean;
-  onAnteriorChange: (checked: boolean) => void;
-  octaDone: boolean;
-  onOctaDoneChange: (checked: boolean) => void;
   doctors?: Doctor[];
 }
 
@@ -21,11 +16,6 @@ export default function ExamTypeSelector({
   onReportTypeChange,
   selectedDoctorId,
   onDoctorChange,
-  showAnterior,
-  isAnteriorBase,
-  onAnteriorChange,
-  octaDone,
-  onOctaDoneChange,
   doctors,
 }: ExamTypeSelectorProps) {
   return (
@@ -60,30 +50,6 @@ export default function ExamTypeSelector({
             />
           </div>
         )}
-      </div>
-
-      <div className="flex flex-wrap gap-6 pt-3 border-t border-slate-100">
-        <label className="flex items-center gap-3 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={showAnterior}
-            onChange={(e) => {
-              if (isAnteriorBase) onAnteriorChange(e.target.checked);
-              else onAnteriorChange(e.target.checked);
-            }}
-            className="w-5 h-5 rounded border-2 border-slate-300 accent-teal-600 cursor-pointer"
-          />
-          <span className="font-medium text-slate-700 text-sm">OCT segment antérieur réalisé</span>
-        </label>
-        <label className="flex items-center gap-3 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={octaDone}
-            onChange={(e) => onOctaDoneChange(e.target.checked)}
-            className="w-5 h-5 rounded border-2 border-slate-300 accent-teal-600 cursor-pointer"
-          />
-          <span className="font-medium text-slate-700 text-sm">OCTA réalisé</span>
-        </label>
       </div>
     </div>
   );

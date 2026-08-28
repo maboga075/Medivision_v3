@@ -1,11 +1,8 @@
 import { useState } from 'react';
-import { Pencil } from 'lucide-react';
 import BubblePicker from './BubblePicker';
 import RnflGclPicker from './RnflGclPicker';
-import {
-  BUBBLE_PICKER_SUGGESTIONS,
-  EVOLUTION_OPTIONS,
-} from '../../utils/constants';
+import TextTagField from './TextTagField';
+import { BUBBLE_PICKER_SUGGESTIONS } from '../../utils/constants';
 import {
   createDefaultRnflSectors,
   createDefaultGclSectors,
@@ -29,35 +26,17 @@ const PREDEFINED_CAUSES = [
   'Opacité des milieux transparents',
 ] as const;
 
-// C/D vertical : toujours < 1, donc seul « 0, » est sous-entendu et l'on ne saisit
-// que les décimales. La valeur reste stockée au format « 0.x » pour le reste du pipeline.
-const CUP_DISC_MAX_DECIMALS = 2;
-
-/** Décimales à afficher dans le champ (partie après « 0, »). */
-function cupDiscDecimals(stored: string): string {
-  if (!stored) return '';
-  const dot = stored.replace(',', '.').indexOf('.');
-  const digits = dot === -1 ? '' : stored.replace(',', '.').slice(dot + 1);
-  return digits.replace(/\D/g, '').slice(0, CUP_DISC_MAX_DECIMALS);
-}
-
-/** Reconstruit la valeur stockée « 0.x » à partir des décimales saisies. */
-function decimalsToCupDisc(input: string): string {
-  const digits = input.replace(/\D/g, '').slice(0, CUP_DISC_MAX_DECIMALS);
-  return digits ? `0.${digits}` : '';
-}
-
 interface EyeExamSectionProps {
   side: 'OD' | 'OG';
   eye: EyeState;
   onUpdate: (eye: EyeState) => void;
   isOCT?: boolean;
-  showOpticNerve?: boolean;
   showAnterior?: boolean;
-  octaDone?: boolean;
-  /** Ouvre l'éditeur RetinaSketch double-œil (modale unique gérée par le parent). */
-  onOpenRetina?: () => void;
   onNewSuggestion?: (category: 'macula' | 'papille' | 'peripherie', item: string) => void;
+  /** Suggestions mémorisées pour le champ « Divers ». */
+  diversSuggestions?: string[];
+  /** Persiste une nouvelle observation « Divers » pour les prochaines sessions. */
+  onPersistDivers?: (item: string) => void;
 }
 
 export default function EyeExamSection({
@@ -65,10 +44,9 @@ export default function EyeExamSection({
   eye,
   onUpdate,
   isOCT = true,
-  showOpticNerve = false,
   showAnterior = false,
-  octaDone = false,
-  onOpenRetina,
+  diversSuggestions = [],
+  onPersistDivers,
 }: EyeExamSectionProps) {
   const [customCause, setCustomCause] = useState('');
   const [showCustomInput, setShowCustomInput] = useState(false);
@@ -77,8 +55,6 @@ export default function EyeExamSection({
   // Exclusions facultatives — le praticien peut retirer RNFL/GCL et/ou les
   // paramètres du disque, quel que soit l'indice d'acquisition.
   const excludeRnflGcl = eye.excludeRnflGcl === true;
-  const excludeDisc = eye.excludeDisc === true;
-  const annotationCount = (eye.retinaAnnotations ?? []).filter((a) => a.status === 'validated').length;
 
   const update = <K extends keyof EyeState>(k: K, v: EyeState[K]) =>
     onUpdate({ ...eye, [k]: v });
@@ -269,22 +245,10 @@ export default function EyeExamSection({
             Observations morphologiques
           </div>
 
-          {/* RetinaSketch — ouvre l'éditeur double-œil (OD + OG simultanés) */}
-          <button
-            type="button"
-            onClick={() => onOpenRetina?.()}
-            disabled={isImpossible}
-            className="w-full flex items-center justify-between gap-3 px-4 py-3 rounded-xl border-2 border-dashed border-teal-200 bg-teal-50/40 text-teal-700 font-bold text-sm hover:border-teal-400 hover:bg-teal-50 transition-all active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <span className="flex items-center gap-2">
-              <Pencil className="w-4 h-4" /> Annoter la rétine (2 yeux)
-            </span>
-            <span className={`px-2 py-0.5 rounded-full text-xs ${annotationCount > 0 ? 'bg-teal-600 text-white' : 'bg-slate-200 text-slate-500'}`}>
-              {annotationCount > 0 ? `${annotationCount} lésion${annotationCount > 1 ? 's' : ''}` : 'aucune'}
-            </span>
-          </button>
+          {/* RetinaSketch : bouton unique déplacé entre les colonnes OD/OG
+              (géré par le parent Consultation), plus de bouton par œil. */}
 
-          {/* Segment Antérieur — si activé au niveau consultation */}
+          {/* Segment Antérieur — affiché dès qu'une coupe cornée/angle existe */}
           {showAnterior && (
             <div className="space-y-3 pt-2 border-t border-indigo-100">
               <div className="text-xs font-black text-indigo-600 uppercase tracking-wider pb-1">
@@ -314,90 +278,54 @@ export default function EyeExamSection({
             </div>
           )}
 
-          {/* OCTA — si activé au niveau consultation */}
-          {octaDone && isOCT && (
-            <div className="space-y-2 pt-2 border-t border-purple-100">
-              <div className="text-xs font-black text-purple-600 uppercase tracking-wider pb-1">
-                OCTA
-              </div>
-              <BubblePicker
-                title="Observations OCTA"
-                selectedItems={eye.obsOCTA}
-                suggestions={BUBBLE_PICKER_SUGGESTIONS.octa as unknown as string[]}
-                onAdd={(item) => handleAddObs('obsOCTA', item)}
-                onRemove={(item) => handleRemoveObs('obsOCTA', item)}
-                disabled={isImpossible}
-              />
-            </div>
-          )}
+          {/* OCTA : plus de champ dédié — l'observation passe désormais par une
+              coupe OCTA dans RetinaSketch ou par le champ Divers ci-dessous. */}
 
-          {/* Divers — textarea libre */}
-          <div className="space-y-2 pt-2 border-t border-slate-100">
-            <label className="font-bold text-sm text-slate-700 flex items-center gap-2">
-              <span className="text-slate-400">◈</span> Divers
-            </label>
-            <textarea
+          {/* Divers — champ à tags (auto-complétion + mémoire), stocké en texte */}
+          <div className="pt-2 border-t border-slate-100">
+            <TextTagField
+              label={<span className="flex items-center gap-2"><span className="text-slate-400">◈</span> Divers</span>}
               value={eye.observationsDivers}
-              onChange={(e) => update('observationsDivers', e.target.value)}
+              onChange={(v) => update('observationsDivers', v)}
+              suggestions={diversSuggestions}
+              onPersistNew={onPersistDivers}
+              placeholder="Symptôme ou observation libre…"
               disabled={isImpossible}
-              placeholder="Observations libres (détails additionnels, anomalies non listées…)"
-              className="w-full px-4 py-3 rounded-xl border-2 border-slate-200 text-sm focus:outline-none focus:border-teal-400 bg-slate-50 focus:bg-white transition-all resize-none disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-slate-100"
-              rows={3}
             />
           </div>
         </div>
 
-        {/* Module RGB — Paramètres biométriques / nerf optique — toujours visible */}
-        {(isOCT || showOpticNerve) && (
+        {/* Module RNFL/GCL par secteurs — OCT uniquement.
+            Le disque (surface + C/D) et le suivi RNFL/GCL sont désormais dans
+            l'encadré commun aux 2 yeux (SharedDiscFollowUpSection). */}
+        {isOCT && (
           <div className="border border-slate-200 rounded-2xl overflow-hidden">
             <div className="w-full flex items-center p-4 text-xs font-black text-teal-600 uppercase tracking-widest bg-slate-50 border-b border-slate-100">
-              <span>{isOCT ? 'Paramètres biométriques (OCT)' : 'Paramètres nerf optique'}</span>
+              <span>RNFL &amp; GCL+ (OCT)</span>
             </div>
 
             <div className={`p-4 space-y-4 ${isImpossible ? 'opacity-50 pointer-events-none select-none' : ''}`}>
-                {/* Exclusions facultatives — disponibles quel que soit l'indice
-                    d'acquisition. Deux cases indépendantes : RNFL/GCL et disque. */}
-                <div className="flex flex-col sm:flex-row gap-2">
-                  {isOCT && (
-                    <button
-                      type="button"
-                      onClick={() => update('excludeRnflGcl', !eye.excludeRnflGcl)}
-                      className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold border transition-all active:scale-[0.99] ${
-                        excludeRnflGcl
-                          ? 'bg-amber-500 border-amber-500 text-white shadow-sm'
-                          : 'bg-white border-amber-300 text-amber-700 hover:bg-amber-50'
-                      }`}
-                    >
-                      {excludeRnflGcl ? '✓ RNFL/GCL exclus' : 'Ne pas interpréter RNFL/GCL'}
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => update('excludeDisc', !eye.excludeDisc)}
-                    className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold border transition-all active:scale-[0.99] ${
-                      excludeDisc
-                        ? 'bg-amber-500 border-amber-500 text-white shadow-sm'
-                        : 'bg-white border-amber-300 text-amber-700 hover:bg-amber-50'
-                    }`}
-                  >
-                    {excludeDisc ? '✓ Disque exclu' : 'Ne pas interpréter le disque'}
-                  </button>
-                </div>
+                {/* Exclusion facultative RNFL/GCL */}
+                <button
+                  type="button"
+                  onClick={() => update('excludeRnflGcl', !eye.excludeRnflGcl)}
+                  className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold border transition-all active:scale-[0.99] ${
+                    excludeRnflGcl
+                      ? 'bg-amber-500 border-amber-500 text-white shadow-sm'
+                      : 'bg-white border-amber-300 text-amber-700 hover:bg-amber-50'
+                  }`}
+                >
+                  {excludeRnflGcl ? '✓ RNFL/GCL exclus' : 'Ne pas interpréter RNFL/GCL'}
+                </button>
 
-                {/* Message affiché quand des paramètres sont exclus */}
-                {isOCT && excludeRnflGcl && (
+                {excludeRnflGcl && (
                   <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-xs font-semibold text-amber-700">
                     RNFL et GCL exclus de l'interprétation : ces paramètres n'apparaîtront pas dans le compte rendu.
                   </div>
                 )}
-                {excludeDisc && (
-                  <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-xs font-semibold text-amber-700">
-                    Paramètres du disque (C/D, surface) exclus : ils n'apparaîtront pas dans le compte rendu.
-                  </div>
-                )}
 
-                {/* RNFL & GCL+ par secteurs — OCT uniquement, masqués si exclus */}
-                {isOCT && !excludeRnflGcl && (
+                {/* RNFL & GCL+ par secteurs — masqués si exclus */}
+                {!excludeRnflGcl && (
                   <div>
                     <label className="block text-xs font-bold text-slate-500 uppercase mb-2">
                       RNFL &amp; GCL+ <span className="text-slate-400 normal-case font-medium">— cliquer un secteur</span>
@@ -417,113 +345,6 @@ export default function EyeExamSection({
                         })
                       }
                     />
-                  </div>
-                )}
-
-                {/* C/D + Surface discale — masqués si le disque est exclu */}
-                {!excludeDisc && (
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2">
-                      C/D vertical
-                    </label>
-                    <div className="relative">
-                      <span
-                        aria-hidden="true"
-                        className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400 select-none"
-                      >
-                        0,
-                      </span>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        maxLength={CUP_DISC_MAX_DECIMALS}
-                        className="w-full p-2.5 pl-9 border-2 border-slate-200 rounded-xl text-sm font-bold outline-none focus:border-teal-500"
-                        placeholder="9"
-                        value={cupDiscDecimals(eye.cupDisc)}
-                        onChange={(e) => update('cupDisc', decimalsToCupDisc(e.target.value))}
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2">
-                      Surface (mm²)
-                    </label>
-                    <input
-                      type="number"
-                      step="0.1"
-                      className="w-full p-2.5 border-2 border-slate-200 rounded-xl text-sm font-bold outline-none focus:border-teal-500"
-                      placeholder="Ex: 2.1"
-                      value={eye.discSurface}
-                      onChange={(e) => update('discSurface', e.target.value)}
-                    />
-                  </div>
-                </div>
-                )}
-
-                {/* Suivi RNFL/GCL — OCT uniquement, masqué si RNFL/GCL exclus */}
-                {isOCT && !excludeRnflGcl && (
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <label className="text-xs font-bold text-slate-500 uppercase">Suivi RNFL/GCL</label>
-                      <div className="flex gap-2">
-                        {([true, false] as const).map((v) => (
-                          <button
-                            key={String(v)}
-                            onClick={() =>
-                              v
-                                ? onUpdate({
-                                    ...eye,
-                                    hasFollowUp: true,
-                                    // Défaut « Stable » pour que l'affichage corresponde au select
-                                    rnflEvolution: eye.rnflEvolution || 'Stable',
-                                    gclEvolution: eye.gclEvolution || 'Stable',
-                                  })
-                                : update('hasFollowUp', false)
-                            }
-                            className={`px-3 py-1 rounded-lg text-xs font-black border transition-all active:scale-95 ${
-                              eye.hasFollowUp === v
-                                ? v
-                                  ? 'bg-teal-500 border-teal-500 text-white'
-                                  : 'bg-slate-200 border-slate-300 text-slate-700'
-                                : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'
-                            }`}
-                          >
-                            {v ? 'OUI' : 'NON'}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    {eye.hasFollowUp && (
-                      <div className="space-y-3 animate-in slide-in-from-top-2">
-                        <input
-                          type="date"
-                          className="w-full p-2.5 border-2 border-slate-200 rounded-xl text-sm font-bold focus:border-teal-500 outline-none"
-                          value={eye.followUpDate}
-                          onChange={(e) => update('followUpDate', e.target.value)}
-                        />
-                        <div className="grid grid-cols-2 gap-3">
-                          {(['rnflEvolution', 'gclEvolution'] as const).map((field) => (
-                            <div key={field}>
-                              <label className="block text-xs font-bold text-slate-500 uppercase mb-1">
-                                {field === 'rnflEvolution' ? 'Évol. RNFL' : 'Évol. GCL++'}
-                              </label>
-                              <select
-                                className="w-full p-2.5 border-2 border-slate-200 rounded-xl text-sm font-bold outline-none focus:border-teal-500 bg-white"
-                                value={eye[field]}
-                                onChange={(e) => update(field, e.target.value)}
-                              >
-                                {EVOLUTION_OPTIONS.map((o) => (
-                                  <option key={o} value={o}>
-                                    {o}
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
                   </div>
                 )}
             </div>

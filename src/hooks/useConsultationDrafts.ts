@@ -8,8 +8,10 @@ export interface ConsultationDraft {
   reportType: ReportType;
   eyeOD: EyeState;
   eyeOG: EyeState;
-  forceShowAnterior: boolean;
-  octaDone: boolean;
+  /** @deprecated Dérivés des coupes RetinaSketch — conservés en option pour compat des brouillons existants. */
+  forceShowAnterior?: boolean;
+  /** @deprecated idem — voir forceShowAnterior. */
+  octaDone?: boolean;
   hypothesesDiagnostiques: HypotheseDiagnostique[];
   hypotheseLibre: string;
   selectedCat: string;

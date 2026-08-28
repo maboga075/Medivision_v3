@@ -1,6 +1,6 @@
 
 import { create } from "zustand";
-import type { Annotation, Laterality, ImageKind, ImageGeometry } from "@/features/retinasketch/lib/types";
+import type { Annotation, Laterality, ImageKind, ImageGeometry, RetinalLayer, CornealLayer } from "@/features/retinasketch/lib/types";
 import { GEOMETRY_FOR_KIND, LABEL_FOR_KIND } from "@/features/retinasketch/lib/types";
 import type { RetinaBackgroundSnapshot, RetinaSlotSnapshot } from "@/types/clinical";
 import { computeAttributes, geometryMetrics, smoothFreeform } from "@/features/retinasketch/lib/geometry/engine";
@@ -369,6 +369,8 @@ interface State {
   assignLesion: (lesionId: string) => void;
   /** Édition d'une couche : (ré)assigne une lésion à UNE annotation (la valide). */
   setAnnotationLesion: (id: string, lesionId: string) => void;
+  /** Définit la couche d'une lésion sur coupe B-scan (rétine) ou cornée. */
+  setAnnotationLayer: (id: string, layer: RetinalLayer | CornealLayer | null) => void;
   deleteAnnotation: (id: string) => void;
   deleteLesionGroup: (lesionId: string) => void;
   toggleLesionVisibility: (lesionId: string) => void;
@@ -392,6 +394,7 @@ function buildAnnotation(
   radiusMm: number | null,
   laterality: Laterality,
   author: string,
+  slotKind: ImageKind,
 ): Annotation {
   const { centroid, areaMm2 } = geometryMetrics(kind, points);
   return {
@@ -407,10 +410,17 @@ function buildAnnotation(
     laterality,
     lesionId: null,
     status: "draft",
-    attrs: computeAttributes(centroid),
+    // L'attribution dépend du type de coupe du slot actif (rétino, B-scan, …).
+    attrs: computeAttributes(centroid, slotKind),
     author,
     createdAt: new Date().toISOString(),
   };
+}
+
+/** Type de coupe du slot actif d'un œil (défaut « retino » si introuvable). */
+function activeKind(s: State, eye: Laterality): ImageKind {
+  const slotId = s.activeSlot[eye];
+  return s.slots[eye].find((sl) => sl.id === slotId)?.kind ?? "retino";
 }
 
 /** Slots rétino de base (un par œil) au démarrage / après reset. */
@@ -791,7 +801,7 @@ export const useStore = create<State>((set, get) => ({
     set((s) => ({
       annotations: [
         ...s.annotations,
-        buildAnnotation("point", [mx, my], s.spotRadiusMm, eye ?? s.laterality, s.author),
+        buildAnnotation("point", [mx, my], s.spotRadiusMm, eye ?? s.laterality, s.author, activeKind(s, eye ?? s.laterality)),
       ],
     })),
 
@@ -801,7 +811,7 @@ export const useStore = create<State>((set, get) => ({
     set((s) => ({
       annotations: [
         ...s.annotations,
-        buildAnnotation("polygon", smoothed, null, eye ?? s.laterality, s.author),
+        buildAnnotation("polygon", smoothed, null, eye ?? s.laterality, s.author, activeKind(s, eye ?? s.laterality)),
       ],
     }));
   },
@@ -815,7 +825,7 @@ export const useStore = create<State>((set, get) => ({
     set((s) => ({
       annotations: [
         ...s.annotations,
-        buildAnnotation("arrow", [x0, y0, x1, y1], null, eye ?? s.laterality, s.author),
+        buildAnnotation("arrow", [x0, y0, x1, y1], null, eye ?? s.laterality, s.author, activeKind(s, eye ?? s.laterality)),
       ],
     }));
   },
@@ -826,7 +836,7 @@ export const useStore = create<State>((set, get) => ({
     set((s) => ({
       annotations: [
         ...s.annotations,
-        buildAnnotation("polygon", points, null, eye ?? s.laterality, s.author),
+        buildAnnotation("polygon", points, null, eye ?? s.laterality, s.author, activeKind(s, eye ?? s.laterality)),
       ],
     }));
   },
@@ -866,6 +876,21 @@ export const useStore = create<State>((set, get) => ({
         paletteOpen: false,
       };
     }),
+
+  setAnnotationLayer: (id, layer) =>
+    set((s) => ({
+      annotations: s.annotations.map((a) => {
+        if (a.id !== id) return a;
+        // La couche n'existe que pour les coupes transversales (B-scan / cornée).
+        if (a.attrs.context === "bscan") {
+          return { ...a, attrs: { ...a.attrs, layer: layer as RetinalLayer | null } };
+        }
+        if (a.attrs.context === "cornea") {
+          return { ...a, attrs: { ...a.attrs, layer: layer as CornealLayer | null } };
+        }
+        return a;
+      }),
+    })),
 
   deleteAnnotation: (id) =>
     set((s) => ({

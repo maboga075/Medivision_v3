@@ -79,20 +79,105 @@ export const AnatomicalZone = z.enum([
 ]);
 export type AnatomicalZone = z.infer<typeof AnatomicalZone>;
 
-/** Attributs cliniques dérivés automatiquement par le moteur géométrique. */
-export const DerivedAttributes = z.object({
+/** Couches rétiniennes (coupe B-scan) — saisie manuelle, détection IA à venir. */
+export const RetinalLayer = z.enum([
+  "RNFL", "GCL", "IPL", "INL", "OPL", "ONL",
+  "Photorécepteurs", "EPR", "Choroïde",
+  "Rétine interne", "Rétine externe", "Toute épaisseur",
+]);
+export type RetinalLayer = z.infer<typeof RetinalLayer>;
+
+/** Couches cornéennes (OCT segment antérieur) — saisie manuelle. */
+export const CornealLayer = z.enum([
+  "Épithélium", "Bowman", "Stroma", "Descemet", "Endothélium", "Toute épaisseur",
+]);
+export type CornealLayer = z.infer<typeof CornealLayer>;
+
+/** Position transverse dans une coupe, selon l'éloignement du centre. */
+export const TransverseZone = z.enum(["centrale", "paracentrale", "périphérique"]);
+export type TransverseZone = z.infer<typeof TransverseZone>;
+
+/**
+ * Famille d'attribution : référentiel d'interprétation d'une lésion. Plusieurs
+ * types de coupe partagent la même famille (cornea+angle, octa+enface).
+ */
+export const AttrContext = z.enum(["retino", "bscan", "cornea", "octa"]);
+export type AttrContext = z.infer<typeof AttrContext>;
+
+export const attrContextForKind = (kind: ImageKind): AttrContext => {
+  switch (kind) {
+    case "retino": return "retino";
+    case "bscan": return "bscan";
+    case "cornea":
+    case "angle": return "cornea";
+    case "octa":
+    case "enface": return "octa";
+  }
+};
+
+const VascularRelation = z.object({
+  nearVessel: z.boolean(),
+  distanceToVesselMm: z.number().nullable(),
+});
+
+/** Attributs — rétinographie de face (référentiel fovéa/papille/ETDRS). */
+export const RetinoAttributes = z.object({
+  context: z.literal("retino"),
   anatomicalZone: AnatomicalZone,
   quadrant: Quadrant,
   foveaBand: FoveaBand,
   distanceToFoveaMm: z.number(),
   etdrsSector: EtdrsSector.nullable(),
   distanceToDiscMm: z.number(),
-  vascularRelation: z.object({
-    nearVessel: z.boolean(),
-    distanceToVesselMm: z.number().nullable(),
-  }),
+  vascularRelation: VascularRelation,
 });
+export type RetinoAttributes = z.infer<typeof RetinoAttributes>;
+
+/** Attributs — coupe B-scan rétinienne (position transverse + couche). */
+export const BscanAttributes = z.object({
+  context: z.literal("bscan"),
+  transverseZone: TransverseZone,
+  layer: RetinalLayer.nullable(),
+});
+export type BscanAttributes = z.infer<typeof BscanAttributes>;
+
+/** Attributs — coupe cornée / angle irido-cornéen (couche cornéenne). */
+export const CorneaAttributes = z.object({
+  context: z.literal("cornea"),
+  transverseZone: TransverseZone,
+  layer: CornealLayer.nullable(),
+});
+export type CorneaAttributes = z.infer<typeof CorneaAttributes>;
+
+/** Attributs — OCT-A / en-face (secteur simple). */
+export const OctaAttributes = z.object({
+  context: z.literal("octa"),
+  transverseZone: TransverseZone,
+});
+export type OctaAttributes = z.infer<typeof OctaAttributes>;
+
+/** Attributs cliniques dérivés, discriminés par famille d'attribution. */
+export const DerivedAttributes = z.discriminatedUnion("context", [
+  RetinoAttributes,
+  BscanAttributes,
+  CorneaAttributes,
+  OctaAttributes,
+]);
 export type DerivedAttributes = z.infer<typeof DerivedAttributes>;
+
+/** Libellé court de localisation, tolérant à toutes les familles d'attribution. */
+export function anatomicalLabel(attrs: DerivedAttributes): string {
+  switch (attrs.context) {
+    case "retino":
+      return attrs.anatomicalZone;
+    case "bscan":
+      return `B-scan · ${attrs.transverseZone}${attrs.layer ? ` · ${attrs.layer}` : ""}`;
+    case "cornea":
+      return `Cornée · ${attrs.transverseZone}${attrs.layer ? ` · ${attrs.layer}` : ""}`;
+    case "octa":
+      return `OCT-A · ${attrs.transverseZone}`;
+  }
+}
 
 export const Annotation = z.object({
   id: z.string(),

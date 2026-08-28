@@ -1,4 +1,10 @@
-import type { Annotation, Laterality } from "../types";
+import type {
+  Annotation,
+  Laterality,
+  RetinoAttributes,
+  BscanAttributes,
+  CorneaAttributes,
+} from "../types";
 import { getLesion } from "../ontology/lesions";
 
 /** Génère un compte rendu clinique à partir des annotations validées. */
@@ -47,32 +53,92 @@ function pluralizeLesion(name: string): string {
   return words.join(" ");
 }
 
-function sentenceForGroup(lesionName: string, items: Annotation[]): string {
-  const n = items.length;
-  const zone = mostFrequent(items.map((a) => a.attrs.anatomicalZone));
-  const quadrant = mostFrequent(items.map((a) => a.attrs.quadrant));
-  const etdrs = items
-    .map((a) => a.attrs.etdrsSector)
-    .filter((x): x is NonNullable<typeof x> => !!x);
-
+/** Fragment « présence d'une/de N <lésion> » commun à tous les contextes. */
+function presenceCount(lesionName: string, n: number): string {
   const count =
     n > 1
       ? `${n} ${pluralizeLesion(lesionName).toLowerCase()}`
       : `${lesionName.toLowerCase()}`;
   const presence = plural(n, "présence d'une", "présence de");
+  return `${presence} ${count}`;
+}
 
-  let loc = ZONE_PHRASE[zone] ?? "";
+/** Met en forme la phrase finale : espace unique, majuscule initiale, point final. */
+function finalize(s: string): string {
+  const t = s.replace(/\s+/g, " ").trim();
+  return t.charAt(0).toUpperCase() + t.slice(1) + ".";
+}
+
+/** Phrase pour une rétinographie (référentiel fovéa/papille/quadrant/ETDRS). */
+function sentenceRetino(lesionName: string, items: Annotation[]): string {
+  const attrs = items
+    .map((a) => a.attrs)
+    .filter((x): x is RetinoAttributes => x.context === "retino");
+  const n = attrs.length;
+  const zone = mostFrequent(attrs.map((a) => a.anatomicalZone));
+  const quadrant = mostFrequent(attrs.map((a) => a.quadrant));
+  const etdrs = attrs
+    .map((a) => a.etdrsSector)
+    .filter((x): x is NonNullable<typeof x> => !!x);
+
+  let loc: string;
   if (zone === "Macula" || zone === "Fovéa") {
     loc = zone === "Fovéa" ? "à proximité fovéolaire" : "en région maculaire";
   } else {
     loc = `${ZONE_PHRASE[zone] ?? ""}, quadrant ${QUADRANT_LABEL[quadrant]}`;
   }
 
-  let s = `${presence} ${count} ${loc}`.replace(/\s+/g, " ").trim();
+  let s = `${presenceCount(lesionName, n)} ${loc}`;
   if (etdrs.length) {
     s += ` (secteur${etdrs.length > 1 ? "s" : ""} ETDRS ${[...new Set(etdrs)].join(", ")})`;
   }
-  return s.charAt(0).toUpperCase() + s.slice(1) + ".";
+  return finalize(s);
+}
+
+/** Couche dominante d'un lot d'attributs de coupe (ou null si non renseignée). */
+function dominantLayer(layers: (string | null)[]): string | null {
+  const present = layers.filter((l): l is string => !!l);
+  return present.length ? mostFrequent(present) : null;
+}
+
+/** Phrase pour une coupe B-scan (support + couche + région transverse). */
+function sentenceBscan(lesionName: string, items: Annotation[]): string {
+  const attrs = items
+    .map((a) => a.attrs)
+    .filter((x): x is BscanAttributes => x.context === "bscan");
+  const n = attrs.length;
+  const zone = mostFrequent(attrs.map((a) => a.transverseZone));
+  const layer = dominantLayer(attrs.map((a) => a.layer));
+  const layerPart = layer ? `, couche ${layer}` : "";
+  return finalize(`${presenceCount(lesionName, n)} sur le B-scan${layerPart}, en région ${zone}`);
+}
+
+/** Phrase pour une coupe de cornée / angle (couche cornéenne + région). */
+function sentenceCornea(lesionName: string, items: Annotation[]): string {
+  const attrs = items
+    .map((a) => a.attrs)
+    .filter((x): x is CorneaAttributes => x.context === "cornea");
+  const n = attrs.length;
+  const zone = mostFrequent(attrs.map((a) => a.transverseZone));
+  const layer = dominantLayer(attrs.map((a) => a.layer));
+  const layerPart = layer ? `, couche ${layer}` : "";
+  return finalize(`${presenceCount(lesionName, n)} sur la coupe de cornée${layerPart}, en région ${zone}`);
+}
+
+/** Phrase pour une coupe OCT-A / en-face (région simple). */
+function sentenceOcta(lesionName: string, items: Annotation[]): string {
+  const n = items.length;
+  return finalize(`${presenceCount(lesionName, n)} en OCT-angiographie`);
+}
+
+/** Dispatch de la phrase selon le contexte d'attribution du groupe. */
+function sentenceForGroup(lesionName: string, items: Annotation[]): string {
+  switch (items[0].attrs.context) {
+    case "retino": return sentenceRetino(lesionName, items);
+    case "bscan": return sentenceBscan(lesionName, items);
+    case "cornea": return sentenceCornea(lesionName, items);
+    case "octa": return sentenceOcta(lesionName, items);
+  }
 }
 
 export function generateReport(
@@ -93,16 +159,19 @@ export function generateReport(
     return `${eye}\nExamen du fond d'œil sans particularité annotée.`;
   }
 
-  const byLesion = new Map<string, Annotation[]>();
+  // Regroupement par contexte de coupe puis par lésion : une même lésion sur un
+  // B-scan et sur la rétinographie donne deux phrases distinctes et adaptées.
+  const byGroup = new Map<string, Annotation[]>();
   for (const a of validated) {
-    const arr = byLesion.get(a.lesionId!) ?? [];
+    const key = `${a.attrs.context}::${a.lesionId}`;
+    const arr = byGroup.get(key) ?? [];
     arr.push(a);
-    byLesion.set(a.lesionId!, arr);
+    byGroup.set(key, arr);
   }
 
   const lines: string[] = [eye];
-  for (const [lesionId, items] of byLesion) {
-    const lesion = getLesion(lesionId);
+  for (const items of byGroup.values()) {
+    const lesion = getLesion(items[0].lesionId);
     if (!lesion) continue;
     lines.push("• " + sentenceForGroup(lesion.name, items));
   }

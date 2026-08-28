@@ -4,6 +4,7 @@ import { db, doc, updateDoc } from '../../services/firebase';
 import { useSettings } from '../../hooks/useSettings';
 import { useToast } from '../shared/ToastProvider';
 import TagAutocomplete from '../forms/TagAutocomplete';
+import PrescriberCombobox from '../forms/PrescriberCombobox';
 import type { PatientFirestore, PatientFormData } from '../../types/patient';
 
 const DEFAULT_MOTIFS = ["Bilan visuel", "Suspicion de glaucome", "Baisse d'acuité visuelle", "Suivi diabétique", "DMLA", "Œil rouge"];
@@ -280,10 +281,11 @@ export default function PatientEditModal({ isOpen, onClose, patient, onUpdate }:
                 </div>
               ) : (
                 <div className="flex gap-2">
-                  <select value={formData.medecinPrescripteur} onChange={(e) => setFormData({ ...formData, medecinPrescripteur: e.target.value })} className="w-full px-5 py-4 rounded-2xl border-2 border-slate-200 text-lg bg-white">
-                    <option value="">— Non spécifié —</option>
-                    {[...availableDoctors, ...customDoctors.filter((d) => !availableDoctors.includes(d))].map((d) => <option key={d} value={d}>{d}</option>)}
-                  </select>
+                  <PrescriberCombobox
+                    options={[...availableDoctors, ...customDoctors.filter((d) => !availableDoctors.includes(d))]}
+                    value={formData.medecinPrescripteur}
+                    onChange={(v) => setFormData({ ...formData, medecinPrescripteur: v })}
+                  />
                   <button onClick={() => setShowAddDoc(true)} className="px-5 py-4 rounded-2xl border-2 border-dashed border-slate-300 text-slate-500"><Plus className="w-6 h-6" /></button>
                 </div>
               )}

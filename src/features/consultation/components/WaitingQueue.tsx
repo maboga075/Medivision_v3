@@ -44,7 +44,7 @@ export default function WaitingQueue({
 
   return (
     <>
-      <aside className="w-full sm:w-80 md:w-96 lg:w-[400px] bg-white border-r border-slate-200 h-full flex flex-col z-10 shrink-0">
+      <aside className="hidden sm:flex w-full sm:w-80 md:w-96 lg:w-[400px] bg-white border-r border-slate-200 h-full flex-col z-10 shrink-0">
         <div className="p-6 border-b border-slate-200 bg-white flex items-center justify-between sticky top-0">
           <h2 className="text-xl font-extrabold text-slate-800 flex items-center gap-3">
             <Users className="w-6 h-6 text-teal-600" /> Salle d'attente
@@ -86,9 +86,9 @@ export default function WaitingQueue({
                     : 'bg-white border-transparent shadow-sm hover:border-teal-200 hover:shadow'
                 }`}
               >
-                <div className="flex justify-between items-start mb-2">
-                  <h3 className="font-extrabold text-slate-800 text-lg sm:text-xl">{p.nom}</h3>
-                  <span className="text-sm font-bold text-slate-400 flex items-center gap-1 bg-slate-100 px-2 py-1 rounded-lg">
+                <div className="flex justify-between items-start mb-2 gap-2">
+                  <h3 className="font-extrabold text-slate-800 text-lg sm:text-xl min-w-0 truncate">{p.nom}</h3>
+                  <span className="shrink-0 text-sm font-bold text-slate-400 flex items-center gap-1 bg-slate-100 px-2 py-1 rounded-lg">
                     <Clock className="w-4 h-4" />{' '}
                     {p.date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </span>

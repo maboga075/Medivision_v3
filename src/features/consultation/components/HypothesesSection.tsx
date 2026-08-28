@@ -3,6 +3,7 @@ import { HYPOTHESES_DIAGNOSTIQUES } from '../../../utils/constants';
 import type { HypotheseDiagnostique, EyeState } from '../../../types/clinical';
 import { processHypothesisAddition } from '../../../utils/hypothesisValidation';
 import { useState, useCallback } from 'react';
+import TextTagField from '../../../components/forms/TextTagField';
 
 interface HypothesesSectionProps {
   hypothesesDiagnostiques: HypotheseDiagnostique[];
@@ -17,6 +18,10 @@ interface HypothesesSectionProps {
   onSelectedLatChange: (v: 'OD et OG' | 'OD' | 'OG') => void;
   eyeOD: EyeState;
   eyeOG: EyeState;
+  /** Suggestions mémorisées pour le champ « Hypothèse libre ». */
+  hypothesesLibresSuggestions?: string[];
+  /** Persiste une nouvelle note pour les prochaines sessions. */
+  onPersistHypotheseLibre?: (item: string) => void;
 }
 
 export default function HypothesesSection({
@@ -32,6 +37,8 @@ export default function HypothesesSection({
   onSelectedLatChange,
   eyeOD,
   eyeOG,
+  hypothesesLibresSuggestions = [],
+  onPersistHypotheseLibre,
 }: HypothesesSectionProps) {
   const [hypoError, setHypoError] = useState('');
   const [hypoWarning, setHypoWarning] = useState('');
@@ -163,14 +170,13 @@ export default function HypothesesSection({
       )}
 
       <div className="mt-5 border-t border-slate-100 pt-5">
-        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
-          Hypothèse libre / note clinique
-        </label>
-        <textarea
+        <TextTagField
+          label={<span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Hypothèse libre / note clinique</span>}
           value={hypotheseLibre}
-          onChange={(e) => onHypotheseLibreChange(e.target.value)}
-          placeholder="Saisissez une nuance, réserve ou commentaire clinique additionnel..."
-          className="w-full p-4 border-2 border-slate-200 rounded-2xl text-sm font-medium bg-slate-50 outline-none focus:border-teal-400 focus:bg-white transition-colors min-h-[80px]"
+          onChange={onHypotheseLibreChange}
+          suggestions={hypothesesLibresSuggestions}
+          onPersistNew={onPersistHypotheseLibre}
+          placeholder="Nuance, réserve ou commentaire clinique…"
         />
       </div>
     </div>

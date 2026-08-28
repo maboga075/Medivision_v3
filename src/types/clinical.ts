@@ -136,8 +136,12 @@ export interface ObservationsNormalisees {
   anterieur?: string[];
   octa?: string[];
   favoris?: string[];
-  /** Lésions dessinées dans RetinaSketch, converties en texte clinique structuré */
+  /** Lésions RetinaSketch sur la rétinographie (fond d'œil de face). */
   retina?: string[];
+  /** Lésions RetinaSketch sur une coupe OCT B-scan (couche rétinienne). */
+  bscan?: string[];
+  /** Lésions RetinaSketch sur une coupe de cornée (couche cornéenne). */
+  cornea?: string[];
 }
 
 export interface EyeDataNormalisee {

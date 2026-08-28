@@ -85,6 +85,16 @@ INDICE D'ACQUISITION — à PRENDRE EN COMPTE impérativement :
   d'acquisition faible » et fonder l'analyse sur les autres éléments.
 - Une bonne qualité d'acquisition (acquisitionQuality absent) ne doit JAMAIS être mentionnée.
 
+OBSERVATIONS ISSUES DE L'ANNOTATION D'IMAGES ("observations" : clés "retina", "bscan", "cornea", "octa") :
+- Chaque entrée est une lésion DÉJÀ localisée dans le référentiel de SA coupe : respecter cette
+  localisation, ne jamais la transposer d'une coupe à une autre.
+- "retina" : rétinographie / fond d'œil de face (zone anatomique, quadrant, secteur).
+- "bscan" : coupe OCT B-scan — tenir compte de la COUCHE rétinienne mentionnée (RNFL, GCL,
+  plexiformes, nucléaires, photorécepteurs, EPR…) et de la position transverse.
+- "cornea" : coupe de cornée (OCT segment antérieur) — tenir compte de la COUCHE cornéenne
+  (épithélium, Bowman, stroma, Descemet, endothélium).
+- "octa" : OCT-angiographie.
+
 LOGIQUE DE RÉDACTION :
 - Ne mentionner QUE les structures présentant des anomalies significatives
 - Si une structure est normale ou sans donnée → ignorer complètement, ne pas la citer

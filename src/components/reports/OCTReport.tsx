@@ -246,6 +246,15 @@ const ImageryEyeColumn: React.FC<{ eye: EyeData }> = ({ eye }) => {
             annotationOpacity={opacity}
           />
           <figcaption>{s.label}</figcaption>
+          {/* Légende des lésions, auto-générée par coupe et éditable en place */}
+          <div
+            className="imagery-caption"
+            contentEditable="true"
+            suppressContentEditableWarning={true}
+            data-placeholder="Cliquer pour ajouter une légende…"
+          >
+            {s.caption}
+          </div>
           <LesionLegend annotations={s.annotations} />
         </figure>
       ))}

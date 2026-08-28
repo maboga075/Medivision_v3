@@ -90,23 +90,38 @@ const buildObservations = (eye: EyeState, laterality: 'OD' | 'OG'): Observations
     assign('octa', eye.obsOCTA ?? []);
   }
 
-  // Annotations RetinaSketch — converties en texte clinique structuré.
-  // L'éditeur tague l'œil gauche en 'OS' (convention latine Konva) ; on convertit
-  // 'OG' → 'OS' pour que le filtre de latéralité de generateReport corresponde.
-  const annotations = (eye.retinaAnnotations ?? []) as Annotation[];
-  const validated = annotations.filter((a) => a.status === 'validated');
-  if (validated.length > 0) {
-    const rskLaterality = laterality === 'OG' ? 'OS' : 'OD';
-    const reportText = generateReport(annotations, rskLaterality);
-    // On extrait les lignes de lésions (format "• Présence de…")
-    const lesionLines = reportText
+  // Annotations RetinaSketch — converties en texte clinique structuré, réparties
+  // par type de coupe. L'éditeur tague l'œil gauche en 'OS' (convention latine
+  // Konva) ; on convertit 'OG' → 'OS' pour le filtre de latéralité de generateReport.
+  const rskLaterality = laterality === 'OG' ? 'OS' : 'OD';
+
+  /** Extrait les lignes de lésions ("• Présence de…") d'un lot d'annotations. */
+  const lesionLines = (anns: Annotation[]): string[] =>
+    generateReport(anns, rskLaterality)
       .split('\n')
       .filter((l) => l.startsWith('•'))
       .map((l) => l.replace(/^•\s*/, '').trim())
       .filter(Boolean);
-    if (lesionLines.length > 0) {
-      obs.retina = lesionLines;
-    }
+
+  // Rétinographie : slot principal (annotations à plat de l'œil).
+  const retinaAnns = (eye.retinaAnnotations ?? []) as Annotation[];
+  if (retinaAnns.some((a) => a.status === 'validated')) {
+    const lines = lesionLines(retinaAnns);
+    if (lines.length > 0) obs.retina = lines;
+  }
+
+  // Autres coupes (B-scan, cornée, OCT-A) : annotations des slots non-rétino,
+  // chacune interprétée dans le référentiel de sa coupe (couche + position).
+  const crossAnns = (eye.retinaSlots ?? [])
+    .filter((sl) => sl.kind !== 'retino')
+    .flatMap((sl) => (sl.annotations ?? []) as Annotation[]);
+  for (const ctx of ['bscan', 'cornea', 'octa'] as const) {
+    const subset = crossAnns.filter(
+      (a) => a.status === 'validated' && a.attrs.context === ctx,
+    );
+    if (subset.length === 0) continue;
+    const lines = lesionLines(subset);
+    if (lines.length > 0) obs[ctx] = lines;
   }
 
   return obs;
