@@ -1,11 +1,13 @@
 
-import { useEffect, useRef } from "react";
+import { useRef } from "react";
 import { useStore } from "@/features/retinasketch/store/useStore";
+import type { Laterality } from "@/features/retinasketch/lib/types";
 import { mirrorFor } from "@/features/retinasketch/lib/geometry/template";
 import { designViewport, screenToImagePx, imagePxToScreen } from "@/features/retinasketch/lib/geometry/project";
 import { ellipseToPolygon } from "@/features/retinasketch/lib/vision/anatomy";
 
 interface Props {
+  eye: Laterality;
   width: number;
   height: number;
 }
@@ -18,17 +20,12 @@ type Handle = "disc" | "discR" | "macula" | "maculaR";
  * sont écrites en pixels image dans le store (source « manual » = sauvegardées).
  * Overlay de précision (vue mono), comme `AlignOverlay`/`AdjustImageOverlay`.
  */
-export default function AnatomyOverlay({ width, height }: Props) {
+export default function AnatomyOverlay({ eye, width, height }: Props) {
   const anatomyEdit = useStore((s) => s.anatomyEdit);
   const setAnatomyEdit = useStore((s) => s.setAnatomyEdit);
-  // Les poignées apparaissent aussi quand la couche « Zones anatomiques » est
-  // active : correction dynamique du centre papille/macula sans passer par
-  // « Ajuster » (demande praticien).
-  const layerAnatomy = useStore((s) => s.layers.anatomy);
-  const laterality = useStore((s) => s.laterality);
-  const bg = useStore((s) => s.backgrounds[s.laterality]);
-  const anatomy = useStore((s) => s.anatomy[s.laterality]);
-  const view = useStore((s) => s.views[s.laterality]);
+  const bg = useStore((s) => s.backgrounds[eye]);
+  const anatomy = useStore((s) => s.anatomy[eye]);
+  const view = useStore((s) => s.views[eye]);
   const patchDisc = useStore((s) => s.patchAnatomyDisc);
   const patchMacula = useStore((s) => s.patchAnatomyMacula);
   const setDiscPolygon = useStore((s) => s.setDiscPolygon);
@@ -40,22 +37,12 @@ export default function AnatomyOverlay({ width, height }: Props) {
   const vDrag = useRef<number>(-1);
   const polyRef = useRef<number[]>([]);
 
-  // Actif si l'édition explicite est demandée, OU si la couche anatomie est
-  // affichée (poignées de correction dynamique).
-  const active = anatomyEdit || layerAnatomy;
+  // Poignées affichées uniquement en mode ÉDITION (auto-activé après la détection,
+  // ou via « Ajuster ») → l'overlay ne bloque jamais le dessin hors édition. Rendu
+  // PAR ŒIL : ajustement des deux yeux en vue double, sans passer en mono.
+  if (!anatomyEdit || !bg.src || !anatomy) return null;
 
-  useEffect(() => {
-    if (!anatomyEdit) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setAnatomyEdit(false);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [anatomyEdit, setAnatomyEdit]);
-
-  if (!active || !bg.src || !anatomy) return null;
-
-  const mirror = mirrorFor(laterality);
+  const mirror = mirrorFor(eye);
   const vp = designViewport(width, height, mirror);
   const bgT = {
     natW: anatomy.natW,
@@ -96,26 +83,26 @@ export default function AnatomyOverlay({ width, height }: Props) {
       const poly = polyRef.current;
       poly[vDrag.current * 2] = p.x;
       poly[vDrag.current * 2 + 1] = p.y;
-      setDiscPolygon(laterality, poly.slice());
+      setDiscPolygon(eye, poly.slice());
       return;
     }
     if (!drag.current) return;
     const p = imgPt(e);
     if (drag.current === "disc") {
-      patchDisc(laterality, { cx: p.x, cy: p.y });
+      patchDisc(eye, { cx: p.x, cy: p.y });
     } else if (drag.current === "discR") {
       if (!disc) return;
       // Redimensionnement proportionnel : on préserve le rapport d'axes mesuré.
       const oldRx = disc.rx || 4;
       const newRx = Math.max(4, Math.hypot(p.x - disc.cx, p.y - disc.cy));
       const k = newRx / oldRx;
-      patchDisc(laterality, { rx: newRx, ry: Math.max(2, disc.ry * k) });
+      patchDisc(eye, { rx: newRx, ry: Math.max(2, disc.ry * k) });
     } else if (drag.current === "maculaR") {
       if (!macula) return;
       // Rayon de la macula = distance au centre (borné pour rester exploitable).
-      patchMacula(laterality, { r: Math.max(4, Math.hypot(p.x - macula.cx, p.y - macula.cy)) });
+      patchMacula(eye, { r: Math.max(4, Math.hypot(p.x - macula.cx, p.y - macula.cy)) });
     } else {
-      patchMacula(laterality, { cx: p.x, cy: p.y });
+      patchMacula(eye, { cx: p.x, cy: p.y });
     }
   };
 
@@ -159,21 +146,23 @@ export default function AnatomyOverlay({ width, height }: Props) {
         <Knob x={maculaEdge.x} y={maculaEdge.y} color="#a855f7" small onDown={start("maculaR")} title="Redimensionner la macula" />
       )}
 
-      {/* Bandeau de consigne */}
-      <div className="pointer-events-none absolute left-1/2 top-4 flex -translate-x-1/2 items-center gap-3 rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white shadow-xl">
-        <span className="text-xs text-white/80">
-          Papille <b className="text-emerald-300">P</b> (déplacer) · points verts = forme · Macula <b className="text-violet-300">M</b> — glissez pour ajuster
-        </span>
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            setAnatomyEdit(false);
-          }}
-          className="pointer-events-auto ml-1 rounded-full bg-white/15 px-2 py-0.5 text-xs hover:bg-white/25"
-        >
-          Terminer · Échap
-        </button>
-      </div>
+      {/* Bandeau de consigne (uniquement en mode édition explicite). */}
+      {anatomyEdit && (
+        <div className="pointer-events-none absolute left-1/2 top-3 flex -translate-x-1/2 items-center gap-2 rounded-full bg-slate-900/90 px-3 py-1.5 text-xs font-medium text-white shadow-xl">
+          <span className="text-white/80">
+            <b className="text-emerald-300">P</b> papille · <b className="text-violet-300">M</b> macula — glissez pour ajuster
+          </span>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setAnatomyEdit(false);
+            }}
+            className="pointer-events-auto ml-1 rounded-full bg-white/15 px-2 py-0.5 hover:bg-white/25"
+          >
+            Terminer · Entrée
+          </button>
+        </div>
+      )}
     </div>
   );
 }

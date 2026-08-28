@@ -58,6 +58,18 @@ api/ai/generate-report  Fonction serverless (OpenAI/Anthropic/Gemini/DeepSeek).
 
 ---
 
+### Session 2026-08-28 (suite 8) — Ajustement anatomie en vue double, calque par défaut, légende agrégée, PDF paginé
+
+**Demandé par :** Yoan (recette PDF + UX détection, cf. retinasketch_Test.pdf) · **Statut :** ✅ fait. `tsc` 0, 34 tests, `vite build` OK. **PDF/ajustement à revérifier** (RSK derrière login).
+
+- **Calque par défaut à l'ouverture** : « Zones anatomiques » décochée, « Rétine 8 zones » cochée — forcé dans l'init de [`RetinaEditor.tsx`](src/features/retinasketch/components/RetinaEditor.tsx) (+ défaut store `nomenclature: true`). Libellé renommé → **« Rétine 8 zones »** ([`FloatingControls.tsx`](src/features/retinasketch/components/FloatingControls.tsx)).
+- **Ajustement papille/macula en vue DOUBLE (2 yeux, sans mono)** : [`AnatomyOverlay.tsx`](src/features/retinasketch/components/AnatomyOverlay.tsx) paramétré par `eye` et rendu **dans chaque `EyePane`** (slot rétino) au lieu du bloc mono de `Workspace`. Actif uniquement en mode édition (`anatomyEdit`) → ne bloque pas le dessin sinon. [`DetectAnatomyButton`](src/features/retinasketch/components/DetectAnatomyButton.tsx) **passe direct en édition** après détection ; **Entrée/Échap confirment** (géré dans [`Workspace.tsx`](src/features/retinasketch/components/Workspace.tsx)).
+- **Légende agrégée** ([`DoubleEyeView.tsx`](src/features/retinasketch/components/DoubleEyeView.tsx)) : lit slots actifs **+ stash** → couvre B-scan/OCT-A/etc. (avant : ne voyait que le slot actif → vide).
+- **PDF paginé proprement** : imagerie complémentaire dans une **section à part avec saut de page** (`break-before: page`, conditionnel `hasImagery`) ; `break-inside: avoid` inline sur figures + colonnes ; largeur d'impression fixée 1123px (A4 paysage) ; html2canvas `scrollX/scrollY:0` + `windowWidth`/`width` → corrige **rognage à gauche** et **coupe en plein milieu d'image**.
+- **Titres gras** : confirmé OK sur l'export fourni — aucun changement.
+
+---
+
 ### Session 2026-08-28 (suite 7) — Détection anatomie unifiée (barre du haut, 2 yeux, toggle) + upload par fichier
 
 **Demandé par :** Yoan · **Statut :** ✅ fait. `tsc` 0, 34 tests, `vite build` OK. **Non vérifié visuellement** (RSK derrière login).

@@ -94,7 +94,13 @@ export default function DetectAnatomyButton() {
     const okOD = await detectEye("OD");
     const okOS = await detectEye("OS");
     setBusy(false);
-    if (!okOD && !okOS) setMsg("Anatomie introuvable");
+    if (!okOD && !okOS) {
+      setMsg("Anatomie introuvable");
+      return;
+    }
+    // Passe directement en ajustement manuel (poignées) — sur les 2 yeux, sans
+    // bascule en mono. On confirme avec Entrée (géré dans Workspace).
+    useStore.getState().setAnatomyEdit(true);
   };
 
   return (

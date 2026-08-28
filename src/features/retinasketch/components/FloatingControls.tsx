@@ -7,7 +7,7 @@ import { useStore, type LayerKey } from "@/features/retinasketch/store/useStore"
 // générique et la nouvelle nomenclature topographique 8 zones.
 const LAYER_LABELS: { key: LayerKey; label: string }[] = [
   { key: "anatomy", label: "Zones anatomiques" },
-  { key: "nomenclature", label: "Nouvelle nomenclature (8 zones)" },
+  { key: "nomenclature", label: "Rétine 8 zones" },
 ];
 
 /**

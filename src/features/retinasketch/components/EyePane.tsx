@@ -5,6 +5,7 @@ import type { Laterality } from "@/features/retinasketch/lib/types";
 import BackgroundImage from "./BackgroundImage";
 import SelectionPicker from "./SelectionPicker";
 import SlotGallery from "./SlotGallery";
+import AnatomyOverlay from "./AnatomyOverlay";
 import { computeAutoFrame } from "@/features/retinasketch/lib/geometry/autoframe";
 import { TEMPLATE } from "@/features/retinasketch/lib/geometry/template";
 import { shafferFromAngle, SHAFFER_LABEL } from "@/features/retinasketch/lib/geometry/angle";
@@ -161,6 +162,11 @@ export default function EyePane({ eye, active, layout }: Props) {
                 <RetinaStage eye={eye} width={size.w} height={size.h} />
               </Suspense>
             </div>
+            {/* Poignées d'ajustement papille/macula — PAR ŒIL (fonctionne en vue
+                double, sans passer en mono). Réservé aux slots rétino. */}
+            {activeKind === "retino" && (
+              <AnatomyOverlay eye={eye} width={size.w} height={size.h} />
+            )}
           </>
         )}
 

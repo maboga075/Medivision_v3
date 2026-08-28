@@ -150,6 +150,12 @@ export default function RetinaEditor({
       seedBackground(backgroundOG, "OS");
     }
     if (layers) useStore.getState().setLayers(layers);
+    // Défaut d'ouverture (demande praticien) : « Zones anatomiques » décochée,
+    // seule « Rétine 8 zones » cochée — quels que soient les calques persistés.
+    {
+      const cur = useStore.getState().layers;
+      useStore.getState().setLayers({ ...cur, anatomy: false, nomenclature: true });
+    }
     if (annotationOpacity != null) useStore.getState().setAnnotationOpacity(annotationOpacity);
     st.setCornealThickness(cornealThicknessOD ?? "", "OD");
     st.setCornealThickness(cornealThicknessOG ?? "", "OS");

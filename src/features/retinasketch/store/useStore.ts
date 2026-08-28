@@ -520,8 +520,8 @@ export const useStore = create<State>((set, get) => ({
     // « Zones anatomiques » = modèle générique (papille/macula standard) en mode
     // démonstration → désactivé par défaut (on abandonne le repère fixe).
     anatomy: false,
-    // « Nouvelle nomenclature » = découpage topographique 8 zones (item 4/5).
-    nomenclature: false,
+    // « Rétine 8 zones » = découpage topographique → COCHÉ par défaut à l'ouverture.
+    nomenclature: true,
     quadrants: false,
     fovea: false,
     etdrs: false,

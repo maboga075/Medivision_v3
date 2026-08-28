@@ -13,7 +13,6 @@ import DrawToolControls from "./DrawToolControls";
 import BackgroundControls from "./BackgroundControls";
 import AlignOverlay from "./AlignOverlay";
 import AdjustImageOverlay from "./AdjustImageOverlay";
-import AnatomyOverlay from "./AnatomyOverlay";
 import AngleOverlay from "./AngleOverlay";
 import ZoomControl from "./ZoomControl";
 import DoubleEyeView from "./DoubleEyeView";
@@ -44,6 +43,8 @@ export default function Workspace({ onClose, onCreateLesion, printInfo }: Worksp
   const overlapPick = useStore((s) => s.overlapPick);
   const setOverlapPick = useStore((s) => s.setOverlapPick);
   const draftCount = useStore(countAllDrafts);
+  const anatomyEdit = useStore((s) => s.anatomyEdit);
+  const setAnatomyEdit = useStore((s) => s.setAnatomyEdit);
   // Taille exacte de la zone de dessin plein cadre (publiée par EyePane) — pilote
   // les overlays de précision pour un alignement parfait avec RetinaStage.
   const paneSize = useStore((s) => s.paneSize);
@@ -58,6 +59,12 @@ export default function Workspace({ onClose, onCreateLesion, printInfo }: Worksp
         t instanceof HTMLElement &&
         (["INPUT", "TEXTAREA"].includes(t.tagName) || t.isContentEditable);
       if (typing) return;
+      // Ajustement anatomie (papille/macula) : Entrée ou Échap → confirmer / terminer.
+      if (anatomyEdit && (e.key === "Enter" || e.key === "Escape")) {
+        e.preventDefault();
+        setAnatomyEdit(false);
+        return;
+      }
       // Suppr / Retour arrière → supprime la lésion sélectionnée (mode Sélection).
       if ((e.key === "Delete" || e.key === "Backspace") && selectedAnnotationId) {
         e.preventDefault();
@@ -89,6 +96,8 @@ export default function Workspace({ onClose, onCreateLesion, printInfo }: Worksp
     setOverlapPick,
     selectMode,
     setSelectMode,
+    anatomyEdit,
+    setAnatomyEdit,
   ]);
 
   const mono = layout === "mono";
@@ -215,7 +224,6 @@ export default function Workspace({ onClose, onCreateLesion, printInfo }: Worksp
           <>
             <AlignOverlay width={paneSize.w} height={paneSize.h} />
             <AdjustImageOverlay width={paneSize.w} height={paneSize.h} />
-            <AnatomyOverlay width={paneSize.w} height={paneSize.h} />
             <AngleOverlay width={paneSize.w} height={paneSize.h} />
             <SamOverlay width={paneSize.w} height={paneSize.h} />
           </>

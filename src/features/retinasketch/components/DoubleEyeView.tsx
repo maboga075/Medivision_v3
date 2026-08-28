@@ -33,6 +33,16 @@ export default function DoubleEyeView({ printInfo }: { printInfo?: RetinaPrintIn
 
   const slotsMap = useStore((s) => s.slots);
   const selectSlot = useStore((s) => s.selectSlot);
+  const activeSlot = useStore((s) => s.activeSlot);
+  const slotStash = useStore((s) => s.slotStash);
+  // Au moins une coupe complémentaire sélectionnée et pourvue d'une image ?
+  const hasImagery = (["OD", "OS"] as Laterality[]).some((eye) =>
+    slotsMap[eye].some((m) => {
+      if (m.kind === "retino" || !m.printSelected) return false;
+      const bg = m.id === activeSlot[eye] ? backgrounds[eye] : slotStash[m.id]?.background;
+      return !!bg?.src;
+    }),
+  );
 
   // Réglages d'affichage du menu Imprimer (couches, anatomie, opacités).
   const layers = useStore((s) => s.layers);
@@ -119,11 +129,17 @@ export default function DoubleEyeView({ printInfo }: { printInfo?: RetinaPrintIn
           allowTaint: true,
           backgroundColor: "#ffffff",
           logging: false,
+          // Capture sans décalage de scroll (évite le rognage du bord gauche) et à
+          // la largeur exacte de l'élément (mappage 1:1 vers la page A4 paysage).
+          scrollX: 0,
+          scrollY: 0,
+          windowWidth: 1123,
+          width: el.scrollWidth,
           // Ignore les éléments non imprimables (sélecteurs de coupes, indices d'édition).
           ignoreElements: (node: Element) => node.classList?.contains("no-print"),
         },
         jsPDF: { unit: "mm", format: "a4", orientation: "landscape" as const },
-        // N'éclate jamais une colonne d'œil, une figure ou la légende sur 2 pages.
+        // Respecte les break-before/inside CSS ; ne coupe jamais figure/légende/colonne.
         pagebreak: { mode: ["css", "legacy"], avoid: ["figure", "[data-legend]", "[data-eye-col]"] },
       };
       await html2pdf().set(opt).from(el).save();
@@ -216,15 +232,17 @@ export default function DoubleEyeView({ printInfo }: { printInfo?: RetinaPrintIn
         </div>
       </div>
 
-      {/* Zone imprimable : en-tête patient + OD | OG pleine largeur (paysage) */}
-      <div ref={printAreaRef} className="print-area mx-auto flex w-full max-w-[1180px] flex-1 flex-col gap-4 p-6">
+      {/* Zone imprimable : en-tête patient + OD | OG pleine largeur (paysage).
+          Largeur fixe A4 paysage (≈1123px @96dpi) → mappage 1:1 propre au PDF. */}
+      <div ref={printAreaRef} className="print-area mx-auto flex w-full max-w-[1123px] flex-col gap-4 p-6">
         {printInfo && <PrintHeader info={printInfo} />}
 
         {/* Légende en haut → toujours sur la 1ʳᵉ page et jamais coupée. */}
         <LesionLegend annotations={annotations} />
 
-        <div className="flex flex-1 items-start justify-center gap-6">
-          <div data-eye-col className="flex flex-1 flex-col gap-3">
+        {/* Rétinographies des 2 yeux (tiennent sur la page 1) */}
+        <div className="flex items-start justify-center gap-6">
+          <div data-eye-col className="flex flex-1 flex-col gap-3" style={{ breakInside: "avoid" }}>
             <EyePanel
               key={`od-${doubleView}`}
               eye="OD"
@@ -235,9 +253,8 @@ export default function DoubleEyeView({ printInfo }: { printInfo?: RetinaPrintIn
               report={effReport("OD")}
               onReportChange={(v) => setReportOverrides((p) => ({ ...p, OD: v }))}
             />
-            <EyeImagery eye="OD" labelOverrides={labelOverrides} onLabelChange={(id, v) => setLabelOverrides((p) => ({ ...p, [id]: v }))} />
           </div>
-          <div data-eye-col className="flex flex-1 flex-col gap-3">
+          <div data-eye-col className="flex flex-1 flex-col gap-3" style={{ breakInside: "avoid" }}>
             <EyePanel
               key={`os-${doubleView}`}
               eye="OS"
@@ -248,9 +265,25 @@ export default function DoubleEyeView({ printInfo }: { printInfo?: RetinaPrintIn
               report={effReport("OS")}
               onReportChange={(v) => setReportOverrides((p) => ({ ...p, OS: v }))}
             />
-            <EyeImagery eye="OS" labelOverrides={labelOverrides} onLabelChange={(id, v) => setLabelOverrides((p) => ({ ...p, [id]: v }))} />
           </div>
         </div>
+
+        {/* Imagerie complémentaire (B-scan, OCT-A…) → nouvelle page, jamais coupée */}
+        {hasImagery && (
+          <div style={{ breakBefore: "page" }} className="pt-2">
+            <div className="mb-2 border-b border-slate-200 pb-1 text-sm font-bold text-slate-800">
+              Imagerie complémentaire
+            </div>
+            <div className="flex flex-wrap items-start gap-6">
+              <div className="min-w-[45%] flex-1">
+                <EyeImagery eye="OD" labelOverrides={labelOverrides} onLabelChange={(id, v) => setLabelOverrides((p) => ({ ...p, [id]: v }))} />
+              </div>
+              <div className="min-w-[45%] flex-1">
+                <EyeImagery eye="OS" labelOverrides={labelOverrides} onLabelChange={(id, v) => setLabelOverrides((p) => ({ ...p, [id]: v }))} />
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -261,9 +294,16 @@ export default function DoubleEyeView({ printInfo }: { printInfo?: RetinaPrintIn
  * hors flèches), avec pastille de couleur. Rien affiché si aucune lésion.
  */
 function LesionLegend({ annotations }: { annotations: import("@/features/retinasketch/lib/types").Annotation[] }) {
+  // Agrège TOUTES les lésions : slots actifs (`annotations`) + slots rangés
+  // (stash) des deux yeux → la légende couvre aussi B-scan / OCT-A / etc.
+  const slotStash = useStore((s) => s.slotStash);
+  const all = [
+    ...annotations,
+    ...Object.values(slotStash).flatMap((d) => d.annotations),
+  ];
   // Lésions distinctes présentes (couleur + nom), dans l'ordre d'apparition.
   const seen = new Map<string, { name: string; color: string }>();
-  for (const a of annotations) {
+  for (const a of all) {
     if (a.status !== "validated" || !a.lesionId || a.kind === "arrow") continue;
     if (seen.has(a.lesionId)) continue;
     const lesion = getLesion(a.lesionId);
@@ -469,7 +509,7 @@ function EyeImagery({
       {selected.length > 0 && (
         <div className="grid grid-cols-2 gap-2">
           {selected.map(({ meta, bg, anns }) => (
-            <figure key={meta.id} className="m-0">
+            <figure key={meta.id} className="m-0" style={{ breakInside: "avoid" }}>
               <div className="overflow-hidden rounded-lg border border-slate-200">
                 <ImagerySlotSvg
                   side={side}
