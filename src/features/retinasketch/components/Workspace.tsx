@@ -2,6 +2,7 @@
 import { useEffect } from "react";
 import { useStore, countAllDrafts } from "@/features/retinasketch/store/useStore";
 import FloatingControls from "./FloatingControls";
+import DetectAnatomyButton from "./DetectAnatomyButton";
 import InfoPanel from "./InfoPanel";
 import DraftBar from "./DraftBar";
 import CommandPalette from "./CommandPalette";
@@ -109,8 +110,10 @@ export default function Workspace({ onClose, onCreateLesion, printInfo }: Worksp
 
         <div className="mx-1 h-5 w-px shrink-0 bg-slate-200" />
 
-        {/* Contrôles déplacés dans la barre : OD/OG + Couches + Image de fond + Lésions */}
+        {/* Contrôles déplacés dans la barre : OD/OG + Couches + Détection anatomie
+            (2 yeux) + Image de fond + Lésions */}
         <FloatingControls />
+        <DetectAnatomyButton />
         <BackgroundControls />
         <InfoPanel />
 

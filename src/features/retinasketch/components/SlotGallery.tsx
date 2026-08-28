@@ -11,10 +11,11 @@
  */
 
 import { useEffect, useRef, useState } from "react";
-import { Plus, X } from "lucide-react";
+import { Plus, X, Upload } from "lucide-react";
 import { useStore } from "@/features/retinasketch/store/useStore";
 import type { ImageKind, ImageGeometry, Laterality } from "@/features/retinasketch/lib/types";
 import { LABEL_FOR_KIND } from "@/features/retinasketch/lib/types";
+import { computeAutoFrame } from "@/features/retinasketch/lib/geometry/autoframe";
 
 const ADD_KINDS: ImageKind[] = ["retino", "octa", "enface", "bscan", "cornea", "angle", "thickness", "free"];
 
@@ -35,9 +36,31 @@ export default function SlotGallery({ eye }: { eye: Laterality }) {
   const selectSlot = useStore((s) => s.selectSlot);
   const removeSlot = useStore((s) => s.removeSlot);
   const setLaterality = useStore((s) => s.setLaterality);
+  const setBackgroundImage = useStore((s) => s.setBackgroundImage);
+  const updateBackground = useStore((s) => s.updateBackground);
 
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const activeKind = slots.find((sl) => sl.id === activeId)?.kind ?? "retino";
+
+  // Charge une image dans le slot ACTIF via le navigateur de fichiers (alternative
+  // au glisser-déposer, pratique sur mobile/tablette : ouvre fichiers ou photo).
+  const onUploadFile = (file: File) => {
+    if (!file.type.startsWith("image/")) return;
+    setLaterality(eye);
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      setBackgroundImage(url, file.name, eye);
+      // Recadrage auto calibré pour les rétinographies ; neutre sinon.
+      const frame = activeKind === "retino" ? computeAutoFrame(img) : null;
+      updateBackground({ natW: img.naturalWidth, natH: img.naturalHeight, ...(frame ?? {}) }, eye);
+    };
+    img.onerror = () => setBackgroundImage(url, file.name, eye);
+    img.src = url;
+  };
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -112,6 +135,31 @@ export default function SlotGallery({ eye }: { eye: Laterality }) {
         );
       })}
       </div>
+
+      {/* Charger une image dans le slot actif (fichier / appareil photo sur mobile) */}
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) onUploadFile(f);
+          e.target.value = ""; // permet de re-choisir le même fichier
+        }}
+      />
+      <button
+        type="button"
+        onClick={() => {
+          setLaterality(eye);
+          fileRef.current?.click();
+        }}
+        title="Charger une image dans le template sélectionné (fichier ou appareil photo)"
+        className="flex h-12 shrink-0 items-center gap-1.5 rounded-lg border-2 border-teal-300 bg-teal-50 px-3 text-xs font-semibold text-teal-700 transition hover:bg-teal-100"
+      >
+        <Upload className="h-4 w-4" />
+        Charger
+      </button>
 
       {/* Ajout d'une image → menu des 4 types (hors zone scrollable) */}
       <div ref={menuRef} className="relative shrink-0">

@@ -8,8 +8,6 @@ import { detectLandmarks } from "@/features/retinasketch/lib/vision/detect";
 import { computeAutoFrame } from "@/features/retinasketch/lib/geometry/autoframe";
 import { detectVessels } from "@/features/retinasketch/lib/vision/vessels";
 import { trimBlackBackground } from "@/features/retinasketch/lib/vision/trimBlack";
-import { detectAnatomy } from "@/features/retinasketch/lib/vision/anatomy";
-import { detectDiscCup } from "@/features/retinasketch/lib/ai/discCup";
 import type { Laterality } from "@/features/retinasketch/lib/types";
 
 /**
@@ -38,7 +36,6 @@ export default function BackgroundControls() {
   });
   const anatomy = useStore((s) => s.anatomy[s.laterality]);
   const anatomyVisible = useStore((s) => s.anatomyVisible);
-  const setAnatomy = useStore((s) => s.setAnatomy);
   const clearAnatomy = useStore((s) => s.clearAnatomy);
   const setAnatomyVisible = useStore((s) => s.setAnatomyVisible);
   const setAnatomyEdit = useStore((s) => s.setAnatomyEdit);
@@ -47,8 +44,6 @@ export default function BackgroundControls() {
   const [autoFailed, setAutoFailed] = useState(false);
   const [vesselBusy, setVesselBusy] = useState(false);
   const [trimBusy, setTrimBusy] = useState(false);
-  const [anatomyBusy, setAnatomyBusy] = useState(false);
-  const [anatomyMsg, setAnatomyMsg] = useState("");
   // Position flottante (clic droit) : si non nul, le panneau s'ouvre au curseur
   // (position fixe) au lieu d'être ancré sous le bouton d'en-tête.
   const [floatPos, setFloatPos] = useState<{ x: number; y: number } | null>(null);
@@ -146,103 +141,9 @@ export default function BackgroundControls() {
     img.src = bg.src;
   };
 
-  // Détection de la PAPILLE seule (indépendante de la macula).
-  // 1) Heuristique instantanée (ellipse ajustée à l'intensité). 2) Segmentation IA
-  // spécialisée disque + cup (W-Net ONNX) → vrai contour. Repli sur l'ellipse si le
-  // modèle est absent/échoue. La macula existante est CONSERVÉE.
-  const runDetectDisc = () => {
-    if (!bg.src) return;
-    const eye = useStore.getState().laterality;
-    const src = bg.src;
-    setAnatomyBusy(true);
-    setAnatomyMsg("");
-    const img = new Image();
-    img.onload = async () => {
-      const a = detectAnatomy(img, eye);
-      if (!a) {
-        setAnatomyBusy(false);
-        setAnatomyMsg("Papille introuvable sur cette image.");
-        return;
-      }
-      const cur = useStore.getState().anatomy[eye];
-      // Pose UNIQUEMENT la papille ; conserve la macula existante (sinon aucune).
-      setAnatomy(eye, {
-        disc: a.disc,
-        macula: cur?.macula,
-        natW: a.natW,
-        natH: a.natH,
-        source: "heuristic",
-        updatedAt: new Date().toISOString(),
-      });
-      setAnatomyMsg("Détection du contour de la papille (IA)…");
-      try {
-        const dc = await detectDiscCup(src);
-        const cur2 = useStore.getState().anatomy[eye];
-        if (dc && cur2) {
-          setAnatomy(eye, {
-            ...cur2,
-            disc: {
-              cx: dc.cx,
-              cy: dc.cy,
-              rx: dc.rx,
-              ry: dc.ry,
-              polygon: dc.discPolygon,
-              cupPolygon: dc.cupPolygon ?? undefined,
-            },
-            source: "ai",
-            updatedAt: new Date().toISOString(),
-          });
-          setAnatomyMsg(dc.cupPolygon ? "Papille + excavation détourées (IA)." : "Papille détourée (IA).");
-        } else {
-          setAnatomyMsg("Contour IA indisponible — ellipse conservée (ajustez).");
-        }
-      } catch (e) {
-        console.error("[disc/cup]", e);
-        setAnatomyMsg("Modèle IA absent — ellipse conservée (ajustez).");
-      }
-      setAnatomyBusy(false);
-    };
-    img.onerror = () => {
-      setAnatomyBusy(false);
-      setAnatomyMsg("Image illisible.");
-    };
-    img.src = src;
-  };
-
-  // Détection de la MACULA seule (indépendante de la papille). Heuristique
-  // (position dérivée des repères + zone sombre). La papille existante est CONSERVÉE.
-  const runDetectMacula = () => {
-    if (!bg.src) return;
-    const eye = useStore.getState().laterality;
-    setAnatomyBusy(true);
-    setAnatomyMsg("");
-    const img = new Image();
-    img.onload = () => {
-      const a = detectAnatomy(img, eye);
-      if (!a) {
-        setAnatomyBusy(false);
-        setAnatomyMsg("Macula introuvable sur cette image.");
-        return;
-      }
-      const cur = useStore.getState().anatomy[eye];
-      // Pose UNIQUEMENT la macula ; conserve la papille existante (sinon aucune).
-      setAnatomy(eye, {
-        disc: cur?.disc,
-        macula: a.macula,
-        natW: a.natW,
-        natH: a.natH,
-        source: cur?.source ?? "heuristic",
-        updatedAt: new Date().toISOString(),
-      });
-      setAnatomyMsg("Macula détectée.");
-      setAnatomyBusy(false);
-    };
-    img.onerror = () => {
-      setAnatomyBusy(false);
-      setAnatomyMsg("Image illisible.");
-    };
-    img.src = bg.src;
-  };
+  // La détection papille + macula (les deux yeux) est désormais dans la barre du
+  // haut (bouton « Détecter papille/macula », composant DetectAnatomyButton).
+  // Ici on ne garde que l'affichage, l'ajustement fin et la réinitialisation.
 
   // À l'import : on détecte d'abord la latéralité (papille à droite de la fovéa
   // → OD, sinon OG), on range l'image dans le bon œil et on l'active. L'image est
@@ -562,58 +463,48 @@ export default function BackgroundControls() {
                   )}
                 </div>
 
-                {/* Anatomie : papille et macula détectées SÉPARÉMENT */}
+                {/* Anatomie : la DÉTECTION (papille + macula, 2 yeux) est dans la
+                    barre du haut. Ici : affichage, ajustement fin, réinitialisation. */}
                 <SectionLabel>Anatomie (papille / macula)</SectionLabel>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={runDetectDisc}
-                    disabled={anatomyBusy}
-                    className="flex-1 rounded-lg border border-emerald-300 px-2.5 py-1.5 text-xs font-medium text-emerald-700 transition hover:bg-emerald-50 disabled:opacity-50"
-                  >
-                    {anatomyBusy ? "Analyse…" : "Détecter la papille"}
-                  </button>
-                  <button
-                    onClick={runDetectMacula}
-                    disabled={anatomyBusy}
-                    className="flex-1 rounded-lg border border-violet-300 px-2.5 py-1.5 text-xs font-medium text-violet-700 transition hover:bg-violet-50 disabled:opacity-50"
-                  >
-                    {anatomyBusy ? "Analyse…" : "Détecter la macula"}
-                  </button>
-                  {anatomy && (
-                    <button
-                      onClick={() => setAnatomyVisible(!anatomyVisible)}
-                      className="rounded-md p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
-                      title={anatomyVisible ? "Masquer l'anatomie" : "Afficher l'anatomie"}
-                    >
-                      {anatomyVisible ? <EyeIcon /> : <EyeOffIcon />}
-                    </button>
-                  )}
-                </div>
-                {anatomy && (
-                  <div className="mt-1.5 flex gap-2">
-                    <button
-                      onClick={() => {
-                        setOpen(false);
-                        setLayout("mono"); // outils de précision = 1 œil plein cadre
-                        setAnatomyVisible(true);
-                        setAnatomyEdit(true);
-                      }}
-                      className="flex-1 rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
-                    >
-                      Ajuster (forme / déplacer / taille)
-                    </button>
-                    <button
-                      onClick={() => clearAnatomy()}
-                      className="rounded-lg border border-red-200 px-2.5 py-1.5 text-xs font-medium text-red-600 transition hover:bg-red-50"
-                    >
-                      Réinitialiser
-                    </button>
-                  </div>
+                {anatomy ? (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => {
+                          setOpen(false);
+                          setLayout("mono"); // outils de précision = 1 œil plein cadre
+                          setAnatomyVisible(true);
+                          setAnatomyEdit(true);
+                        }}
+                        className="flex-1 rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
+                      >
+                        Ajuster (forme / déplacer / taille)
+                      </button>
+                      <button
+                        onClick={() => setAnatomyVisible(!anatomyVisible)}
+                        className="rounded-md p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                        title={anatomyVisible ? "Masquer l'anatomie" : "Afficher l'anatomie"}
+                      >
+                        {anatomyVisible ? <EyeIcon /> : <EyeOffIcon />}
+                      </button>
+                      <button
+                        onClick={() => clearAnatomy()}
+                        className="rounded-lg border border-red-200 px-2.5 py-1.5 text-xs font-medium text-red-600 transition hover:bg-red-50"
+                      >
+                        Réinitialiser
+                      </button>
+                    </div>
+                    <p className="mt-1 text-[11px] leading-snug text-slate-400">
+                      « Ajuster » : glissez les points verts pour corriger la forme du
+                      contour, P pour déplacer la papille, M pour la macula (taille incluse).
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-[11px] leading-snug text-slate-400">
+                    Détection dans la barre du haut : bouton « Détecter papille/macula »
+                    (les deux yeux d'un coup).
+                  </p>
                 )}
-                <p className="mt-1 text-[11px] leading-snug text-slate-400">
-                  {anatomyMsg ||
-                    "Papille et macula se détectent séparément. « Ajuster » : glissez les points verts pour corriger la FORME du contour, P pour déplacer, M pour la macula — les corrections sont sauvegardées."}
-                </p>
               </>
             )}
 

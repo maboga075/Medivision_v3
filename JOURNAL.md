@@ -58,6 +58,15 @@ api/ai/generate-report  Fonction serverless (OpenAI/Anthropic/Gemini/DeepSeek).
 
 ---
 
+### Session 2026-08-28 (suite 7) — Détection anatomie unifiée (barre du haut, 2 yeux, toggle) + upload par fichier
+
+**Demandé par :** Yoan · **Statut :** ✅ fait. `tsc` 0, 34 tests, `vite build` OK. **Non vérifié visuellement** (RSK derrière login).
+
+- **Détection papille + macula unifiée** : nouveau [`DetectAnatomyButton.tsx`](src/features/retinasketch/components/DetectAnatomyButton.tsx) dans la barre du haut ([`Workspace.tsx`](src/features/retinasketch/components/Workspace.tsx)). Un seul bouton détecte papille **et** macula ensemble (`detectAnatomy` renvoie les deux) + contour IA (`detectDiscCup`, best-effort), sur **les DEUX yeux** (rétino de chaque œil, slot actif ou stash). **Re-clic = efface le détourage** (toggle via `clearAnatomy` OD+OS). Anciens boutons « Détecter la papille/macula » **retirés** de [`BackgroundControls.tsx`](src/features/retinasketch/components/BackgroundControls.tsx) (fonctions `runDetectDisc`/`runDetectMacula` + état/imports orphelins supprimés) ; ne reste que Ajuster / Afficher-masquer / Réinitialiser.
+- **Upload par navigateur de fichiers** ([`SlotGallery.tsx`](src/features/retinasketch/components/SlotGallery.tsx)) : bouton « Charger » (`<input type=file accept=image/*>`) chargeant l'image dans le **slot actif** — alternative au glisser-déposer (sur mobile : ouvre fichiers ou appareil photo/galerie). Recadrage auto pour les rétinographies.
+
+---
+
 ### Session 2026-08-28 (suite 6) — Menu Imprimer : réglages d'affichage, export WYSIWYG, touche Entrée
 
 **Demandé par :** Yoan (recette PDF, cf. retinasketch-compte-rendu (2).pdf) · **Statut :** ✅ fait. `tsc` 0, 34 tests, `vite build` OK. **Export non vérifié visuellement** (RSK derrière login) — capture html2canvas de canvas Konva à valider.
