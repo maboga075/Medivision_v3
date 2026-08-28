@@ -10,7 +10,7 @@ interface Props {
   height: number;
 }
 
-type Handle = "disc" | "discR" | "macula";
+type Handle = "disc" | "discR" | "macula" | "maculaR";
 
 /**
  * ÉDITION de l'anatomie détectée (papille + macula) : poignées à la souris —
@@ -74,6 +74,7 @@ export default function AnatomyOverlay({ width, height }: Props) {
   const discC = disc ? toScreenPt(disc.cx, disc.cy) : null;
   const discEdge = disc ? toScreenPt(disc.cx + disc.rx, disc.cy) : null;
   const maculaC = macula ? toScreenPt(macula.cx, macula.cy) : null;
+  const maculaEdge = macula ? toScreenPt(macula.cx + macula.r, macula.cy) : null;
 
   // Contour éditable de la papille : polygone IA si présent, sinon polygone dérivé
   // de l'ellipse (repli) → des poignées de FORME sont toujours disponibles.
@@ -109,6 +110,10 @@ export default function AnatomyOverlay({ width, height }: Props) {
       const newRx = Math.max(4, Math.hypot(p.x - disc.cx, p.y - disc.cy));
       const k = newRx / oldRx;
       patchDisc(laterality, { rx: newRx, ry: Math.max(2, disc.ry * k) });
+    } else if (drag.current === "maculaR") {
+      if (!macula) return;
+      // Rayon de la macula = distance au centre (borné pour rester exploitable).
+      patchMacula(laterality, { r: Math.max(4, Math.hypot(p.x - macula.cx, p.y - macula.cy)) });
     } else {
       patchMacula(laterality, { cx: p.x, cy: p.y });
     }
@@ -146,9 +151,12 @@ export default function AnatomyOverlay({ width, height }: Props) {
           <Knob x={discC.x} y={discC.y} color="#16a34a" onDown={start("disc")} title="Déplacer la papille" label="P" />
         </>
       )}
-      {/* Macula : poignée de déplacement */}
+      {/* Macula : poignée de déplacement + poignée de taille (rayon) */}
       {macula && maculaC && (
         <Knob x={maculaC.x} y={maculaC.y} color="#a855f7" onDown={start("macula")} title="Déplacer la macula" label="M" />
+      )}
+      {macula && maculaEdge && (
+        <Knob x={maculaEdge.x} y={maculaEdge.y} color="#a855f7" small onDown={start("maculaR")} title="Redimensionner la macula" />
       )}
 
       {/* Bandeau de consigne */}

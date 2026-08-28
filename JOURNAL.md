@@ -58,6 +58,20 @@ api/ai/generate-report  Fonction serverless (OpenAI/Anthropic/Gemini/DeepSeek).
 
 ---
 
+### Session 2026-08-28 (suite 5) — Alignement poignées, nomenclature dynamique, légende impression
+
+**Demandé par :** Yoan (2ᵉ vague de recette, image du #8 fournie) · **Statut :** ✅ fait. `tsc` 0, **34 tests**, `vite build` OK. **Non vérifié visuellement** (RSK derrière login).
+
+- **#8 Poignées décalées du détourage (cause racine)** : `AnatomyOverlay`/`AngleOverlay` (dans `Workspace`) utilisaient la taille de `<main>` alors que `RetinaStage` (dans `EyePane`) utilise sa zone de dessin, **plus petite** (galerie + bandeaux) → `vp` différents → décalage. Fix : `EyePane` publie `paneSize` (store) en plein cadre ; les overlays de précision l'utilisent (`Workspace`). Suppression du ResizeObserver `mainRef` devenu inutile.
+- **Nomenclature dynamique (overlay + classification)** : nouveau `TopoRefs` + `DEFAULT_TOPO_REFS` dans [`engine.ts`](src/features/retinasketch/lib/geometry/engine.ts) ; `topoZone(pt, refs)` et `computeAttributes(centroid, kind, refs)` paramétrés par les centres fovéa/papille. Store : `topoRefsForEye()` projette les centres détectés en mm modèle (`imagePxToModelMm`, indépendant de l'affichage) et les passe à `buildAnnotation` (4 sites). [`RetinaStage`](src/features/retinasketch/components/RetinaStage.tsx) : `nomRefs` (mémo) pilote axes/ligne/cercle maculaire + `nomenclatureLabels(vp, refs)`. **Overlay et classification partagent les mêmes repères → toujours cohérents.** Test `engine.test.ts` : repères décalés ⇒ zone décalée.
+- **Poignée de taille de macula** ([`AnatomyOverlay.tsx`](src/features/retinasketch/components/AnatomyOverlay.tsx)) : handle `maculaR` (rayon), en plus du déplacement.
+- **#3 Titres imprimer (gras)** : ajout d'un `style={{fontWeight:800}}` inline sur `EditableText` (robuste à tout contexte CSS) pour titres d'œil + libellés de coupe.
+- **Légende du code couleurs** dans le menu Imprimer ([`DoubleEyeView.tsx`](src/features/retinasketch/components/DoubleEyeView.tsx) `LesionLegend`) : lésions distinctes validées + pastille couleur.
+
+**Caveats** : la classification n'est **pas recalculée** pour les lésions déjà dessinées avant un ajustement d'anatomie (seules les nouvelles utilisent les repères courants). Nomenclature dynamique **à vérifier sur images réelles** (gestion du miroir OD/OG). Segmentation couches B-scan : voir discussion (OCT-SAM / nnU-Net faisables en local, avec correction manuelle obligatoire).
+
+---
+
 ### Session 2026-08-28 (suite 4) — Correctifs recette RSK + pipeline IA multi-templates
 
 **Demandé par :** Yoan (liste de recette après push initial) · **Statut :** ✅ correctifs confiants faits. `tsc` 0, 33 tests, `vite build` OK. **Non vérifié visuellement** (RSK derrière login). Push initial fait sur branche `feat/corrections-medivision-aout2026`.

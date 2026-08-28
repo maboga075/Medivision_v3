@@ -1,5 +1,5 @@
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect } from "react";
 import { useStore, countAllDrafts } from "@/features/retinasketch/store/useStore";
 import FloatingControls from "./FloatingControls";
 import InfoPanel from "./InfoPanel";
@@ -43,21 +43,9 @@ export default function Workspace({ onClose, onCreateLesion, printInfo }: Worksp
   const overlapPick = useStore((s) => s.overlapPick);
   const setOverlapPick = useStore((s) => s.setOverlapPick);
   const draftCount = useStore(countAllDrafts);
-
-  const mainRef = useRef<HTMLElement>(null);
-  const [size, setSize] = useState({ w: 0, h: 0 });
-
-  // Taille de la zone principale (sert aux overlays de précision en vue mono).
-  useEffect(() => {
-    const el = mainRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver(([entry]) => {
-      const { width, height } = entry.contentRect;
-      setSize({ w: Math.floor(width), h: Math.floor(height) });
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
+  // Taille exacte de la zone de dessin plein cadre (publiée par EyePane) — pilote
+  // les overlays de précision pour un alignement parfait avec RetinaStage.
+  const paneSize = useStore((s) => s.paneSize);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -198,7 +186,7 @@ export default function Workspace({ onClose, onCreateLesion, printInfo }: Worksp
       </header>
 
       {/* Espace de travail */}
-      <main ref={mainRef} className="relative min-h-0 flex-1 bg-white">
+      <main className="relative min-h-0 flex-1 bg-white">
         {/* Panneaux : 2 yeux côte à côte, ou 1 œil plein cadre */}
         <div className="absolute inset-0 flex">
           {mono ? (
@@ -212,14 +200,17 @@ export default function Workspace({ onClose, onCreateLesion, printInfo }: Worksp
           )}
         </div>
 
-        {/* Outils de précision : actifs sur l'œil affiché en vue mono uniquement. */}
-        {mono && size.w > 0 && (
+        {/* Outils de précision : actifs sur l'œil affiché en vue mono uniquement.
+            On utilise la taille EXACTE de la zone de dessin publiée par EyePane
+            (`paneSize`) — et non la taille de `<main>` — pour que les overlays
+            projettent comme RetinaStage (poignées alignées sur le rendu). */}
+        {mono && paneSize.w > 0 && (
           <>
-            <AlignOverlay width={size.w} height={size.h} />
-            <AdjustImageOverlay width={size.w} height={size.h} />
-            <AnatomyOverlay width={size.w} height={size.h} />
-            <AngleOverlay width={size.w} height={size.h} />
-            <SamOverlay width={size.w} height={size.h} />
+            <AlignOverlay width={paneSize.w} height={paneSize.h} />
+            <AdjustImageOverlay width={paneSize.w} height={paneSize.h} />
+            <AnatomyOverlay width={paneSize.w} height={paneSize.h} />
+            <AngleOverlay width={paneSize.w} height={paneSize.h} />
+            <SamOverlay width={paneSize.w} height={paneSize.h} />
           </>
         )}
 

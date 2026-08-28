@@ -65,6 +65,7 @@ export default function EyePane({ eye, active, layout }: Props) {
   const papillaQualifiers = useStore((s) => s.papillaQualifiers[eye]);
   const togglePapillaQualifier = useStore((s) => s.togglePapillaQualifier);
 
+  const setPaneSize = useStore((s) => s.setPaneSize);
   const ref = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
   const [dragOver, setDragOver] = useState(false);
@@ -74,11 +75,16 @@ export default function EyePane({ eye, active, layout }: Props) {
     if (!el) return;
     const ro = new ResizeObserver(([entry]) => {
       const { width, height } = entry.contentRect;
-      setSize({ w: Math.floor(width), h: Math.floor(height) });
+      const w = Math.floor(width);
+      const h = Math.floor(height);
+      setSize({ w, h });
+      // En plein cadre (mono), publie la taille exacte pour les overlays de
+      // précision → poignées parfaitement alignées sur le rendu.
+      if (layout === "mono") setPaneSize(w, h);
     });
     ro.observe(el);
     return () => ro.disconnect();
-  }, []);
+  }, [layout, setPaneSize]);
 
   // Glisser-déposer d'une rétinographie directement dans le cercle de CET œil
   // (OD/OG indépendants). Le bouton fichier classique reste disponible par ailleurs.

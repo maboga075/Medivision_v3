@@ -3,8 +3,9 @@ import { create } from "zustand";
 import type { Annotation, Laterality, ImageKind, ImageGeometry, RetinalLayer, CornealLayer } from "@/features/retinasketch/lib/types";
 import { GEOMETRY_FOR_KIND, LABEL_FOR_KIND } from "@/features/retinasketch/lib/types";
 import type { RetinaBackgroundSnapshot, RetinaSlotSnapshot } from "@/types/clinical";
-import { computeAttributes, geometryMetrics, smoothFreeform } from "@/features/retinasketch/lib/geometry/engine";
-import { TEMPLATE } from "@/features/retinasketch/lib/geometry/template";
+import { computeAttributes, geometryMetrics, smoothFreeform, DEFAULT_TOPO_REFS, type TopoRefs } from "@/features/retinasketch/lib/geometry/engine";
+import { TEMPLATE, createViewport, mirrorFor } from "@/features/retinasketch/lib/geometry/template";
+import { imagePxToModelMm, imagePxLenToMm } from "@/features/retinasketch/lib/geometry/project";
 import type { Pt } from "@/features/retinasketch/lib/geometry/angle";
 import { getLesion } from "@/features/retinasketch/lib/ontology/lesions";
 import type { EyeAnatomy, DiscShape, MaculaShape } from "@/features/retinasketch/lib/vision/anatomy";
@@ -320,6 +321,13 @@ interface State {
   shafferOverride: EyeMap<number | null>;
   /** Qualificatifs de la papille par œil (rétinographie) : pâle / surélevée / bords flous. */
   papillaQualifiers: EyeMap<string[]>;
+  /**
+   * Taille réelle (px) de la zone de dessin de l'œil affiché en plein cadre.
+   * Partagée avec les overlays de précision (anatomie, angle…) pour qu'ils
+   * projettent EXACTEMENT comme `RetinaStage` (même `vp`), sinon les poignées se
+   * décalent du rendu (la galerie et les bandeaux réduisent la hauteur utile).
+   */
+  paneSize: { w: number; h: number };
 
   // ——— Galerie multi-images (Lot B) ———
   /** Liste des slots (ordre galerie) par œil. Le 1er slot est la rétino de base. */
@@ -349,6 +357,8 @@ interface State {
   setShafferOverride: (grade: number | null, eye?: Laterality) => void;
   /** Active/désactive un qualificatif de papille (rétinographie). */
   togglePapillaQualifier: (q: string, eye?: Laterality) => void;
+  /** Publie la taille de la zone de dessin plein cadre (pour les overlays). */
+  setPaneSize: (w: number, h: number) => void;
 
   setBackgroundImage: (src: string, fileName: string, eye?: Laterality) => void;
   updateBackground: (patch: Partial<BackgroundState>, eye?: Laterality) => void;
@@ -424,6 +434,38 @@ const newId = () => `a${Date.now().toString(36)}${(counter++).toString(36)}`;
 const clampRadius = (mm: number) =>
   Math.max(SPOT_MIN_MM, Math.min(SPOT_MAX_MM, mm));
 
+/**
+ * Repères de nomenclature (mm modèle) d'un œil : centres macula/papille détectés
+ * s'ils existent (→ découpage 8 zones collant à l'anatomie réelle), sinon le
+ * TEMPLATE standard. `imagePxToModelMm` est indépendant de la taille d'affichage
+ * (le viewport se simplifie), d'où le viewport factice.
+ */
+function topoRefsForEye(s: State, eye: Laterality): TopoRefs {
+  const anatomy = s.anatomy[eye];
+  if (!anatomy || (!anatomy.macula && !anatomy.disc)) return DEFAULT_TOPO_REFS;
+  const bg = s.backgrounds[eye];
+  const vp = createViewport(1000, 1000, mirrorFor(eye));
+  const bgT = {
+    natW: anatomy.natW,
+    natH: anatomy.natH,
+    offsetXMm: bg.offsetXMm,
+    offsetYMm: bg.offsetYMm,
+    scale: bg.scale,
+    rotationDeg: bg.rotationDeg,
+  };
+  return {
+    fovea: anatomy.macula
+      ? imagePxToModelMm(anatomy.macula.cx, anatomy.macula.cy, bgT, vp)
+      : DEFAULT_TOPO_REFS.fovea,
+    disc: anatomy.disc
+      ? imagePxToModelMm(anatomy.disc.cx, anatomy.disc.cy, bgT, vp)
+      : DEFAULT_TOPO_REFS.disc,
+    maculaRmm: anatomy.macula
+      ? imagePxLenToMm(anatomy.macula.r, anatomy.natW, anatomy.natH)
+      : DEFAULT_TOPO_REFS.maculaRmm,
+  };
+}
+
 function buildAnnotation(
   kind: "point" | "polygon" | "arrow",
   points: number[],
@@ -431,6 +473,7 @@ function buildAnnotation(
   laterality: Laterality,
   author: string,
   slotKind: ImageKind,
+  refs: TopoRefs = DEFAULT_TOPO_REFS,
 ): Annotation {
   const { centroid, areaMm2 } = geometryMetrics(kind, points);
   return {
@@ -446,8 +489,9 @@ function buildAnnotation(
     laterality,
     lesionId: null,
     status: "draft",
-    // L'attribution dépend du type de coupe du slot actif (rétino, B-scan, …).
-    attrs: computeAttributes(centroid, slotKind),
+    // L'attribution dépend du type de coupe du slot actif (rétino, B-scan, …)
+    // et des repères anatomiques (centres détectés si disponibles).
+    attrs: computeAttributes(centroid, slotKind, refs),
     author,
     createdAt: new Date().toISOString(),
   };
@@ -504,6 +548,7 @@ export const useStore = create<State>((set, get) => ({
   angleMeasure: { OD: null, OS: null },
   shafferOverride: { OD: null, OS: null },
   papillaQualifiers: { OD: [], OS: [] },
+  paneSize: { w: 0, h: 0 },
   ...initialSlots(),
   slotStash: {},
 
@@ -552,6 +597,8 @@ export const useStore = create<State>((set, get) => ({
       const next = cur.includes(q) ? cur.filter((x) => x !== q) : [...cur, q];
       return { papillaQualifiers: { ...s.papillaQualifiers, [k]: next } };
     }),
+  setPaneSize: (w, h) =>
+    set((s) => (s.paneSize.w === w && s.paneSize.h === h ? {} : { paneSize: { w, h } })),
 
   setBackgroundImage: (src, fileName, eye) =>
     set((s) => {
@@ -883,7 +930,7 @@ export const useStore = create<State>((set, get) => ({
     set((s) => ({
       annotations: [
         ...s.annotations,
-        buildAnnotation("point", [mx, my], s.spotRadiusMm, eye ?? s.laterality, s.author, activeKind(s, eye ?? s.laterality)),
+        buildAnnotation("point", [mx, my], s.spotRadiusMm, eye ?? s.laterality, s.author, activeKind(s, eye ?? s.laterality), topoRefsForEye(s, eye ?? s.laterality)),
       ],
     })),
 
@@ -893,7 +940,7 @@ export const useStore = create<State>((set, get) => ({
     set((s) => ({
       annotations: [
         ...s.annotations,
-        buildAnnotation("polygon", smoothed, null, eye ?? s.laterality, s.author, activeKind(s, eye ?? s.laterality)),
+        buildAnnotation("polygon", smoothed, null, eye ?? s.laterality, s.author, activeKind(s, eye ?? s.laterality), topoRefsForEye(s, eye ?? s.laterality)),
       ],
     }));
   },
@@ -907,7 +954,7 @@ export const useStore = create<State>((set, get) => ({
     set((s) => ({
       annotations: [
         ...s.annotations,
-        buildAnnotation("arrow", [x0, y0, x1, y1], null, eye ?? s.laterality, s.author, activeKind(s, eye ?? s.laterality)),
+        buildAnnotation("arrow", [x0, y0, x1, y1], null, eye ?? s.laterality, s.author, activeKind(s, eye ?? s.laterality), topoRefsForEye(s, eye ?? s.laterality)),
       ],
     }));
   },
@@ -918,7 +965,7 @@ export const useStore = create<State>((set, get) => ({
     set((s) => ({
       annotations: [
         ...s.annotations,
-        buildAnnotation("polygon", points, null, eye ?? s.laterality, s.author, activeKind(s, eye ?? s.laterality)),
+        buildAnnotation("polygon", points, null, eye ?? s.laterality, s.author, activeKind(s, eye ?? s.laterality), topoRefsForEye(s, eye ?? s.laterality)),
       ],
     }));
   },

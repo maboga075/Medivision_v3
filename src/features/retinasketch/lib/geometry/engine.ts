@@ -16,6 +16,22 @@ import type {
 
 type P = { x: number; y: number };
 
+/**
+ * Repères de la nomenclature 8 zones (mm modèle). Par défaut = constantes du
+ * TEMPLATE ; peuvent être remplacés par les centres détectés (macula/papille)
+ * pour que le découpage colle à l'anatomie réelle de l'image.
+ */
+export interface TopoRefs {
+  fovea: P;
+  disc: P;
+  maculaRmm: number;
+}
+export const DEFAULT_TOPO_REFS: TopoRefs = {
+  fovea: TEMPLATE.fovea,
+  disc: TEMPLATE.disc,
+  maculaRmm: TEMPLATE.maculaRadiusMm,
+};
+
 const dist = (a: P, b: P) => Math.hypot(a.x - b.x, a.y - b.y);
 
 /** Échantillonne une courbe de Bézier quadratique en N segments. */
@@ -79,15 +95,21 @@ function anatomicalZone(pt: P, dFovea: number, dDisc: number): AnatomicalZone {
  *    et papillaire (disc.x ≤ x < 0) = N*-M ; nasal à l'axe papillaire (x < disc.x)
  *    = N*-P.
  */
-function topoZone(pt: P, dFovea: number): TopoZone {
+function topoZone(pt: P, refs: TopoRefs): TopoZone {
+  const { fovea, disc, maculaRmm } = refs;
+  // Vecteur fovéa→papille et fovéa→point (repères translatés sur la fovéa).
+  const dx = disc.x - fovea.x;
+  const dy = disc.y - fovea.y;
+  const px = pt.x - fovea.x;
+  const py = pt.y - fovea.y;
   // Côté supérieur = signe du produit vectoriel (F→P) × (F→pt) ; >0 ⇒ au-dessus.
-  const superior = TEMPLATE.disc.x * pt.y - TEMPLATE.disc.y * pt.x > 0;
+  const superior = dx * py - dy * px > 0;
 
-  // Priorité absolue : cercle maculaire.
-  if (dFovea <= TEMPLATE.maculaRadiusMm) return superior ? "MS" : "MI";
+  // Priorité absolue : cercle maculaire (centré fovéa).
+  if (Math.hypot(px, py) <= maculaRmm) return superior ? "MS" : "MI";
 
-  if (pt.x >= 0) return superior ? "TS-M" : "TI-M"; // temporal à l'axe fovéal
-  if (pt.x >= TEMPLATE.disc.x) return superior ? "NS-M" : "NI-M"; // entre fovéa et papille
+  if (pt.x >= fovea.x) return superior ? "TS-M" : "TI-M"; // temporal à l'axe fovéal
+  if (pt.x >= disc.x) return superior ? "NS-M" : "NI-M"; // entre fovéa et papille
   return superior ? "NS-P" : "NI-P"; // nasal à l'axe papillaire
 }
 
@@ -124,7 +146,7 @@ function etdrsSector(pt: P, dFovea: number): EtdrsSector | null {
 }
 
 /** Attributs pour une rétinographie de face (référentiel fovéa/papille/ETDRS). */
-function computeRetinoAttributes(centroidMm: P): RetinoAttributes {
+function computeRetinoAttributes(centroidMm: P, refs: TopoRefs): RetinoAttributes {
   const dFovea = dist(centroidMm, TEMPLATE.fovea);
   const dDisc = dist(centroidMm, TEMPLATE.disc);
   const dVessel = Math.min(
@@ -133,7 +155,7 @@ function computeRetinoAttributes(centroidMm: P): RetinoAttributes {
 
   return {
     context: "retino",
-    topoZone: topoZone(centroidMm, dFovea),
+    topoZone: topoZone(centroidMm, refs),
     anatomicalZone: anatomicalZone(centroidMm, dFovea, dDisc),
     quadrant: quadrant(centroidMm),
     foveaBand: foveaBand(dFovea),
@@ -168,11 +190,12 @@ function transverseZone(relative: number): TransverseZone {
 export function computeAttributes(
   centroidMm: P,
   kind: ImageKind,
+  refs: TopoRefs = DEFAULT_TOPO_REFS,
 ): DerivedAttributes {
   const R = TEMPLATE.retina.halfWidthMm;
   switch (attrContextForKind(kind)) {
     case "retino":
-      return computeRetinoAttributes(centroidMm);
+      return computeRetinoAttributes(centroidMm, refs);
     case "bscan":
       // Coupe rectangulaire : position le long de la coupe (axe x).
       return {
@@ -190,7 +213,7 @@ export function computeAttributes(
       // Champ carré centré macula : nomenclature 8 zones + éloignement radial.
       return {
         context: "octa",
-        topoZone: topoZone(centroidMm, Math.hypot(centroidMm.x, centroidMm.y)),
+        topoZone: topoZone(centroidMm, refs),
         transverseZone: transverseZone(Math.hypot(centroidMm.x, centroidMm.y) / R),
       };
   }

@@ -40,4 +40,20 @@ describe("topoZone — découpage 8 zones", () => {
     if (a.context !== "octa") throw new Error("contexte inattendu");
     expect(a.topoZone).toBe("TS-M");
   });
+
+  it("les repères détectés décalent le découpage", () => {
+    const pt = { x: 2, y: -4 };
+    // Repères standards (fovéa à 0) : x=2 est temporal → TS-M.
+    const def = computeAttributes(pt, "retino");
+    if (def.context !== "retino") throw new Error("contexte inattendu");
+    expect(def.topoZone).toBe("TS-M");
+    // Fovéa détectée décalée à x=3 : x=2 passe entre fovéa et papille → NS-M.
+    const shifted = computeAttributes(pt, "retino", {
+      fovea: { x: 3, y: 0 },
+      disc: { x: -2, y: 0 },
+      maculaRmm: 2.6,
+    });
+    if (shifted.context !== "retino") throw new Error("contexte inattendu");
+    expect(shifted.topoZone).toBe("NS-M");
+  });
 });

@@ -7,6 +7,7 @@ import type { RetinaPrintInfo } from "@/features/retinasketch/lib/printInfo";
 import type { Laterality } from "@/features/retinasketch/lib/types";
 import BackgroundImage from "./BackgroundImage";
 import ImagerySlotSvg from "@/components/reports/visual/ImagerySlotSvg";
+import { getLesion } from "@/features/retinasketch/lib/ontology/lesions";
 
 const RetinaStage = lazy(() => import("./RetinaStage"));
 
@@ -156,6 +157,45 @@ export default function DoubleEyeView({ printInfo }: { printInfo?: RetinaPrintIn
             <EyeImagery eye="OS" labelOverrides={labelOverrides} onLabelChange={(id, v) => setLabelOverrides((p) => ({ ...p, [id]: v }))} />
           </div>
         </div>
+
+        {/* Légende du code couleurs des annotations présentes (lisible à l'impression). */}
+        <LesionLegend annotations={annotations} />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Légende du code couleurs : liste des lésions effectivement annotées (validées,
+ * hors flèches), avec pastille de couleur. Rien affiché si aucune lésion.
+ */
+function LesionLegend({ annotations }: { annotations: import("@/features/retinasketch/lib/types").Annotation[] }) {
+  // Lésions distinctes présentes (couleur + nom), dans l'ordre d'apparition.
+  const seen = new Map<string, { name: string; color: string }>();
+  for (const a of annotations) {
+    if (a.status !== "validated" || !a.lesionId || a.kind === "arrow") continue;
+    if (seen.has(a.lesionId)) continue;
+    const lesion = getLesion(a.lesionId);
+    if (lesion) seen.set(a.lesionId, { name: lesion.name, color: lesion.color });
+  }
+  const items = [...seen.values()];
+  if (items.length === 0) return null;
+
+  return (
+    <div className="mt-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5">
+      <div className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-500">
+        Légende des annotations
+      </div>
+      <div className="flex flex-wrap gap-x-5 gap-y-1.5">
+        {items.map((it) => (
+          <div key={it.name} className="flex items-center gap-2">
+            <span
+              className="inline-block h-3 w-3 shrink-0 rounded-full border border-black/10"
+              style={{ backgroundColor: it.color }}
+            />
+            <span className="text-xs font-medium text-slate-700">{it.name}</span>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -205,6 +245,7 @@ function EyePanel({
       <EditableText
         initial={title}
         onCommit={onTitleChange}
+        bold
         className="mb-2 text-[15px] font-extrabold text-slate-900"
       />
       <div
@@ -247,11 +288,14 @@ function EditableText({
   onCommit,
   className = "",
   multiline = false,
+  bold = false,
 }: {
   initial: string;
   onCommit: (v: string) => void;
   className?: string;
   multiline?: boolean;
+  /** Force le gras via style inline (robuste à tout contexte CSS d'impression). */
+  bold?: boolean;
 }) {
   return (
     <div
@@ -260,6 +304,7 @@ function EditableText({
       role="textbox"
       title="Cliquer pour modifier"
       onBlur={(e) => onCommit(e.currentTarget.innerText.replace(/\n$/, ""))}
+      style={bold ? { fontWeight: 800 } : undefined}
       className={`outline-none focus:bg-amber-50/40 print:bg-transparent rounded-sm decoration-dotted decoration-slate-300 underline-offset-4 hover:underline ${multiline ? "min-h-[1.5em]" : ""} ${className}`}
     >
       {initial}
@@ -351,6 +396,7 @@ function EyeImagery({
                 key={`${meta.id}-${labelOverrides[meta.id] === undefined}`}
                 initial={labelOverrides[meta.id] ?? `${meta.label} ${eye === "OD" ? "OD" : "OG"}`}
                 onCommit={(v) => onLabelChange(meta.id, v)}
+                bold
                 className="mt-1 text-[11px] font-bold text-slate-700"
               />
             </figure>

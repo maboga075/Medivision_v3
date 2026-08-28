@@ -5,8 +5,8 @@ import type Konva from "konva";
 import { useStore, IMG_MIN_SCALE, IMG_MAX_SCALE } from "@/features/retinasketch/store/useStore";
 import type { Annotation } from "@/features/retinasketch/lib/types";
 import { TEMPLATE, createViewport, toScreen, mirrorFor, isInsideRetina, fieldShape, fieldHalfExtentsMm } from "@/features/retinasketch/lib/geometry/template";
-import { imagePxToHomeMm, imagePxLenToMm } from "@/features/retinasketch/lib/geometry/project";
-import { arcadePolylines } from "@/features/retinasketch/lib/geometry/engine";
+import { imagePxToHomeMm, imagePxLenToMm, imagePxToModelMm } from "@/features/retinasketch/lib/geometry/project";
+import { arcadePolylines, DEFAULT_TOPO_REFS, type TopoRefs } from "@/features/retinasketch/lib/geometry/engine";
 import { getLesion } from "@/features/retinasketch/lib/ontology/lesions";
 
 const C = {
@@ -143,6 +143,31 @@ export default function RetinaStage({ width, height, eye, readOnly, stageRef }: 
             : null,
         }
       : null;
+
+  // Repères de la nomenclature 8 zones (mm modèle) : centres détectés si
+  // disponibles → l'overlay ET la classification collent à l'anatomie réelle.
+  const nomRefs: TopoRefs = useMemo(() => {
+    if (!anatomy || (!anatomy.macula && !anatomy.disc)) return DEFAULT_TOPO_REFS;
+    const bgT = {
+      natW: anatomy.natW,
+      natH: anatomy.natH,
+      offsetXMm: bg.offsetXMm,
+      offsetYMm: bg.offsetYMm,
+      scale: bg.scale,
+      rotationDeg: bg.rotationDeg,
+    };
+    return {
+      fovea: anatomy.macula
+        ? imagePxToModelMm(anatomy.macula.cx, anatomy.macula.cy, bgT, vp)
+        : DEFAULT_TOPO_REFS.fovea,
+      disc: anatomy.disc
+        ? imagePxToModelMm(anatomy.disc.cx, anatomy.disc.cy, bgT, vp)
+        : DEFAULT_TOPO_REFS.disc,
+      maculaRmm: anatomy.macula
+        ? imagePxLenToMm(anatomy.macula.r, anatomy.natW, anatomy.natH)
+        : DEFAULT_TOPO_REFS.maculaRmm,
+    };
+  }, [anatomy, bg.offsetXMm, bg.offsetYMm, bg.scale, bg.rotationDeg, vp]);
 
   const groupRef = useRef<Konva.Group>(null);
   const active = useRef(false);
@@ -591,20 +616,17 @@ export default function RetinaStage({ width, height, eye, readOnly, stageRef }: 
                 fovéa–papille et cercle maculaire (repères de la nomenclature). */}
             {isRetino && layers.nomenclature && (
               <>
-                {/* Axe fovéal (vertical, x=0) */}
+                {/* Axe fovéal (vertical, passant par la fovéa détectée/modèle) */}
                 <Line
-                  points={[0, -TEMPLATE.retina.halfHeightMm, 0, TEMPLATE.retina.halfHeightMm]}
+                  points={[nomRefs.fovea.x, -TEMPLATE.retina.halfHeightMm, nomRefs.fovea.x, TEMPLATE.retina.halfHeightMm]}
                   stroke={C.overlayText}
                   strokeWidth={1.1}
                   dash={[5, 4]}
                   strokeScaleEnabled={false}
                 />
-                {/* Axe papillaire (vertical, x=disc.x) */}
+                {/* Axe papillaire (vertical, passant par la papille) */}
                 <Line
-                  points={[
-                    TEMPLATE.disc.x, -TEMPLATE.retina.halfHeightMm,
-                    TEMPLATE.disc.x, TEMPLATE.retina.halfHeightMm,
-                  ]}
+                  points={[nomRefs.disc.x, -TEMPLATE.retina.halfHeightMm, nomRefs.disc.x, TEMPLATE.retina.halfHeightMm]}
                   stroke={C.overlayText}
                   strokeWidth={1.1}
                   dash={[5, 4]}
@@ -612,11 +634,15 @@ export default function RetinaStage({ width, height, eye, readOnly, stageRef }: 
                 />
                 {/* Ligne fovéa–papille (séparation supérieur / inférieur) */}
                 {(() => {
-                  const slope = TEMPLATE.disc.y / TEMPLATE.disc.x;
+                  const f = nomRefs.fovea;
+                  const d = nomRefs.disc;
+                  const dx = d.x - f.x || 1e-6;
+                  const slope = (d.y - f.y) / dx;
                   const hw = TEMPLATE.retina.halfWidthMm;
+                  // Droite passant par la fovéa, étendue sur toute la largeur.
                   return (
                     <Line
-                      points={[-hw, slope * -hw, hw, slope * hw]}
+                      points={[-hw, f.y + slope * (-hw - f.x), hw, f.y + slope * (hw - f.x)]}
                       stroke={C.overlayText}
                       strokeWidth={1.1}
                       dash={[5, 4]}
@@ -624,11 +650,11 @@ export default function RetinaStage({ width, height, eye, readOnly, stageRef }: 
                     />
                   );
                 })()}
-                {/* Cercle maculaire (priorité MS/MI) */}
+                {/* Cercle maculaire (priorité MS/MI), centré sur la fovéa */}
                 <Circle
-                  x={0}
-                  y={0}
-                  radius={TEMPLATE.maculaRadiusMm}
+                  x={nomRefs.fovea.x}
+                  y={nomRefs.fovea.y}
+                  radius={nomRefs.maculaRmm}
                   stroke={C.overlayText}
                   strokeWidth={1.3}
                   dash={[4, 3]}
@@ -912,7 +938,7 @@ export default function RetinaStage({ width, height, eye, readOnly, stageRef }: 
             />
           ))}
         {isRetino && layers.nomenclature &&
-          nomenclatureLabels(vp).map((l) => (
+          nomenclatureLabels(vp, nomRefs).map((l) => (
             <Text
               key={l.text}
               x={l.x - 12}
@@ -960,17 +986,23 @@ function quadrantLabels(vp: Vp) {
   ];
 }
 
-/** Libellés des 8 zones topographiques (mm modèle → écran, mirror géré par `vp`). */
-function nomenclatureLabels(vp: Vp) {
+/** Libellés des 8 zones topographiques (mm modèle → écran), placés relativement
+ *  aux repères fovéa/papille (détectés ou modèle). */
+function nomenclatureLabels(vp: Vp, refs: TopoRefs) {
+  const fx = refs.fovea.x;
+  const fy = refs.fovea.y;
+  const midNasalM = (refs.fovea.x + refs.disc.x) / 2; // entre fovéa et papille
+  const yTop = fy - 4;
+  const yBot = fy + 4;
   return [
-    { text: "MS", ...toScreen(0, -1.3, vp) },
-    { text: "MI", ...toScreen(0, 1.3, vp) },
-    { text: "TS-M", ...toScreen(4.3, -4, vp) },
-    { text: "TI-M", ...toScreen(4.3, 4, vp) },
-    { text: "NS-M", ...toScreen(-2.4, -4, vp) },
-    { text: "NI-M", ...toScreen(-2.4, 4, vp) },
-    { text: "NS-P", ...toScreen(-6.3, -4, vp) },
-    { text: "NI-P", ...toScreen(-6.3, 4, vp) },
+    { text: "MS", ...toScreen(fx, fy - 1.3, vp) },
+    { text: "MI", ...toScreen(fx, fy + 1.3, vp) },
+    { text: "TS-M", ...toScreen(fx + 4.3, yTop, vp) },
+    { text: "TI-M", ...toScreen(fx + 4.3, yBot, vp) },
+    { text: "NS-M", ...toScreen(midNasalM, yTop, vp) },
+    { text: "NI-M", ...toScreen(midNasalM, yBot, vp) },
+    { text: "NS-P", ...toScreen(refs.disc.x - 1.5, yTop, vp) },
+    { text: "NI-P", ...toScreen(refs.disc.x - 1.5, yBot, vp) },
   ];
 }
 
