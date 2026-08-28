@@ -21,6 +21,10 @@ type Handle = "disc" | "discR" | "macula";
 export default function AnatomyOverlay({ width, height }: Props) {
   const anatomyEdit = useStore((s) => s.anatomyEdit);
   const setAnatomyEdit = useStore((s) => s.setAnatomyEdit);
+  // Les poignées apparaissent aussi quand la couche « Zones anatomiques » est
+  // active : correction dynamique du centre papille/macula sans passer par
+  // « Ajuster » (demande praticien).
+  const layerAnatomy = useStore((s) => s.layers.anatomy);
   const laterality = useStore((s) => s.laterality);
   const bg = useStore((s) => s.backgrounds[s.laterality]);
   const anatomy = useStore((s) => s.anatomy[s.laterality]);
@@ -36,6 +40,10 @@ export default function AnatomyOverlay({ width, height }: Props) {
   const vDrag = useRef<number>(-1);
   const polyRef = useRef<number[]>([]);
 
+  // Actif si l'édition explicite est demandée, OU si la couche anatomie est
+  // affichée (poignées de correction dynamique).
+  const active = anatomyEdit || layerAnatomy;
+
   useEffect(() => {
     if (!anatomyEdit) return;
     const onKey = (e: KeyboardEvent) => {
@@ -45,7 +53,7 @@ export default function AnatomyOverlay({ width, height }: Props) {
     return () => window.removeEventListener("keydown", onKey);
   }, [anatomyEdit, setAnatomyEdit]);
 
-  if (!anatomyEdit || !bg.src || !anatomy) return null;
+  if (!active || !bg.src || !anatomy) return null;
 
   const mirror = mirrorFor(laterality);
   const vp = designViewport(width, height, mirror);

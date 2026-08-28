@@ -251,7 +251,13 @@ export default function RetinaStage({ width, height, eye, readOnly, stageRef }: 
       const sp = groupRef.current?.getStage()?.getPointerPosition();
       if (!sp) return;
       const { sx, sy, ox, oy, sc } = panImg.current;
-      const lim = TEMPLATE.retina.halfWidthMm * Math.max(0, sc - 1);
+      // Cercle (rétino) : bornage « cover » (l'image ne découvre jamais le champ).
+      // Autres templates (B-scan, OCT antérieur, suivi, libre…) : pan LIBRE pour
+      // ajuster la zone de travail, même au zoom 1 (Maj + glisser).
+      const lim =
+        geometry === "circle"
+          ? TEMPLATE.retina.halfWidthMm * Math.max(0, sc - 1)
+          : TEMPLATE.retina.halfWidthMm * (sc + 1);
       const clamp = (v: number) => Math.max(-lim, Math.min(lim, v));
       updateBackground(
         {
@@ -284,7 +290,7 @@ export default function RetinaStage({ width, height, eye, readOnly, stageRef }: 
     const start = buffer.current;
     if (Math.hypot(p.x - start[0], p.y - start[1]) > DRAG_THRESHOLD_MM)
       moved.current = true;
-  }, [spaceHeld, modelPos, adjustSpotRadius, updateBackground, laterality, vp]);
+  }, [spaceHeld, modelPos, adjustSpotRadius, updateBackground, laterality, vp, geometry]);
 
   const onUp = useCallback(() => {
     if (panImg.current) {

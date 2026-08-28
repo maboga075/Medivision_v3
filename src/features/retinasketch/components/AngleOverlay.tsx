@@ -88,8 +88,9 @@ export default function AngleOverlay({ width, height }: Props) {
         ))}
       </svg>
 
-      {/* Bandeau de contrôle (toujours cliquable) */}
-      <div className="pointer-events-auto absolute left-1/2 top-4 flex -translate-x-1/2 items-center gap-3 rounded-full bg-slate-900 px-4 py-2 text-sm text-white shadow-xl">
+      {/* Bandeau de contrôle (toujours cliquable) — en bas pour ne pas masquer
+          l'étiquette d'œil ni la zone de mesure. */}
+      <div className="pointer-events-auto absolute bottom-4 left-1/2 flex -translate-x-1/2 items-center gap-3 rounded-full bg-slate-900 px-4 py-2 text-sm text-white shadow-xl">
         {armed ? (
           <span className="text-xs text-amber-200">
             {pending.length === 0 && "Cliquez l'apex (éperon scléral)"}

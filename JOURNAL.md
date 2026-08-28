@@ -58,6 +58,24 @@ api/ai/generate-report  Fonction serverless (OpenAI/Anthropic/Gemini/DeepSeek).
 
 ---
 
+### Session 2026-08-28 (suite 4) — Correctifs recette RSK + pipeline IA multi-templates
+
+**Demandé par :** Yoan (liste de recette après push initial) · **Statut :** ✅ correctifs confiants faits. `tsc` 0, 33 tests, `vite build` OK. **Non vérifié visuellement** (RSK derrière login). Push initial fait sur branche `feat/corrections-medivision-aout2026`.
+
+- **#2 Clic droit / détections rétino-spécifiques** ([`BackgroundControls.tsx`](src/features/retinasketch/components/BackgroundControls.tsx)) : blocs Alignement (repères), Vaisseaux et Anatomie masqués si le slot actif n'est pas `retino` (`isRetinoSlot`).
+- **#4 Shift+glisser sur templates non-rétino** ([`RetinaStage.tsx`](src/features/retinasketch/components/RetinaStage.tsx) onMove) : le bornage « cover » (`lim = R·max(0, sc−1)`, = 0 au zoom 1) empêchait tout déplacement. Débridé pour les géométries ≠ `circle` (`lim = R·(sc+1)`) → pan libre pour ajuster la zone.
+- **#1 Outil angle IC invisible** : l'`AngleOverlay` est mono-only. Ajout d'un bouton « Mesurer (plein cadre) » dans le bandeau angle d'[`EyePane`](src/features/retinasketch/components/EyePane.tsx) (bascule mono + sélectionne l'œil) ; bandeau de contrôle de l'overlay descendu en bas (évite le chevauchement de l'étiquette d'œil).
+- **#3 Titres pas en gras (menu Imprimer)** : le code posait déjà `font-bold` (probable cache) ; titres d'œil renforcés en `text-[15px] font-extrabold` ([`DoubleEyeView.tsx`](src/features/retinasketch/components/DoubleEyeView.tsx)).
+- **#5 Poignées anatomie quand la couche « Zones anatomiques » est active** ([`AnatomyOverlay.tsx`](src/features/retinasketch/components/AnatomyOverlay.tsx)) : poignées affichées si `anatomyEdit || layers.anatomy` (au lieu de `anatomyEdit` seul), en vue mono, si une anatomie détectée existe.
+- **#6 Qualificatifs de papille (rétinographie)** : nouveau [`lib/papilla.ts`](src/features/retinasketch/lib/papilla.ts) (`PAPILLA_QUALIFIERS` pâle/surélevée/bords flous + `mergePapillaQualifiers`). Chips sous le template rétino (`EyePane`), store `papillaQualifiers: EyeMap<string[]>` + `togglePapillaQualifier`, seed au montage + bridge au commit → fusion dans `eye.observationsPapille`.
+- **#9 Pipeline IA multi-templates** ([`clinicalSummary.ts`](src/utils/clinicalSummary.ts)) : `analyzeEye` ne remontait que `obs.retina`. Désormais **toutes** les catégories d'observations (retina, bscan, octa, cornea, papille, macula, peripherie, anterieur, favoris) + pachymétrie + angle IC sont élevées en anomalies dans le pré-résumé (`buildClinicalSummary`) envoyé à l'IA. Ajout `angle_irido_corneen?` à `EyeDataNormalisee`.
+
+**Diagnostic (non corrigés ce lot)** :
+- **#7 Détection macula « rien ne se passe »** : `anatomyShapes` (rendu) est OK ; la cause probable est `detectLandmarks` (heuristique) qui échoue sur l'image → `detectAnatomy` renvoie null → message « Macula introuvable ». Correctif proposé : placement par défaut draggable en cas d'échec.
+- **#8 Poignées papille absentes après auto-détection** : dépend de l'image uploadée (non reçue ce tour). Suspicion : contour dégénéré si `disc.polygon` absent et rx/ry ≈ 0 (ellipseToPolygon). À confirmer avec l'image.
+
+---
+
 ### Session 2026-08-28 (suite 3) — Vague 2 (fin) : pachymétrie (13) + template libre/crop (9) + angle IC Shaffer (12)
 
 **Demandé par :** Yoan (UX validée : crop = cadre fixe redimensionnable ; angle = 3 points → Shaffer) · **Statut :** ✅ Vague 2 terminée → **13/13 items faits**. `tsc` 0, **33 tests verts** (2 nouveaux fichiers de tests), `vite build` OK. **Non vérifié visuellement** (RSK derrière login).

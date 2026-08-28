@@ -30,6 +30,12 @@ export default function BackgroundControls() {
   const setSamMode = useStore((s) => s.setSamMode);
   const setLaterality = useStore((s) => s.setLaterality);
   const setLayout = useStore((s) => s.setLayout);
+  // Type du slot actif : les détections rétino (repères / vaisseaux / anatomie)
+  // n'ont de sens que sur une rétinographie → masquées sur les autres coupes.
+  const isRetinoSlot = useStore((s) => {
+    const id = s.activeSlot[s.laterality];
+    return (s.slots[s.laterality].find((sl) => sl.id === id)?.kind ?? "retino") === "retino";
+  });
   const anatomy = useStore((s) => s.anatomy[s.laterality]);
   const anatomyVisible = useStore((s) => s.anatomyVisible);
   const setAnatomy = useStore((s) => s.setAnatomy);
@@ -446,26 +452,30 @@ export default function BackgroundControls() {
               onChange={(v) => updateBackground({ blacks: v })}
             />
 
-            {/* Alignement */}
-            <SectionLabel>Alignement</SectionLabel>
-            <div className="mb-1.5 flex gap-2">
-              <button
-                onClick={() => bg.src && runAutoAlign(bg.src)}
-                className="flex-1 rounded-lg bg-slate-900 px-2.5 py-1.5 text-xs font-medium text-white transition hover:bg-slate-700"
-              >
-                Aligner auto
-              </button>
-              <button
-                onClick={() => {
-                  setOpen(false);
-                  setLayout("mono"); // outils de précision = 1 œil plein cadre
-                  setPointing(true);
-                }}
-                className="flex-1 rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
-              >
-                Pointer repères
-              </button>
-            </div>
+            {/* Alignement — repères fovéa/papille : rétinographie uniquement. */}
+            {isRetinoSlot && (
+              <>
+                <SectionLabel>Alignement</SectionLabel>
+                <div className="mb-1.5 flex gap-2">
+                  <button
+                    onClick={() => bg.src && runAutoAlign(bg.src)}
+                    className="flex-1 rounded-lg bg-slate-900 px-2.5 py-1.5 text-xs font-medium text-white transition hover:bg-slate-700"
+                  >
+                    Aligner auto
+                  </button>
+                  <button
+                    onClick={() => {
+                      setOpen(false);
+                      setLayout("mono"); // outils de précision = 1 œil plein cadre
+                      setPointing(true);
+                    }}
+                    className="flex-1 rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
+                  >
+                    Pointer repères
+                  </button>
+                </div>
+              </>
+            )}
             <button
               onClick={() => {
                 setOpen(false);
@@ -523,83 +533,89 @@ export default function BackgroundControls() {
               Rend transparent l’anneau noir du champ → pas d’aplat noir à l’impression.
             </p>
 
-            {/* Vaisseaux */}
-            <SectionLabel>Vaisseaux</SectionLabel>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={runDetectVessels}
-                disabled={vesselBusy}
-                className="flex-1 rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
-              >
-                {vesselBusy
-                  ? "Analyse…"
-                  : bg.vesselsSrc
-                    ? "Re-détecter les vaisseaux"
-                    : "Détecter les vaisseaux"}
-              </button>
-              {bg.vesselsSrc && (
-                <button
-                  onClick={() => updateBackground({ showVessels: !bg.showVessels })}
-                  className="rounded-md p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
-                  title={bg.showVessels ? "Masquer les vaisseaux" : "Afficher les vaisseaux"}
-                >
-                  {bg.showVessels ? <EyeIcon /> : <EyeOffIcon />}
-                </button>
-              )}
-            </div>
+            {/* Vaisseaux + Anatomie — rétinographie uniquement (sans objet sur
+                B-scan / OCT-A / OCT antérieur / suivi / image libre). */}
+            {isRetinoSlot && (
+              <>
+                {/* Vaisseaux */}
+                <SectionLabel>Vaisseaux</SectionLabel>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={runDetectVessels}
+                    disabled={vesselBusy}
+                    className="flex-1 rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
+                  >
+                    {vesselBusy
+                      ? "Analyse…"
+                      : bg.vesselsSrc
+                        ? "Re-détecter les vaisseaux"
+                        : "Détecter les vaisseaux"}
+                  </button>
+                  {bg.vesselsSrc && (
+                    <button
+                      onClick={() => updateBackground({ showVessels: !bg.showVessels })}
+                      className="rounded-md p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                      title={bg.showVessels ? "Masquer les vaisseaux" : "Afficher les vaisseaux"}
+                    >
+                      {bg.showVessels ? <EyeIcon /> : <EyeOffIcon />}
+                    </button>
+                  )}
+                </div>
 
-            {/* Anatomie : papille et macula détectées SÉPARÉMENT */}
-            <SectionLabel>Anatomie (papille / macula)</SectionLabel>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={runDetectDisc}
-                disabled={anatomyBusy}
-                className="flex-1 rounded-lg border border-emerald-300 px-2.5 py-1.5 text-xs font-medium text-emerald-700 transition hover:bg-emerald-50 disabled:opacity-50"
-              >
-                {anatomyBusy ? "Analyse…" : "Détecter la papille"}
-              </button>
-              <button
-                onClick={runDetectMacula}
-                disabled={anatomyBusy}
-                className="flex-1 rounded-lg border border-violet-300 px-2.5 py-1.5 text-xs font-medium text-violet-700 transition hover:bg-violet-50 disabled:opacity-50"
-              >
-                {anatomyBusy ? "Analyse…" : "Détecter la macula"}
-              </button>
-              {anatomy && (
-                <button
-                  onClick={() => setAnatomyVisible(!anatomyVisible)}
-                  className="rounded-md p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
-                  title={anatomyVisible ? "Masquer l'anatomie" : "Afficher l'anatomie"}
-                >
-                  {anatomyVisible ? <EyeIcon /> : <EyeOffIcon />}
-                </button>
-              )}
-            </div>
-            {anatomy && (
-              <div className="mt-1.5 flex gap-2">
-                <button
-                  onClick={() => {
-                    setOpen(false);
-                    setLayout("mono"); // outils de précision = 1 œil plein cadre
-                    setAnatomyVisible(true);
-                    setAnatomyEdit(true);
-                  }}
-                  className="flex-1 rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
-                >
-                  Ajuster (forme / déplacer / taille)
-                </button>
-                <button
-                  onClick={() => clearAnatomy()}
-                  className="rounded-lg border border-red-200 px-2.5 py-1.5 text-xs font-medium text-red-600 transition hover:bg-red-50"
-                >
-                  Réinitialiser
-                </button>
-              </div>
+                {/* Anatomie : papille et macula détectées SÉPARÉMENT */}
+                <SectionLabel>Anatomie (papille / macula)</SectionLabel>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={runDetectDisc}
+                    disabled={anatomyBusy}
+                    className="flex-1 rounded-lg border border-emerald-300 px-2.5 py-1.5 text-xs font-medium text-emerald-700 transition hover:bg-emerald-50 disabled:opacity-50"
+                  >
+                    {anatomyBusy ? "Analyse…" : "Détecter la papille"}
+                  </button>
+                  <button
+                    onClick={runDetectMacula}
+                    disabled={anatomyBusy}
+                    className="flex-1 rounded-lg border border-violet-300 px-2.5 py-1.5 text-xs font-medium text-violet-700 transition hover:bg-violet-50 disabled:opacity-50"
+                  >
+                    {anatomyBusy ? "Analyse…" : "Détecter la macula"}
+                  </button>
+                  {anatomy && (
+                    <button
+                      onClick={() => setAnatomyVisible(!anatomyVisible)}
+                      className="rounded-md p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                      title={anatomyVisible ? "Masquer l'anatomie" : "Afficher l'anatomie"}
+                    >
+                      {anatomyVisible ? <EyeIcon /> : <EyeOffIcon />}
+                    </button>
+                  )}
+                </div>
+                {anatomy && (
+                  <div className="mt-1.5 flex gap-2">
+                    <button
+                      onClick={() => {
+                        setOpen(false);
+                        setLayout("mono"); // outils de précision = 1 œil plein cadre
+                        setAnatomyVisible(true);
+                        setAnatomyEdit(true);
+                      }}
+                      className="flex-1 rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
+                    >
+                      Ajuster (forme / déplacer / taille)
+                    </button>
+                    <button
+                      onClick={() => clearAnatomy()}
+                      className="rounded-lg border border-red-200 px-2.5 py-1.5 text-xs font-medium text-red-600 transition hover:bg-red-50"
+                    >
+                      Réinitialiser
+                    </button>
+                  </div>
+                )}
+                <p className="mt-1 text-[11px] leading-snug text-slate-400">
+                  {anatomyMsg ||
+                    "Papille et macula se détectent séparément. « Ajuster » : glissez les points verts pour corriger la FORME du contour, P pour déplacer, M pour la macula — les corrections sont sauvegardées."}
+                </p>
+              </>
             )}
-            <p className="mt-1 text-[11px] leading-snug text-slate-400">
-              {anatomyMsg ||
-                "Papille et macula se détectent séparément. « Ajuster » : glissez les points verts pour corriger la FORME du contour, P pour déplacer, M pour la macula — les corrections sont sauvegardées."}
-            </p>
 
             {/* Pré-annotation IA */}
             <SectionLabel>Pré-annotation IA</SectionLabel>

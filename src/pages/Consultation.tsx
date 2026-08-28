@@ -22,6 +22,7 @@ import RetinaEditor from '../features/retinasketch/components/RetinaEditor';
 import type { RetinaPrintInfo } from '../features/retinasketch/lib/printInfo';
 import { RETINA_LESION_COLORS, getLesion } from '../features/retinasketch/lib/ontology/lesions';
 import type { Annotation } from '../features/retinasketch/lib/types';
+import { PAPILLA_QUALIFIERS, mergePapillaQualifiers } from '../features/retinasketch/lib/papilla';
 import type { CustomLesion } from '../types/settings';
 import { useConsultationDrafts } from '../hooks/useConsultationDrafts';
 import { normalizeClinicalData } from '../utils/clinicalPayload';
@@ -698,6 +699,12 @@ export default function Consultation() {
           annotationOpacity={form.eyeOD.retinaAnnotationOpacity ?? form.eyeOG.retinaAnnotationOpacity}
           cornealThicknessOD={form.eyeOD.cornealThickness}
           cornealThicknessOG={form.eyeOG.cornealThickness}
+          papillaQualifiersOD={(form.eyeOD.observationsPapille ?? []).filter((o) =>
+            (PAPILLA_QUALIFIERS as readonly string[]).includes(o),
+          )}
+          papillaQualifiersOG={(form.eyeOG.observationsPapille ?? []).filter((o) =>
+            (PAPILLA_QUALIFIERS as readonly string[]).includes(o),
+          )}
           onCommit={(commit) => {
             // Persiste toute la galerie + l'image/annotations du slot rétino (pont
             // avec le CR actuel) + calques + opacité sur chaque œil.
@@ -712,6 +719,7 @@ export default function Consultation() {
               retinaAnnotationOpacity: commit.annotationOpacity,
               ...(commit.cornealThicknessOD ? { cornealThickness: commit.cornealThicknessOD } : {}),
               ...(commit.iridoCornealAngleOD ? { iridoCornealAngle: commit.iridoCornealAngleOD } : {}),
+              observationsPapille: mergePapillaQualifiers(prev.observationsPapille ?? [], commit.papillaQualifiersOD),
             }));
             form.setEyeOG((prev) => ({
               ...prev,
@@ -722,6 +730,7 @@ export default function Consultation() {
               retinaAnnotationOpacity: commit.annotationOpacity,
               ...(commit.cornealThicknessOG ? { cornealThickness: commit.cornealThicknessOG } : {}),
               ...(commit.iridoCornealAngleOG ? { iridoCornealAngle: commit.iridoCornealAngleOG } : {}),
+              observationsPapille: mergePapillaQualifiers(prev.observationsPapille ?? [], commit.papillaQualifiersOG),
             }));
           }}
           onClose={() => setRetinaOpen(false)}

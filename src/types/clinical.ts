@@ -167,6 +167,7 @@ export interface EyeDataNormalisee {
   gcl_statut?: string;
   cup_disc_vertical?: number | string;
   pachymetrie?: number | string;
+  angle_irido_corneen?: string;
   discSurface?: string;
   octaPerformed?: boolean;
   obsFree?: string;

@@ -8,6 +8,7 @@ import SlotGallery from "./SlotGallery";
 import { computeAutoFrame } from "@/features/retinasketch/lib/geometry/autoframe";
 import { TEMPLATE } from "@/features/retinasketch/lib/geometry/template";
 import { shafferFromAngle, SHAFFER_LABEL } from "@/features/retinasketch/lib/geometry/angle";
+import { PAPILLA_QUALIFIERS } from "@/features/retinasketch/lib/papilla";
 
 // Konva nécessite le DOM : chargement paresseux (équivalent du `dynamic` Next).
 const RetinaStage = lazy(() => import("./RetinaStage"));
@@ -60,6 +61,9 @@ export default function EyePane({ eye, active, layout }: Props) {
   const angleMeasure = useStore((s) => s.angleMeasure[eye]);
   const shafferOverride = useStore((s) => s.shafferOverride[eye]);
   const setShafferOverride = useStore((s) => s.setShafferOverride);
+  // Qualificatifs de la papille (rétinographie) : pâle / surélevée / bords flous.
+  const papillaQualifiers = useStore((s) => s.papillaQualifiers[eye]);
+  const togglePapillaQualifier = useStore((s) => s.togglePapillaQualifier);
 
   const ref = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
@@ -253,19 +257,51 @@ export default function EyePane({ eye, active, layout }: Props) {
         </div>
       )}
 
+      {/* Papille (rétinographie) : qualificatifs cliniques rapides. */}
+      {activeKind === "retino" && (
+        <div className="flex shrink-0 flex-wrap items-center justify-center gap-2 border-t border-slate-200 bg-slate-50 px-3 py-2">
+          <span className="text-xs font-semibold text-slate-600">Papille</span>
+          {PAPILLA_QUALIFIERS.map((q) => {
+            const on = papillaQualifiers.includes(q);
+            return (
+              <button
+                key={q}
+                onClick={() => {
+                  setLaterality(eye);
+                  togglePapillaQualifier(q, eye);
+                }}
+                className={`rounded-full border px-2.5 py-1 text-xs font-medium transition ${
+                  on
+                    ? "border-emerald-500 bg-emerald-500 text-white"
+                    : "border-slate-300 bg-white text-slate-600 hover:border-emerald-300"
+                }`}
+              >
+                {q}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {/* Angle iridocornéen (template angle IC) : résultat mesuré + Shaffer modifiable. */}
       {activeKind === "angle" && (
         <div className="flex shrink-0 flex-wrap items-center justify-center gap-x-3 gap-y-1 border-t border-slate-200 bg-slate-50 px-3 py-2">
           <span className="text-xs font-semibold text-slate-600">Angle IC</span>
-          {angleMeasure ? (
+          {angleMeasure && (
             <span className="text-xs text-slate-700">
               <b>{angleMeasure.angleDeg}°</b>
             </span>
-          ) : (
-            <span className="text-xs italic text-slate-400">
-              non mesuré · plein cadre pour mesurer
-            </span>
           )}
+          <button
+            onClick={() => {
+              setLaterality(eye);
+              setLayout("mono"); // l'outil de mesure vit en plein cadre
+            }}
+            className="rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-700 transition hover:bg-amber-100"
+            title="Passer en plein cadre et mesurer l'angle"
+          >
+            {angleMeasure ? "Re-mesurer" : "Mesurer (plein cadre)"}
+          </button>
           <label className="flex items-center gap-1.5 text-xs text-slate-500">
             Shaffer
             <select

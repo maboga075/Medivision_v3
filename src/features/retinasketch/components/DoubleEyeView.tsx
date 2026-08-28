@@ -205,7 +205,7 @@ function EyePanel({
       <EditableText
         initial={title}
         onCommit={onTitleChange}
-        className="mb-2 text-sm font-bold text-slate-900"
+        className="mb-2 text-[15px] font-extrabold text-slate-900"
       />
       <div
         className="relative w-full overflow-hidden rounded-xl border border-slate-200 bg-white"

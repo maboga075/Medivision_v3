@@ -32,6 +32,9 @@ export interface RetinaCommit {
   /** Angle iridocornéen mesuré + Shaffer, formaté par œil (vide si non mesuré). */
   iridoCornealAngleOD: string;
   iridoCornealAngleOG: string;
+  /** Qualificatifs de papille sélectionnés par œil (rétinographie). */
+  papillaQualifiersOD: string[];
+  papillaQualifiersOG: string[];
 }
 
 interface RetinaEditorProps {
@@ -60,6 +63,9 @@ interface RetinaEditorProps {
   /** Épaisseur cornéenne (µm) par œil, restaurée au montage. */
   cornealThicknessOD?: string;
   cornealThicknessOG?: string;
+  /** Qualificatifs de papille par œil, restaurés au montage. */
+  papillaQualifiersOD?: string[];
+  papillaQualifiersOG?: string[];
   /** Remonte images + calques à la fermeture (persistance CR). */
   onCommit?: (commit: RetinaCommit) => void;
 }
@@ -115,6 +121,8 @@ export default function RetinaEditor({
   annotationOpacity,
   cornealThicknessOD,
   cornealThicknessOG,
+  papillaQualifiersOD,
+  papillaQualifiersOG,
   onCommit,
 }: RetinaEditorProps) {
   const annotations = useStore((s) => s.annotations);
@@ -145,6 +153,9 @@ export default function RetinaEditor({
     if (annotationOpacity != null) useStore.getState().setAnnotationOpacity(annotationOpacity);
     st.setCornealThickness(cornealThicknessOD ?? "", "OD");
     st.setCornealThickness(cornealThicknessOG ?? "", "OS");
+    // Seed des qualificatifs de papille (état initial vide → un toggle = activé).
+    (papillaQualifiersOD ?? []).forEach((q) => st.togglePapillaQualifier(q, "OD"));
+    (papillaQualifiersOG ?? []).forEach((q) => st.togglePapillaQualifier(q, "OS"));
     mounted.current = true;
     return () => {
       mounted.current = false;
@@ -211,6 +222,8 @@ export default function RetinaEditor({
           cornealThicknessOG: st.cornealThickness.OS,
           iridoCornealAngleOD: formatAngle(st.angleMeasure.OD, st.shafferOverride.OD),
           iridoCornealAngleOG: formatAngle(st.angleMeasure.OS, st.shafferOverride.OS),
+          papillaQualifiersOD: st.papillaQualifiers.OD,
+          papillaQualifiersOG: st.papillaQualifiers.OS,
         });
       } catch {
         /* la capture ne doit jamais empêcher la fermeture */

@@ -318,6 +318,8 @@ interface State {
   angleMeasure: EyeMap<AngleMeasure | null>;
   /** Grade de Shaffer forcé manuellement (0–4) ; null = déduit de l'angle. */
   shafferOverride: EyeMap<number | null>;
+  /** Qualificatifs de la papille par œil (rétinographie) : pâle / surélevée / bords flous. */
+  papillaQualifiers: EyeMap<string[]>;
 
   // ——— Galerie multi-images (Lot B) ———
   /** Liste des slots (ordre galerie) par œil. Le 1er slot est la rétino de base. */
@@ -345,6 +347,8 @@ interface State {
   setAngleMeasure: (m: AngleMeasure | null, eye?: Laterality) => void;
   /** Force (ou libère avec null) le grade de Shaffer de l'œil. */
   setShafferOverride: (grade: number | null, eye?: Laterality) => void;
+  /** Active/désactive un qualificatif de papille (rétinographie). */
+  togglePapillaQualifier: (q: string, eye?: Laterality) => void;
 
   setBackgroundImage: (src: string, fileName: string, eye?: Laterality) => void;
   updateBackground: (patch: Partial<BackgroundState>, eye?: Laterality) => void;
@@ -499,6 +503,7 @@ export const useStore = create<State>((set, get) => ({
   cornealThickness: { OD: "", OS: "" },
   angleMeasure: { OD: null, OS: null },
   shafferOverride: { OD: null, OS: null },
+  papillaQualifiers: { OD: [], OS: [] },
   ...initialSlots(),
   slotStash: {},
 
@@ -540,6 +545,13 @@ export const useStore = create<State>((set, get) => ({
     set((s) => ({ angleMeasure: { ...s.angleMeasure, [eye ?? s.laterality]: m } })),
   setShafferOverride: (grade, eye) =>
     set((s) => ({ shafferOverride: { ...s.shafferOverride, [eye ?? s.laterality]: grade } })),
+  togglePapillaQualifier: (q, eye) =>
+    set((s) => {
+      const k = eye ?? s.laterality;
+      const cur = s.papillaQualifiers[k];
+      const next = cur.includes(q) ? cur.filter((x) => x !== q) : [...cur, q];
+      return { papillaQualifiers: { ...s.papillaQualifiers, [k]: next } };
+    }),
 
   setBackgroundImage: (src, fileName, eye) =>
     set((s) => {
@@ -1008,6 +1020,7 @@ export const useStore = create<State>((set, get) => ({
         cornealThickness: { OD: "", OS: "" },
         angleMeasure: { OD: null, OS: null },
         shafferOverride: { OD: null, OS: null },
+        papillaQualifiers: { OD: [], OS: [] },
         ...initialSlots(),
         slotStash: {},
         paletteOpen: false,

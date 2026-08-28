@@ -27,14 +27,26 @@ const analyzeEye = (eye: EyeDataNormalisee | null, contexteStr: string): Analyse
   const ctxLow = contexteStr.toLowerCase();
   const obs = eye.observations ?? {};
 
-  // 0. LÉSIONS RETINASKETCH — les symptômes dessinés sont des constats objectifs :
-  // on les remonte comme anomalies significatives pour que l'IA les exploite.
-  if (obs.retina && obs.retina.length > 0) {
-    for (const lesion of obs.retina) {
-      const clean = lesion.replace(/\.$/, '').trim();
+  // 0. OBSERVATIONS OBJECTIVES — chaque coupe/template activé est un constat que
+  // l'IA doit exploiter. On remonte comme anomalies significatives les lésions
+  // dessinées (rétino + B-scan + OCT-A + cornée/angle) ET les observations
+  // structurées (papille, macula, périphérie, segment antérieur). Chaque
+  // paramètre renseigné est ainsi pris en compte dans le pré-résumé.
+  const OBSERVATION_CATEGORIES: (keyof ObservationsNormalisees)[] = [
+    'retina', 'bscan', 'octa', 'cornea',
+    'papille', 'macula', 'peripherie', 'anterieur', 'favoris',
+  ];
+  for (const category of OBSERVATION_CATEGORIES) {
+    const items = obs[category];
+    if (!items || items.length === 0) continue;
+    for (const item of items) {
+      const clean = item.replace(/\.$/, '').trim();
       if (clean) anomalies.push(clean.charAt(0).toUpperCase() + clean.slice(1));
     }
   }
+  // Épaisseur cornéenne + angle iridocornéen (OCT antérieur) — constats chiffrés.
+  if (eye.pachymetrie) anomalies.push(`Pachymétrie cornéenne : ${eye.pachymetrie} µm`);
+  if (eye.angle_irido_corneen) anomalies.push(`Angle iridocornéen : ${eye.angle_irido_corneen}`);
 
   // 0bis. SUIVI RNFL/GCL — l'évolution renseignée oriente l'interprétation.
   if (eye.hasFollowUp) {
