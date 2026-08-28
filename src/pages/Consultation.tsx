@@ -11,6 +11,7 @@ import {
   Download,
   Stethoscope,
   Activity,
+  CheckCircle2,
 } from 'lucide-react';
 import { db, collection, onSnapshot, query, orderBy, where } from '../services/firebase';
 import PatientEditModal from '../components/modals/PatientEditModal';
@@ -19,7 +20,8 @@ import EyeExamSection from '../components/forms/EyeExamSection';
 import SharedDiscFollowUpSection from '../components/forms/SharedDiscFollowUpSection';
 import RetinaEditor from '../features/retinasketch/components/RetinaEditor';
 import type { RetinaPrintInfo } from '../features/retinasketch/lib/printInfo';
-import { RETINA_LESION_COLORS } from '../features/retinasketch/lib/ontology/lesions';
+import { RETINA_LESION_COLORS, getLesion } from '../features/retinasketch/lib/ontology/lesions';
+import type { Annotation } from '../features/retinasketch/lib/types';
 import type { CustomLesion } from '../types/settings';
 import { useConsultationDrafts } from '../hooks/useConsultationDrafts';
 import { normalizeClinicalData } from '../utils/clinicalPayload';
@@ -102,11 +104,21 @@ export default function Consultation() {
   // ── Formulaire clinique ────────────────────────────────────────────────────
   const form = useConsultationForm();
 
-  // Total de lésions validées sur les 2 yeux (badge du bouton RetinaSketch unique).
-  const retinaLesionCount = [
-    ...(form.eyeOD.retinaAnnotations ?? []),
-    ...(form.eyeOG.retinaAnnotations ?? []),
-  ].filter((a) => a.status === 'validated').length;
+  // Résumé des lésions validées par œil (pilote l'état visuel du bouton RetinaSketch).
+  const summarizeEye = (annotations: Annotation[] | undefined) => {
+    const validated = (annotations ?? []).filter((a) => a.status === 'validated');
+    const counts = new Map<string, number>();
+    for (const a of validated) {
+      const name = getLesion(a.lesionId)?.name ?? 'Lésion';
+      counts.set(name, (counts.get(name) ?? 0) + 1);
+    }
+    const items = [...counts.entries()].map(([name, n]) => (n > 1 ? `${name} ×${n}` : name));
+    return { count: validated.length, items };
+  };
+  const retinaSummaryOD = summarizeEye(form.eyeOD.retinaAnnotations);
+  const retinaSummaryOG = summarizeEye(form.eyeOG.retinaAnnotations);
+  const retinaLesionCount = retinaSummaryOD.count + retinaSummaryOG.count;
+  const retinaAnnotated = retinaLesionCount > 0;
 
   // ── Brouillons ────────────────────────────────────────────────────────────
   const { loadAllDrafts, saveDraft, getDraft, deleteDraft, clearAllDrafts } = useConsultationDrafts();
@@ -494,60 +506,85 @@ export default function Consultation() {
                     doctors={settings?.doctors}
                   />
 
-                  <div className="flex flex-col lg:flex-row gap-4 mb-6 items-stretch">
-                    <EyeExamSection
-                      side="OD"
-                      eye={form.eyeOD}
-                      onUpdate={form.setEyeOD}
-                      isOCT={form.reportType.includes('OCT')}
-                      showAnterior={form.showAnterior}
-                      diversSuggestions={suggestionsFor('divers')}
-                      onPersistDivers={(item) => persistSuggestion('divers', item)}
-                      onNewSuggestion={(category, item) => {
-                        const stored = settings?.formulario?.[category];
-                        const effective = stored ?? DEFAULT_SUGGESTIONS[category] ?? [];
-                        if (!effective.includes(item)) updateBulles(category, [...effective, item]);
-                      }}
-                    />
-
-                    {/* Bouton RetinaSketch unique, entre les colonnes OD et OG */}
-                    <div className="flex shrink-0 items-center justify-center lg:w-32">
-                      <button
-                        type="button"
-                        onClick={() => setRetinaOpen(true)}
-                        title="Ouvrir RetinaSketch — annotation des 2 yeux"
-                        className="flex lg:flex-col items-center justify-center gap-2 w-full px-5 py-4 rounded-2xl border-2 border-dashed border-teal-300 bg-teal-50 text-teal-700 font-bold hover:border-teal-500 hover:bg-teal-100 transition-all active:scale-95 shadow-sm"
-                      >
-                        <Pencil className="w-6 h-6" />
-                        <span className="text-sm text-center leading-tight">Annoter la rétine</span>
-                        <span
-                          className={`px-2 py-0.5 rounded-full text-xs ${
-                            retinaLesionCount > 0
-                              ? 'bg-teal-600 text-white'
-                              : 'bg-white text-slate-500 border border-teal-200'
+                  <div className="mb-6 space-y-4">
+                    {/* Barre RetinaSketch pleine largeur (annotation partagée OD + OG).
+                        Une fois la rétine annotée : change de couleur et affiche le
+                        résumé des lésions validées, œil par œil. */}
+                    <button
+                      type="button"
+                      onClick={() => setRetinaOpen(true)}
+                      title="Ouvrir RetinaSketch — annotation des 2 yeux"
+                      className={`w-full rounded-2xl border-2 px-5 py-4 transition-all active:scale-[0.99] shadow-sm text-left ${
+                        retinaAnnotated
+                          ? 'border-emerald-400 bg-emerald-50 hover:bg-emerald-100'
+                          : 'border-dashed border-teal-300 bg-teal-50 hover:border-teal-500 hover:bg-teal-100'
+                      }`}
+                    >
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                        <div
+                          className={`flex items-center gap-2.5 font-bold shrink-0 ${
+                            retinaAnnotated ? 'text-emerald-700' : 'text-teal-700'
                           }`}
                         >
-                          {retinaLesionCount > 0
-                            ? `${retinaLesionCount} lésion${retinaLesionCount > 1 ? 's' : ''}`
-                            : 'aucune'}
-                        </span>
-                      </button>
-                    </div>
+                          {retinaAnnotated ? <CheckCircle2 className="w-6 h-6" /> : <Pencil className="w-6 h-6" />}
+                          <span className="text-base">
+                            {retinaAnnotated ? 'Rétine annotée' : 'Annoter la rétine'}
+                          </span>
+                          <span className="text-xs font-medium opacity-70 hidden sm:inline">
+                            {retinaAnnotated ? '· cliquer pour modifier' : '· OD + OG'}
+                          </span>
+                        </div>
 
-                    <EyeExamSection
-                      side="OG"
-                      eye={form.eyeOG}
-                      onUpdate={form.setEyeOG}
-                      isOCT={form.reportType.includes('OCT')}
-                      showAnterior={form.showAnterior}
-                      diversSuggestions={suggestionsFor('divers')}
-                      onPersistDivers={(item) => persistSuggestion('divers', item)}
-                      onNewSuggestion={(category, item) => {
-                        const stored = settings?.formulario?.[category];
-                        const effective = stored ?? DEFAULT_SUGGESTIONS[category] ?? [];
-                        if (!effective.includes(item)) updateBulles(category, [...effective, item]);
-                      }}
-                    />
+                        {/* Résumé par œil (uniquement une fois annoté) */}
+                        {retinaAnnotated && (
+                          <div className="flex flex-1 flex-col sm:flex-row gap-2 sm:justify-end">
+                            {([['OD', retinaSummaryOD], ['OG', retinaSummaryOG]] as const).map(([label, sum]) => (
+                              <div
+                                key={label}
+                                className="flex items-start gap-2 rounded-xl bg-white/70 border border-emerald-200 px-3 py-1.5 min-w-0"
+                              >
+                                <span className="text-xs font-black text-emerald-700 shrink-0 mt-0.5">{label}</span>
+                                <span className="text-xs font-semibold text-slate-600 leading-snug break-words">
+                                  {sum.count > 0 ? sum.items.join(', ') : 'aucune lésion'}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </button>
+
+                    <div className="flex flex-col lg:flex-row gap-4 items-stretch">
+                      <EyeExamSection
+                        side="OD"
+                        eye={form.eyeOD}
+                        onUpdate={form.setEyeOD}
+                        isOCT={form.reportType.includes('OCT')}
+                        showAnterior={form.showAnterior}
+                        diversSuggestions={suggestionsFor('divers')}
+                        onPersistDivers={(item) => persistSuggestion('divers', item)}
+                        onNewSuggestion={(category, item) => {
+                          const stored = settings?.formulario?.[category];
+                          const effective = stored ?? DEFAULT_SUGGESTIONS[category] ?? [];
+                          if (!effective.includes(item)) updateBulles(category, [...effective, item]);
+                        }}
+                      />
+
+                      <EyeExamSection
+                        side="OG"
+                        eye={form.eyeOG}
+                        onUpdate={form.setEyeOG}
+                        isOCT={form.reportType.includes('OCT')}
+                        showAnterior={form.showAnterior}
+                        diversSuggestions={suggestionsFor('divers')}
+                        onPersistDivers={(item) => persistSuggestion('divers', item)}
+                        onNewSuggestion={(category, item) => {
+                          const stored = settings?.formulario?.[category];
+                          const effective = stored ?? DEFAULT_SUGGESTIONS[category] ?? [];
+                          if (!effective.includes(item)) updateBulles(category, [...effective, item]);
+                        }}
+                      />
+                    </div>
                   </div>
 
                   {/* Encadré commun aux 2 yeux : disque optique (surface → C/D)
@@ -659,6 +696,8 @@ export default function Consultation() {
           retinaSlotsOG={form.eyeOG.retinaSlots}
           layers={form.eyeOD.retinaLayers ?? form.eyeOG.retinaLayers}
           annotationOpacity={form.eyeOD.retinaAnnotationOpacity ?? form.eyeOG.retinaAnnotationOpacity}
+          cornealThicknessOD={form.eyeOD.cornealThickness}
+          cornealThicknessOG={form.eyeOG.cornealThickness}
           onCommit={(commit) => {
             // Persiste toute la galerie + l'image/annotations du slot rétino (pont
             // avec le CR actuel) + calques + opacité sur chaque œil.
@@ -671,6 +710,8 @@ export default function Consultation() {
               ...(odRetinoAnns ? { retinaAnnotations: odRetinoAnns } : {}),
               retinaLayers: commit.layers,
               retinaAnnotationOpacity: commit.annotationOpacity,
+              ...(commit.cornealThicknessOD ? { cornealThickness: commit.cornealThicknessOD } : {}),
+              ...(commit.iridoCornealAngleOD ? { iridoCornealAngle: commit.iridoCornealAngleOD } : {}),
             }));
             form.setEyeOG((prev) => ({
               ...prev,
@@ -679,6 +720,8 @@ export default function Consultation() {
               ...(ogRetinoAnns ? { retinaAnnotations: ogRetinoAnns } : {}),
               retinaLayers: commit.layers,
               retinaAnnotationOpacity: commit.annotationOpacity,
+              ...(commit.cornealThicknessOG ? { cornealThickness: commit.cornealThicknessOG } : {}),
+              ...(commit.iridoCornealAngleOG ? { iridoCornealAngle: commit.iridoCornealAngleOG } : {}),
             }));
           }}
           onClose={() => setRetinaOpen(false)}

@@ -4,7 +4,16 @@ import type { Annotation } from "../lib/types";
 import type { RetinaPrintInfo } from "../lib/printInfo";
 import type { RetinaBackgroundSnapshot, RetinaLayers, RetinaSlotSnapshot } from "@/types/clinical";
 import { snapshotBackground } from "../lib/export/backgroundSnapshot";
+import { shafferFromAngle, SHAFFER_LABEL } from "../lib/geometry/angle";
+import type { AngleMeasure } from "../store/useStore";
 import Workspace from "./Workspace";
+
+/** Formate le résultat d'angle IC d'un œil pour le compte rendu (vide si absent). */
+function formatAngle(measure: AngleMeasure | null, override: number | null): string {
+  if (!measure) return "";
+  const grade = (override ?? shafferFromAngle(measure.angleDeg)) as 0 | 1 | 2 | 3 | 4;
+  return `${measure.angleDeg}° · Shaffer ${grade} (${SHAFFER_LABEL[grade]})`;
+}
 
 /** Instantané complet remonté à la fermeture (images + calques par œil). */
 export interface RetinaCommit {
@@ -17,6 +26,12 @@ export interface RetinaCommit {
   layers: RetinaLayers;
   /** Opacité globale des annotations au moment de la fermeture. */
   annotationOpacity: number;
+  /** Épaisseur cornéenne (µm) saisie par œil (pont pachymétrie). */
+  cornealThicknessOD: string;
+  cornealThicknessOG: string;
+  /** Angle iridocornéen mesuré + Shaffer, formaté par œil (vide si non mesuré). */
+  iridoCornealAngleOD: string;
+  iridoCornealAngleOG: string;
 }
 
 interface RetinaEditorProps {
@@ -42,6 +57,9 @@ interface RetinaEditorProps {
   layers?: RetinaLayers;
   /** Opacité globale des annotations (restaurée au montage). */
   annotationOpacity?: number;
+  /** Épaisseur cornéenne (µm) par œil, restaurée au montage. */
+  cornealThicknessOD?: string;
+  cornealThicknessOG?: string;
   /** Remonte images + calques à la fermeture (persistance CR). */
   onCommit?: (commit: RetinaCommit) => void;
 }
@@ -95,6 +113,8 @@ export default function RetinaEditor({
   retinaSlotsOG,
   layers,
   annotationOpacity,
+  cornealThicknessOD,
+  cornealThicknessOG,
   onCommit,
 }: RetinaEditorProps) {
   const annotations = useStore((s) => s.annotations);
@@ -123,6 +143,8 @@ export default function RetinaEditor({
     }
     if (layers) useStore.getState().setLayers(layers);
     if (annotationOpacity != null) useStore.getState().setAnnotationOpacity(annotationOpacity);
+    st.setCornealThickness(cornealThicknessOD ?? "", "OD");
+    st.setCornealThickness(cornealThicknessOG ?? "", "OS");
     mounted.current = true;
     return () => {
       mounted.current = false;
@@ -168,6 +190,8 @@ export default function RetinaEditor({
               geometry: meta.geometry,
               label: meta.label,
               printSelected: meta.printSelected,
+              ...(meta.frameHalfWMm != null ? { frameHalfWMm: meta.frameHalfWMm } : {}),
+              ...(meta.frameHalfHMm != null ? { frameHalfHMm: meta.frameHalfHMm } : {}),
               background: data.background.src ? await snapshotBackground(data.background) : null,
               annotations: data.annotations,
             })),
@@ -183,6 +207,10 @@ export default function RetinaEditor({
           ogSlots,
           layers: { ...st.layers },
           annotationOpacity: st.annotationOpacity,
+          cornealThicknessOD: st.cornealThickness.OD,
+          cornealThicknessOG: st.cornealThickness.OS,
+          iridoCornealAngleOD: formatAngle(st.angleMeasure.OD, st.shafferOverride.OD),
+          iridoCornealAngleOG: formatAngle(st.angleMeasure.OS, st.shafferOverride.OS),
         });
       } catch {
         /* la capture ne doit jamais empêcher la fermeture */

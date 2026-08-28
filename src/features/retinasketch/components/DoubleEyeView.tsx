@@ -39,6 +39,24 @@ export default function DoubleEyeView({ printInfo }: { printInfo?: RetinaPrintIn
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
+  // Surcharges d'édition du menu Imprimer (items 6+7) : titres d'œil, descriptions
+  // et libellés de coupe modifiables avant impression/export. Réinitialisées à
+  // chaque ouverture de l'aperçu (la valeur par défaut reste le texte auto-généré).
+  const DEFAULT_TITLES: Record<Laterality, string> = { OD: "Œil droit (OD)", OS: "Œil gauche (OG)" };
+  const [titleOverrides, setTitleOverrides] = useState<Partial<Record<Laterality, string>>>({});
+  const [reportOverrides, setReportOverrides] = useState<Partial<Record<Laterality, string>>>({});
+  const [labelOverrides, setLabelOverrides] = useState<Record<string, string>>({});
+  useEffect(() => {
+    if (doubleView) {
+      setTitleOverrides({});
+      setReportOverrides({});
+      setLabelOverrides({});
+    }
+  }, [doubleView]);
+
+  const effTitle = (eye: Laterality) => titleOverrides[eye] ?? DEFAULT_TITLES[eye];
+  const effReport = (eye: Laterality) => reportOverrides[eye] ?? generateReport(annotations, eye);
+
   // À l'ouverture de l'aperçu impression : la rétinographie est prioritaire →
   // on rend le slot rétino actif de chaque œil (sinon l'aperçu affiche le slot
   // actif courant, potentiellement un B-scan/OCT-A « au hasard »).
@@ -63,6 +81,9 @@ export default function DoubleEyeView({ printInfo }: { printInfo?: RetinaPrintIn
         size: { width: PANEL_W, height: PANEL_H },
         stages: { OD: odStage.current, OS: osStage.current },
         info: printInfo,
+        // Reprend les textes éventuellement édités dans l'aperçu.
+        titles: { OD: effTitle("OD"), OS: effTitle("OS") },
+        reports: { OD: effReport("OD"), OS: effReport("OS") },
       });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Échec de l'export PDF");
@@ -110,23 +131,29 @@ export default function DoubleEyeView({ printInfo }: { printInfo?: RetinaPrintIn
         <div className="flex flex-1 items-start justify-center gap-6">
           <div className="flex flex-1 flex-col gap-3">
             <EyePanel
+              key={`od-${doubleView}`}
               eye="OD"
-              title="Œil droit (OD)"
+              title={effTitle("OD")}
+              onTitleChange={(v) => setTitleOverrides((p) => ({ ...p, OD: v }))}
               stageRef={odStage}
               showBg={backgrounds.OD.src != null}
-              report={generateReport(annotations, "OD")}
+              report={effReport("OD")}
+              onReportChange={(v) => setReportOverrides((p) => ({ ...p, OD: v }))}
             />
-            <EyeImagery eye="OD" />
+            <EyeImagery eye="OD" labelOverrides={labelOverrides} onLabelChange={(id, v) => setLabelOverrides((p) => ({ ...p, [id]: v }))} />
           </div>
           <div className="flex flex-1 flex-col gap-3">
             <EyePanel
+              key={`os-${doubleView}`}
               eye="OS"
-              title="Œil gauche (OG)"
+              title={effTitle("OS")}
+              onTitleChange={(v) => setTitleOverrides((p) => ({ ...p, OS: v }))}
               stageRef={osStage}
               showBg={backgrounds.OS.src != null}
-              report={generateReport(annotations, "OS")}
+              report={effReport("OS")}
+              onReportChange={(v) => setReportOverrides((p) => ({ ...p, OS: v }))}
             />
-            <EyeImagery eye="OS" />
+            <EyeImagery eye="OS" labelOverrides={labelOverrides} onLabelChange={(id, v) => setLabelOverrides((p) => ({ ...p, [id]: v }))} />
           </div>
         </div>
       </div>
@@ -159,19 +186,27 @@ function PrintHeader({ info }: { info: RetinaPrintInfo }) {
 function EyePanel({
   eye,
   title,
+  onTitleChange,
   stageRef,
   showBg,
   report,
+  onReportChange,
 }: {
   eye: "OD" | "OS";
   title: string;
+  onTitleChange: (v: string) => void;
   stageRef: React.Ref<Konva.Stage>;
   showBg: boolean;
   report: string;
+  onReportChange: (v: string) => void;
 }) {
   return (
     <div className="flex flex-1 flex-col items-center">
-      <h2 className="mb-2 text-sm font-semibold text-slate-800">{title}</h2>
+      <EditableText
+        initial={title}
+        onCommit={onTitleChange}
+        className="mb-2 text-sm font-bold text-slate-900"
+      />
       <div
         className="relative w-full overflow-hidden rounded-xl border border-slate-200 bg-white"
         style={{ maxWidth: PANEL_W, aspectRatio: `${PANEL_W} / ${PANEL_H}` }}
@@ -191,9 +226,43 @@ function EyePanel({
           </Suspense>
         </div>
       </div>
-      <pre className="mt-3 w-full max-w-[540px] whitespace-pre-line text-left text-xs leading-relaxed text-slate-700">
-        {report}
-      </pre>
+      <EditableText
+        initial={report}
+        onCommit={onReportChange}
+        multiline
+        className="mt-3 w-full max-w-[540px] whitespace-pre-line text-left text-xs leading-relaxed text-slate-700"
+      />
+    </div>
+  );
+}
+
+/**
+ * Texte éditable pour le menu Imprimer (items 6+7). contentEditable non contrôlé :
+ * le contenu initial est posé au montage, l'édition est remontée `onBlur`. À
+ * l'écran, un léger soulignement pointillé (retiré à l'impression via `.print:…`)
+ * indique que le texte est modifiable.
+ */
+function EditableText({
+  initial,
+  onCommit,
+  className = "",
+  multiline = false,
+}: {
+  initial: string;
+  onCommit: (v: string) => void;
+  className?: string;
+  multiline?: boolean;
+}) {
+  return (
+    <div
+      contentEditable
+      suppressContentEditableWarning
+      role="textbox"
+      title="Cliquer pour modifier"
+      onBlur={(e) => onCommit(e.currentTarget.innerText.replace(/\n$/, ""))}
+      className={`outline-none focus:bg-amber-50/40 print:bg-transparent rounded-sm decoration-dotted decoration-slate-300 underline-offset-4 hover:underline ${multiline ? "min-h-[1.5em]" : ""} ${className}`}
+    >
+      {initial}
     </div>
   );
 }
@@ -204,7 +273,15 @@ function EyePanel({
  * SÉLECTIONNÉS (B-scan/OCT-A/en-face). La sélection (`printSelected`) pilote à
  * la fois l'impression et le compte rendu.
  */
-function EyeImagery({ eye }: { eye: Laterality }) {
+function EyeImagery({
+  eye,
+  labelOverrides,
+  onLabelChange,
+}: {
+  eye: Laterality;
+  labelOverrides: Record<string, string>;
+  onLabelChange: (slotId: string, value: string) => void;
+}) {
   const slots = useStore((s) => s.slots[eye]);
   const activeId = useStore((s) => s.activeSlot[eye]);
   const activeBg = useStore((s) => s.backgrounds[eye]);
@@ -258,9 +335,24 @@ function EyeImagery({ eye }: { eye: Laterality }) {
           {selected.map(({ meta, bg, anns }) => (
             <figure key={meta.id} className="m-0">
               <div className="overflow-hidden rounded-lg border border-slate-200">
-                <ImagerySlotSvg side={side} geometry={meta.geometry} background={bg} annotations={anns} />
+                <ImagerySlotSvg
+                  side={side}
+                  geometry={meta.geometry}
+                  background={bg}
+                  annotations={anns}
+                  frameHalfExtents={
+                    meta.geometry === "free" && meta.frameHalfWMm != null && meta.frameHalfHMm != null
+                      ? { halfW: meta.frameHalfWMm, halfH: meta.frameHalfHMm }
+                      : null
+                  }
+                />
               </div>
-              <figcaption className="mt-1 text-[10px] text-slate-500">{meta.label}</figcaption>
+              <EditableText
+                key={`${meta.id}-${labelOverrides[meta.id] === undefined}`}
+                initial={labelOverrides[meta.id] ?? `${meta.label} ${eye === "OD" ? "OD" : "OG"}`}
+                onCommit={(v) => onLabelChange(meta.id, v)}
+                className="mt-1 text-[11px] font-bold text-slate-700"
+              />
             </figure>
           ))}
         </div>

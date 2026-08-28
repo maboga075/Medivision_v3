@@ -4,12 +4,15 @@ import type { Annotation, Laterality, ImageKind, ImageGeometry, RetinalLayer, Co
 import { GEOMETRY_FOR_KIND, LABEL_FOR_KIND } from "@/features/retinasketch/lib/types";
 import type { RetinaBackgroundSnapshot, RetinaSlotSnapshot } from "@/types/clinical";
 import { computeAttributes, geometryMetrics, smoothFreeform } from "@/features/retinasketch/lib/geometry/engine";
+import { TEMPLATE } from "@/features/retinasketch/lib/geometry/template";
+import type { Pt } from "@/features/retinasketch/lib/geometry/angle";
 import { getLesion } from "@/features/retinasketch/lib/ontology/lesions";
 import type { EyeAnatomy, DiscShape, MaculaShape } from "@/features/retinasketch/lib/vision/anatomy";
 import { polygonBBox } from "@/features/retinasketch/lib/vision/anatomy";
 
 export type LayerKey =
   | "anatomy"
+  | "nomenclature"
   | "quadrants"
   | "fovea"
   | "etdrs"
@@ -50,6 +53,14 @@ export const IMG_MAX_SCALE = 8;
 
 /** Carte indexée par latéralité (un enregistrement par œil). */
 export type EyeMap<T> = Record<Laterality, T>;
+
+/** Mesure d'angle iridocornéen : 3 points (fractions de largeur) + angle mesuré (°). */
+export interface AngleMeasure {
+  apex: Pt;
+  armA: Pt;
+  armB: Pt;
+  angleDeg: number;
+}
 
 /** Transformation de vue (zoom/pan) — une par œil. */
 export interface ViewState {
@@ -157,6 +168,9 @@ export interface SlotMeta {
   label: string;
   /** Inclus dans l'impression et le compte rendu (sélection menu impression). */
   printSelected: boolean;
+  /** Demi-dimensions custom du cadre (mm) — template libre à rognage dynamique. */
+  frameHalfWMm?: number;
+  frameHalfHMm?: number;
 }
 
 /** Données de travail rangées d'un slot inactif. */
@@ -295,6 +309,16 @@ interface State {
   /** Mode édition de l'anatomie (déplacer/redimensionner — outil de précision mono). */
   anatomyEdit: boolean;
 
+  /** Épaisseur cornéenne (pachymétrie, µm) par œil — saisie sous une coupe OCT antérieur. */
+  cornealThickness: EyeMap<string>;
+  /**
+   * Mesure d'angle iridocornéen par œil (template angle IC) : 3 points en
+   * fractions de la largeur du panneau (redessin) + angle mesuré (autoritaire).
+   */
+  angleMeasure: EyeMap<AngleMeasure | null>;
+  /** Grade de Shaffer forcé manuellement (0–4) ; null = déduit de l'angle. */
+  shafferOverride: EyeMap<number | null>;
+
   // ——— Galerie multi-images (Lot B) ———
   /** Liste des slots (ordre galerie) par œil. Le 1er slot est la rétino de base. */
   slots: EyeMap<SlotMeta[]>;
@@ -313,6 +337,14 @@ interface State {
   adjustSpotRadius: (deltaMm: number) => void;
   setDrawTool: (t: DrawTool) => void;
   setAnnotationOpacity: (v: number) => void;
+  /** Renseigne l'épaisseur cornéenne (µm) de l'œil (défaut = œil courant). */
+  setCornealThickness: (v: string, eye?: Laterality) => void;
+  /** Redimensionne le cadre du slot actif (template libre), demi-dimensions mm. */
+  setActiveSlotFrame: (halfWMm: number, halfHMm: number, eye?: Laterality) => void;
+  /** Enregistre la mesure d'angle iridocornéen de l'œil (template angle IC). */
+  setAngleMeasure: (m: AngleMeasure | null, eye?: Laterality) => void;
+  /** Force (ou libère avec null) le grade de Shaffer de l'œil. */
+  setShafferOverride: (grade: number | null, eye?: Laterality) => void;
 
   setBackgroundImage: (src: string, fileName: string, eye?: Laterality) => void;
   updateBackground: (patch: Partial<BackgroundState>, eye?: Laterality) => void;
@@ -437,6 +469,8 @@ export const useStore = create<State>((set, get) => ({
     // « Zones anatomiques » = modèle générique (papille/macula standard) en mode
     // démonstration → désactivé par défaut (on abandonne le repère fixe).
     anatomy: false,
+    // « Nouvelle nomenclature » = découpage topographique 8 zones (item 4/5).
+    nomenclature: false,
     quadrants: false,
     fovea: false,
     etdrs: false,
@@ -462,6 +496,9 @@ export const useStore = create<State>((set, get) => ({
   anatomy: { OD: null, OS: null },
   anatomyVisible: true,
   anatomyEdit: false,
+  cornealThickness: { OD: "", OS: "" },
+  angleMeasure: { OD: null, OS: null },
+  shafferOverride: { OD: null, OS: null },
   ...initialSlots(),
   slotStash: {},
 
@@ -482,6 +519,27 @@ export const useStore = create<State>((set, get) => ({
         Math.min(ANNOTATION_OPACITY_MAX, v),
       ),
     }),
+  setCornealThickness: (v, eye) =>
+    set((s) => ({
+      cornealThickness: { ...s.cornealThickness, [eye ?? s.laterality]: v },
+    })),
+  setActiveSlotFrame: (halfWMm, halfHMm, eye) =>
+    set((s) => {
+      const k = eye ?? s.laterality;
+      const activeId = s.activeSlot[k];
+      return {
+        slots: {
+          ...s.slots,
+          [k]: s.slots[k].map((sl) =>
+            sl.id === activeId ? { ...sl, frameHalfWMm: halfWMm, frameHalfHMm: halfHMm } : sl,
+          ),
+        },
+      };
+    }),
+  setAngleMeasure: (m, eye) =>
+    set((s) => ({ angleMeasure: { ...s.angleMeasure, [eye ?? s.laterality]: m } })),
+  setShafferOverride: (grade, eye) =>
+    set((s) => ({ shafferOverride: { ...s.shafferOverride, [eye ?? s.laterality]: grade } })),
 
   setBackgroundImage: (src, fileName, eye) =>
     set((s) => {
@@ -662,7 +720,17 @@ export const useStore = create<State>((set, get) => ({
     const k = eye ?? get().laterality;
     const sameKind = get().slots[k].filter((sl) => sl.kind === kind).length;
     const label = sameKind === 0 ? LABEL_FOR_KIND[kind] : `${LABEL_FOR_KIND[kind]} ${sameKind + 1}`;
-    const meta: SlotMeta = { id: newSlotId(), kind, geometry: GEOMETRY_FOR_KIND[kind], label, printSelected: true };
+    const meta: SlotMeta = {
+      id: newSlotId(),
+      kind,
+      geometry: GEOMETRY_FOR_KIND[kind],
+      label,
+      printSelected: true,
+      // Template libre : cadre initial 0.9R × 0.6R, redimensionnable ensuite.
+      ...(kind === "free"
+        ? { frameHalfWMm: TEMPLATE.retina.halfWidthMm * 0.9, frameHalfHMm: TEMPLATE.retina.halfWidthMm * 0.6 }
+        : {}),
+    };
     set((s) => ({
       slots: { ...s.slots, [k]: [...s.slots[k], meta] },
       slotStash: { ...s.slotStash, [meta.id]: freshSlotData() },
@@ -760,6 +828,8 @@ export const useStore = create<State>((set, get) => ({
         geometry: sn.geometry,
         label: sn.label,
         printSelected: sn.printSelected ?? true,
+        ...(sn.frameHalfWMm != null ? { frameHalfWMm: sn.frameHalfWMm } : {}),
+        ...(sn.frameHalfHMm != null ? { frameHalfHMm: sn.frameHalfHMm } : {}),
       }));
       const toData = (sn: RetinaSlotSnapshot): SlotData => ({
         background: sn.background ? backgroundStateFromSnapshot(sn.background) : freshBackground(),
@@ -935,6 +1005,9 @@ export const useStore = create<State>((set, get) => ({
         backgrounds: { OD: freshBackground(), OS: freshBackground() },
         anatomy: { OD: null, OS: null },
         views: { OD: freshView(), OS: freshView() },
+        cornealThickness: { OD: "", OS: "" },
+        angleMeasure: { OD: null, OS: null },
+        shafferOverride: { OD: null, OS: null },
         ...initialSlots(),
         slotStash: {},
         paletteOpen: false,

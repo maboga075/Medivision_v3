@@ -19,11 +19,11 @@ export type Laterality = z.infer<typeof Laterality>;
  * - `cornea`  : OCT segment antérieur — cornée (coupe rectangulaire).
  * - `angle`   : OCT segment antérieur — angle irido-cornéen (coupe rectangulaire).
  */
-export const ImageKind = z.enum(["retino", "octa", "enface", "bscan", "cornea", "angle"]);
+export const ImageKind = z.enum(["retino", "octa", "enface", "bscan", "cornea", "angle", "thickness", "free"]);
 export type ImageKind = z.infer<typeof ImageKind>;
 
 /** Géométrie de la surface de travail (forme du clip). */
-export const ImageGeometry = z.enum(["circle", "square", "rect"]);
+export const ImageGeometry = z.enum(["circle", "square", "rect", "rect43", "free"]);
 export type ImageGeometry = z.infer<typeof ImageGeometry>;
 
 /** Géométrie par défaut associée à chaque type d'image. */
@@ -34,6 +34,8 @@ export const GEOMETRY_FOR_KIND: Record<ImageKind, ImageGeometry> = {
   bscan: "rect",
   cornea: "rect", // OCT antérieur cornée : coupe rectangulaire
   angle: "rect", // OCT antérieur angle IC : coupe rectangulaire
+  thickness: "rect43", // suivi épaisseurs rétiniennes : cadre 4:3
+  free: "free", // template libre : cadre de rognage redimensionnable
 };
 
 /** Seuls les slots rétino portent l'anatomie rétinienne (fovéa/papille/ETDRS). */
@@ -47,6 +49,8 @@ export const LABEL_FOR_KIND: Record<ImageKind, string> = {
   bscan: "B-scan",
   cornea: "OCT cornée",
   angle: "OCT angle IC",
+  thickness: "Suivi épaisseurs",
+  free: "Image libre",
 };
 
 export const Quadrant = z.enum(["TS", "TI", "NS", "NI"]);
@@ -79,6 +83,34 @@ export const AnatomicalZone = z.enum([
 ]);
 export type AnatomicalZone = z.infer<typeof AnatomicalZone>;
 
+/**
+ * Découpage topographique en 8 zones anatomiques (nomenclature clinicien) —
+ * localisation des lésions en rétinographie, OCT-A et OCT de face. Défini à
+ * partir de 2 repères (fovéa/macula + papille) : la ligne fovéa–papille sépare
+ * supérieur/inférieur, les axes fovéal et papillaire découpent temporal / nasal
+ * de la macula / nasal de la papille. Priorité : toute lésion dans le cercle
+ * maculaire est classée MS ou MI.
+ */
+export const TopoZone = z.enum([
+  "TS-M", "TI-M", // Temporal Supérieur / Inférieur de la Macula
+  "NS-M", "NI-M", // Nasal Supérieur / Inférieur de la Macula
+  "NS-P", "NI-P", // Nasal Supérieur / Inférieur de la Papille
+  "MS", "MI",     // Macula Supérieure / Inférieure
+]);
+export type TopoZone = z.infer<typeof TopoZone>;
+
+/** Libellé complet de chaque zone topographique. */
+export const TOPO_ZONE_LABEL: Record<TopoZone, string> = {
+  "TS-M": "Temporal Supérieur de la Macula",
+  "TI-M": "Temporal Inférieur de la Macula",
+  "NS-M": "Nasal Supérieur de la Macula",
+  "NI-M": "Nasal Inférieur de la Macula",
+  "NS-P": "Nasal Supérieur de la Papille",
+  "NI-P": "Nasal Inférieur de la Papille",
+  "MS": "Macula Supérieure",
+  "MI": "Macula Inférieure",
+};
+
 /** Couches rétiniennes (coupe B-scan) — saisie manuelle, détection IA à venir. */
 export const RetinalLayer = z.enum([
   "RNFL", "GCL", "IPL", "INL", "OPL", "ONL",
@@ -107,11 +139,13 @@ export type AttrContext = z.infer<typeof AttrContext>;
 export const attrContextForKind = (kind: ImageKind): AttrContext => {
   switch (kind) {
     case "retino": return "retino";
-    case "bscan": return "bscan";
+    case "bscan":
+    case "thickness": return "bscan"; // suivi épaisseurs : référentiel coupe rétinienne
     case "cornea":
     case "angle": return "cornea";
     case "octa":
-    case "enface": return "octa";
+    case "enface":
+    case "free": return "octa"; // image libre : secteur générique (hors CR clinique)
   }
 };
 
@@ -123,6 +157,8 @@ const VascularRelation = z.object({
 /** Attributs — rétinographie de face (référentiel fovéa/papille/ETDRS). */
 export const RetinoAttributes = z.object({
   context: z.literal("retino"),
+  /** Localisation clinique principale (nomenclature 8 zones). */
+  topoZone: TopoZone,
   anatomicalZone: AnatomicalZone,
   quadrant: Quadrant,
   foveaBand: FoveaBand,
@@ -149,9 +185,11 @@ export const CorneaAttributes = z.object({
 });
 export type CorneaAttributes = z.infer<typeof CorneaAttributes>;
 
-/** Attributs — OCT-A / en-face (secteur simple). */
+/** Attributs — OCT-A / en-face (nomenclature 8 zones + éloignement au centre). */
 export const OctaAttributes = z.object({
   context: z.literal("octa"),
+  /** Localisation clinique principale (nomenclature 8 zones). */
+  topoZone: TopoZone,
   transverseZone: TransverseZone,
 });
 export type OctaAttributes = z.infer<typeof OctaAttributes>;
@@ -169,13 +207,13 @@ export type DerivedAttributes = z.infer<typeof DerivedAttributes>;
 export function anatomicalLabel(attrs: DerivedAttributes): string {
   switch (attrs.context) {
     case "retino":
-      return attrs.anatomicalZone;
+      return attrs.topoZone;
     case "bscan":
       return `B-scan · ${attrs.transverseZone}${attrs.layer ? ` · ${attrs.layer}` : ""}`;
     case "cornea":
       return `Cornée · ${attrs.transverseZone}${attrs.layer ? ` · ${attrs.layer}` : ""}`;
     case "octa":
-      return `OCT-A · ${attrs.transverseZone}`;
+      return `OCT-A · ${attrs.topoZone}`;
   }
 }
 

@@ -31,18 +31,23 @@ interface Props {
 export default function BackgroundImage({ width, height, eye, applyView = true }: Props) {
   const bg = useStore((s) => s.backgrounds[eye]);
   const storeView = useStore((s) => s.views[eye]);
-  // Géométrie du slot actif (cercle/carré/rectangle) → forme du clip de l'image.
-  const geometry = useStore((s) => {
+  // Géométrie + cadre custom éventuel du slot actif → forme du clip de l'image.
+  const activeMeta = useStore((s) => {
     const id = s.activeSlot[eye];
-    return s.slots[eye].find((sl) => sl.id === id)?.geometry ?? "circle";
+    return s.slots[eye].find((sl) => sl.id === id) ?? null;
   });
+  const geometry = activeMeta?.geometry ?? "circle";
+  const frameOverride =
+    geometry === "free" && activeMeta?.frameHalfWMm != null && activeMeta?.frameHalfHMm != null
+      ? { halfW: activeMeta.frameHalfWMm, halfH: activeMeta.frameHalfHMm }
+      : null;
   const view = applyView ? storeView : { scale: 1, x: 0, y: 0 };
   if (!bg.src || !bg.visible) return null;
 
   // Échelle px/mm (mirror non appliqué à l'image) + forme du champ.
   const vp = createViewport(width, height, 1);
   const { pxPerMm } = vp;
-  const f = fieldShape(geometry, vp);
+  const f = fieldShape(geometry, vp, frameOverride);
   const isCircle = f.kind === "circle";
   // Boîte du champ (px) : diamètre pour le cercle, largeur/hauteur pour le rect.
   const fieldW = f.kind === "circle" ? 2 * f.r : 2 * f.halfW;

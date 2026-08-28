@@ -26,7 +26,7 @@ export interface ImageData {
 
 // Calques RetinaSketch (mémorise l'état activé/désactivé pour le compte rendu).
 export type RetinaLayers = Record<
-  'anatomy' | 'quadrants' | 'fovea' | 'etdrs' | 'periphery' | 'vessels',
+  'anatomy' | 'nomenclature' | 'quadrants' | 'fovea' | 'etdrs' | 'periphery' | 'vessels',
   boolean
 >;
 
@@ -71,6 +71,9 @@ export interface RetinaSlotSnapshot {
   annotations: import('../features/retinasketch/lib/types').Annotation[];
   /** Inclus dans l'impression et le compte rendu (sélection menu impression). */
   printSelected?: boolean;
+  /** Demi-dimensions custom du cadre (mm) — template libre à rognage dynamique. */
+  frameHalfWMm?: number;
+  frameHalfHMm?: number;
 }
 
 export interface EyeState {
@@ -109,6 +112,8 @@ export interface EyeState {
   retinaAnnotationOpacity?: number;
 
   cornealThickness: string;
+  /** Angle iridocornéen mesuré + Shaffer (template angle IC de RetinaSketch). */
+  iridoCornealAngle?: string;
   obsAnterieur: string[];
 
   discSurface: string;

@@ -3,13 +3,11 @@ import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useStore, type LayerKey } from "@/features/retinasketch/store/useStore";
 
+// Menu Couches réduit (demande praticien) : uniquement le repère anatomique
+// générique et la nouvelle nomenclature topographique 8 zones.
 const LAYER_LABELS: { key: LayerKey; label: string }[] = [
   { key: "anatomy", label: "Zones anatomiques" },
-  { key: "quadrants", label: "Quadrants" },
-  { key: "fovea", label: "Distance à la fovéa" },
-  { key: "etdrs", label: "Grille ETDRS" },
-  { key: "periphery", label: "Périphérie" },
-  { key: "vessels", label: "Vaisseaux" },
+  { key: "nomenclature", label: "Nouvelle nomenclature (8 zones)" },
 ];
 
 /**

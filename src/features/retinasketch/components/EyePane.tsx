@@ -6,6 +6,8 @@ import BackgroundImage from "./BackgroundImage";
 import SelectionPicker from "./SelectionPicker";
 import SlotGallery from "./SlotGallery";
 import { computeAutoFrame } from "@/features/retinasketch/lib/geometry/autoframe";
+import { TEMPLATE } from "@/features/retinasketch/lib/geometry/template";
+import { shafferFromAngle, SHAFFER_LABEL } from "@/features/retinasketch/lib/geometry/angle";
 
 // Konva nécessite le DOM : chargement paresseux (équivalent du `dynamic` Next).
 const RetinaStage = lazy(() => import("./RetinaStage"));
@@ -44,6 +46,20 @@ export default function EyePane({ eye, active, layout }: Props) {
     const id = s.activeSlot[eye];
     return s.slots[eye].find((sl) => sl.id === id)?.geometry ?? "circle";
   });
+  // Pachymétrie (µm) de cet œil — champ affiché sous une coupe OCT antérieur (cornée).
+  const cornealThickness = useStore((s) => s.cornealThickness[eye]);
+  const setCornealThickness = useStore((s) => s.setCornealThickness);
+  // Cadre custom du slot actif (template libre) — demi-dimensions mm, redimensionnables.
+  const activeFrame = useStore((s) => {
+    const id = s.activeSlot[eye];
+    const m = s.slots[eye].find((sl) => sl.id === id);
+    return { w: m?.frameHalfWMm, h: m?.frameHalfHMm };
+  });
+  const setActiveSlotFrame = useStore((s) => s.setActiveSlotFrame);
+  // Mesure d'angle iridocornéen (template angle IC) + override Shaffer de cet œil.
+  const angleMeasure = useStore((s) => s.angleMeasure[eye]);
+  const shafferOverride = useStore((s) => s.shafferOverride[eye]);
+  const setShafferOverride = useStore((s) => s.setShafferOverride);
 
   const ref = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
@@ -191,9 +207,127 @@ export default function EyePane({ eye, active, layout }: Props) {
       <SelectionPicker eye={eye} />
       </div>
 
+      {/* Épaisseur cornéenne (pachymétrie) — sous une coupe OCT antérieur (cornée). */}
+      {activeKind === "cornea" && (
+        <div className="flex shrink-0 items-center justify-center gap-2 border-t border-slate-200 bg-slate-50 px-3 py-2">
+          <label className="text-xs font-semibold text-slate-600">
+            Épaisseur cornéenne
+          </label>
+          <input
+            type="number"
+            inputMode="numeric"
+            min={0}
+            step={1}
+            value={cornealThickness}
+            onChange={(e) => {
+              setLaterality(eye);
+              setCornealThickness(e.target.value, eye);
+            }}
+            placeholder="—"
+            className="w-24 rounded-md border border-slate-300 px-2 py-1 text-center text-sm outline-none focus:border-teal-500"
+          />
+          <span className="text-xs text-slate-500">µm</span>
+        </div>
+      )}
+
+      {/* Template libre : rognage dynamique — sliders largeur/hauteur du cadre. */}
+      {activeKind === "free" && (
+        <div className="flex shrink-0 flex-wrap items-center justify-center gap-x-4 gap-y-1 border-t border-slate-200 bg-slate-50 px-3 py-2">
+          <span className="text-xs font-semibold text-slate-600">Taille du cadre</span>
+          <FrameSlider
+            label="L"
+            valueMm={activeFrame.w ?? TEMPLATE.retina.halfWidthMm * 0.9}
+            onChange={(w) => {
+              setLaterality(eye);
+              setActiveSlotFrame(w, activeFrame.h ?? TEMPLATE.retina.halfWidthMm * 0.6, eye);
+            }}
+          />
+          <FrameSlider
+            label="H"
+            valueMm={activeFrame.h ?? TEMPLATE.retina.halfWidthMm * 0.6}
+            onChange={(h) => {
+              setLaterality(eye);
+              setActiveSlotFrame(activeFrame.w ?? TEMPLATE.retina.halfWidthMm * 0.9, h, eye);
+            }}
+          />
+        </div>
+      )}
+
+      {/* Angle iridocornéen (template angle IC) : résultat mesuré + Shaffer modifiable. */}
+      {activeKind === "angle" && (
+        <div className="flex shrink-0 flex-wrap items-center justify-center gap-x-3 gap-y-1 border-t border-slate-200 bg-slate-50 px-3 py-2">
+          <span className="text-xs font-semibold text-slate-600">Angle IC</span>
+          {angleMeasure ? (
+            <span className="text-xs text-slate-700">
+              <b>{angleMeasure.angleDeg}°</b>
+            </span>
+          ) : (
+            <span className="text-xs italic text-slate-400">
+              non mesuré · plein cadre pour mesurer
+            </span>
+          )}
+          <label className="flex items-center gap-1.5 text-xs text-slate-500">
+            Shaffer
+            <select
+              value={shafferOverride ?? (angleMeasure ? shafferFromAngle(angleMeasure.angleDeg) : "")}
+              onChange={(e) => {
+                setLaterality(eye);
+                setShafferOverride(e.target.value === "" ? null : Number(e.target.value), eye);
+              }}
+              className="rounded-md border border-slate-300 bg-white px-1.5 py-1 text-xs outline-none focus:border-teal-500"
+            >
+              <option value="">—</option>
+              {([0, 1, 2, 3, 4] as const).map((g) => (
+                <option key={g} value={g}>
+                  {g} · {SHAFFER_LABEL[g]}
+                </option>
+              ))}
+            </select>
+          </label>
+          {shafferOverride != null && (
+            <button
+              onClick={() => setShafferOverride(null, eye)}
+              className="text-[11px] text-slate-400 underline hover:text-slate-600"
+              title="Revenir à la valeur automatique"
+            >
+              auto
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Galerie multi-images de cet œil (rétino / OCT-A / en-face / B-scan) */}
       <SlotGallery eye={eye} />
     </div>
+  );
+}
+
+/** Slider d'une demi-dimension du cadre libre (mm), borné à [2, halfWidthMm]. */
+function FrameSlider({
+  label,
+  valueMm,
+  onChange,
+}: {
+  label: string;
+  valueMm: number;
+  onChange: (mm: number) => void;
+}) {
+  const MAX = TEMPLATE.retina.halfWidthMm;
+  const MIN = 2;
+  return (
+    <label className="flex items-center gap-1.5 text-xs text-slate-500">
+      <span className="font-bold text-slate-600">{label}</span>
+      <input
+        type="range"
+        min={MIN}
+        max={MAX}
+        step={0.1}
+        value={Math.min(MAX, Math.max(MIN, valueMm))}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="w-24 accent-teal-600"
+      />
+      <span className="w-10 text-right tabular-nums">{(valueMm * 2).toFixed(1)} mm</span>
+    </label>
   );
 }
 

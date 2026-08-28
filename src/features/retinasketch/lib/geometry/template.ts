@@ -104,12 +104,19 @@ export function fieldCircle(vp: Viewport) {
  * - `square` (OCT en-face)   : carré de côté 2·halfWidthMm.
  * - `rect`   (B-scan)        : rectangle large 2:1 (demi-hauteur réduite).
  */
-export function fieldHalfExtentsMm(geometry: import("../types").ImageGeometry): {
+export function fieldHalfExtentsMm(
+  geometry: import("../types").ImageGeometry,
+  /** Dimensions custom (mm) — template libre à cadre redimensionnable. */
+  override?: { halfW: number; halfH: number } | null,
+): {
   halfW: number;
   halfH: number;
 } {
   const R = TEMPLATE.retina.halfWidthMm;
-  if (geometry === "rect") return { halfW: R, halfH: R * 0.5 };
+  if (override) return override;
+  if (geometry === "rect") return { halfW: R, halfH: R * 0.5 }; // B-scan 2:1
+  if (geometry === "rect43") return { halfW: R, halfH: R * 0.75 }; // suivi épaisseurs 4:3
+  if (geometry === "free") return { halfW: R * 0.9, halfH: R * 0.6 }; // défaut template libre
   return { halfW: R, halfH: R }; // circle & square
 }
 
@@ -117,11 +124,15 @@ export function fieldHalfExtentsMm(geometry: import("../types").ImageGeometry): 
  * Forme du champ en coordonnées écran (px), pour le contour, le clip du canvas
  * et le clip de l'image de fond. Union discriminée par `kind`.
  */
-export function fieldShape(geometry: import("../types").ImageGeometry, vp: Viewport) {
+export function fieldShape(
+  geometry: import("../types").ImageGeometry,
+  vp: Viewport,
+  override?: { halfW: number; halfH: number } | null,
+) {
   if (geometry === "circle") {
     return { kind: "circle" as const, cx: vp.cx, cy: vp.cy, r: TEMPLATE.retina.halfWidthMm * vp.pxPerMm };
   }
-  const { halfW, halfH } = fieldHalfExtentsMm(geometry);
+  const { halfW, halfH } = fieldHalfExtentsMm(geometry, override);
   return {
     kind: "rect" as const,
     cx: vp.cx,

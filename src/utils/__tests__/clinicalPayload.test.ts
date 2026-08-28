@@ -17,6 +17,7 @@ const ogAnnotation: Annotation = {
   status: 'validated',
   attrs: {
     context: 'retino',
+    topoZone: 'MI',
     anatomicalZone: 'Macula',
     quadrant: 'TI',
     foveaBand: '1-3mm',

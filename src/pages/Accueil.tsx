@@ -5,6 +5,7 @@ import { useSettings } from '../hooks/useSettings';
 import { useToast } from '../components/shared/ToastProvider';
 import TagAutocomplete from '../components/forms/TagAutocomplete';
 import PrescriberCombobox from '../components/forms/PrescriberCombobox';
+import DateInput from '../components/forms/DateInput';
 import type { PatientFormData } from '../types/patient';
 
 const COMMON_MOTIFS = [
@@ -22,6 +23,15 @@ const COMMON_ANTECEDENTS = [
   "Myopie forte",
   "Glaucome familial",
   "Chirurgie cataracte",
+];
+const COMMON_MEDICAMENTS = [
+  "Monoprost",
+  "Cosopt",
+  "Azarga",
+  "Lumigan",
+  "Ganfort",
+  "Metformine",
+  "Insuline",
 ];
 const INITIAL_DOCTORS = [
   "Dr. Milebou",
@@ -53,8 +63,7 @@ const EMPTY_FORM: PatientFormData = {
   antecedents: ['Sans particularité'],
   tel: '',
   email: '',
-  hasTraitement: false,
-  traitementTexte: '',
+  traitements: [],
   medecinPrescripteur: '',
   dateExamen: new Date().toISOString().split('T')[0],
 };
@@ -65,6 +74,7 @@ export default function Accueil() {
   const availableDoctors = settings?.prescripteurs ?? INITIAL_DOCTORS;
   const availableMotifs = settings?.formulario?.motifs ?? COMMON_MOTIFS;
   const availableAntecedents = settings?.formulario?.antecedents ?? COMMON_ANTECEDENTS;
+  const availableMedicaments = settings?.formulario?.medicaments ?? COMMON_MEDICAMENTS;
 
   const [formData, setFormData] = useState<PatientFormData>(EMPTY_FORM);
   const [isSuccess, setIsSuccess] = useState(false);
@@ -83,6 +93,10 @@ export default function Accueil() {
   const persistAtcd = (item: string) => {
     if (!availableAntecedents.some((a) => a.toLowerCase() === item.toLowerCase()))
       updateBulles('antecedents', [...availableAntecedents, item]).catch(console.error);
+  };
+  const persistMedicament = (item: string) => {
+    if (!availableMedicaments.some((m) => m.toLowerCase() === item.toLowerCase()))
+      updateBulles('medicaments', [...availableMedicaments, item]).catch(console.error);
   };
 
   // Ajoute à la session courante uniquement (pas de sauvegarde dans les suggestions)
@@ -256,11 +270,11 @@ export default function Accueil() {
                 )}{' '}
                 <span className="text-red-500">*</span>
               </label>
-              <input
-                type="date"
+              <DateInput
+                aria-label="Date de naissance"
                 value={formData.dateNaissance}
-                onChange={(e) => setFormData({ ...formData, dateNaissance: e.target.value })}
-                className="w-full px-4 py-2.5 rounded-xl border-2 border-slate-200 focus:ring-0 focus:border-teal-500 outline-none transition-all text-base bg-white"
+                onChange={(iso) => setFormData({ ...formData, dateNaissance: iso })}
+                className="w-full pl-4 pr-11 py-2.5 rounded-xl border-2 border-slate-200 focus:ring-0 focus:border-teal-500 outline-none transition-all text-base bg-white"
               />
             </div>
           </section>
@@ -290,52 +304,22 @@ export default function Accueil() {
               placeholder="Rechercher ou saisir un antécédent…"
             />
 
-            {/* Traitement */}
-            <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200">
-              <div className="flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
-                <div>
-                  <label className="block text-sm font-bold text-slate-800 flex items-center gap-2">
-                    <Pill className="w-5 h-5 text-amber-500" /> Traitement(s) médical(aux) en cours ?
-                  </label>
-                  <p className="text-xs text-slate-500 mt-1">
-                    Gouttes, comprimés, traitement général...
-                  </p>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setFormData({ ...formData, hasTraitement: true })}
-                    className={`px-5 py-2.5 rounded-xl text-sm font-bold border-2 transition-all ${
-                      formData.hasTraitement
-                        ? 'bg-amber-500 border-amber-500 text-white shadow-md'
-                        : 'bg-white border-slate-200 text-slate-600 hover:border-amber-300'
-                    }`}
-                  >
-                    Oui
-                  </button>
-                  <button
-                    onClick={() =>
-                      setFormData({ ...formData, hasTraitement: false, traitementTexte: '' })
-                    }
-                    className={`px-5 py-2.5 rounded-xl text-sm font-bold border-2 transition-all ${
-                      !formData.hasTraitement
-                        ? 'bg-slate-600 border-slate-600 text-white shadow-md'
-                        : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
-                    }`}
-                  >
-                    Non
-                  </button>
-                </div>
-              </div>
-
-              {formData.hasTraitement && (
-                <div className="mt-4">
-                  <textarea
-                    className="w-full p-4 border-2 border-amber-200 rounded-2xl text-sm font-medium outline-none focus:border-amber-400 bg-amber-50/50 shadow-inner min-h-[100px]"
-                    placeholder="Ex: Monoprost 1 goutte le soir pour ODG, Metformine..."
-                    value={formData.traitementTexte}
-                    onChange={(e) => setFormData({ ...formData, traitementTexte: e.target.value })}
-                  />
-                </div>
+            {/* Traitement — champ auto-complétant à mémoire (façon motifs / antécédents).
+                Par défaut vide → « Traitement non renseigné » affiché en indice. */}
+            <div>
+              <TagAutocomplete
+                label={<><Pill className="w-5 h-5 text-amber-500" /> Traitement(s) en cours</>}
+                accent="teal"
+                selectedItems={formData.traitements}
+                suggestions={availableMedicaments}
+                onChange={(traitements) => setFormData((prev) => ({ ...prev, traitements }))}
+                onPersistNew={persistMedicament}
+                placeholder="Rechercher ou saisir un médicament…"
+              />
+              {formData.traitements.length === 0 && (
+                <p className="text-xs text-slate-400 italic mt-1.5 ml-1">
+                  Aucun renseigné · le compte rendu indiquera « Traitement non renseigné »
+                </p>
               )}
             </div>
           </section>

@@ -84,6 +84,13 @@ export default function RetinaStage({ width, height, eye, readOnly, stageRef }: 
   });
   const geometry = activeMeta?.geometry ?? "circle";
   const isRetino = (activeMeta?.kind ?? "retino") === "retino";
+  // Cadre custom (template libre à rognage dynamique) : demi-dimensions du slot.
+  const frameW = activeMeta?.frameHalfWMm;
+  const frameH = activeMeta?.frameHalfHMm;
+  const frameOverride = useMemo(
+    () => (geometry === "free" && frameW != null && frameH != null ? { halfW: frameW, halfH: frameH } : null),
+    [geometry, frameW, frameH],
+  );
   // Image de fond de cet œil : son transform (zoom/pan/rotation) est appliqué
   // AUSSI aux annotations → les lésions suivent l'image quand on la manipule.
   const bg = useStore((s) => s.backgrounds[laterality]);
@@ -291,7 +298,7 @@ export default function RetinaStage({ width, height, eye, readOnly, stageRef }: 
     // Limite de dessin adaptée à la forme du slot (cercle/carré/rectangle).
     const insideField = (mx: number, my: number, tol = 0.2) => {
       if (geometry === "circle") return isInsideRetina(mx, my, tol);
-      const { halfW, halfH } = fieldHalfExtentsMm(geometry);
+      const { halfW, halfH } = fieldHalfExtentsMm(geometry, frameOverride);
       return Math.abs(mx) <= halfW + tol && Math.abs(my) <= halfH + tol;
     };
     // Annotation du dessus (de cet œil) sous le clic vérifiant `pred`.
@@ -337,7 +344,7 @@ export default function RetinaStage({ width, height, eye, readOnly, stageRef }: 
     moved.current = false;
     buffer.current = [];
     setDraftLine([]);
-  }, [addFreeform, addSpot, addArrow, drawTool, deleteAnnotation, laterality, geometry]);
+  }, [addFreeform, addSpot, addArrow, drawTool, deleteAnnotation, laterality, geometry, frameOverride]);
 
   // Molette = zoom de l'IMAGE de fond À L'INTÉRIEUR du cercle, centré sur le
   // curseur. Borné à [IMG_MIN_SCALE, IMG_MAX_SCALE] : on ne dézoome jamais
@@ -420,7 +427,7 @@ export default function RetinaStage({ width, height, eye, readOnly, stageRef }: 
               />
             ) : (
               (() => {
-                const { halfW, halfH } = fieldHalfExtentsMm(geometry);
+                const { halfW, halfH } = fieldHalfExtentsMm(geometry, frameOverride);
                 return (
                   <Rect
                     x={-halfW}
@@ -574,6 +581,56 @@ export default function RetinaStage({ width, height, eye, readOnly, stageRef }: 
               </>
             )}
 
+            {/* Nouvelle nomenclature (8 zones) — axes fovéal + papillaire, ligne
+                fovéa–papille et cercle maculaire (repères de la nomenclature). */}
+            {isRetino && layers.nomenclature && (
+              <>
+                {/* Axe fovéal (vertical, x=0) */}
+                <Line
+                  points={[0, -TEMPLATE.retina.halfHeightMm, 0, TEMPLATE.retina.halfHeightMm]}
+                  stroke={C.overlayText}
+                  strokeWidth={1.1}
+                  dash={[5, 4]}
+                  strokeScaleEnabled={false}
+                />
+                {/* Axe papillaire (vertical, x=disc.x) */}
+                <Line
+                  points={[
+                    TEMPLATE.disc.x, -TEMPLATE.retina.halfHeightMm,
+                    TEMPLATE.disc.x, TEMPLATE.retina.halfHeightMm,
+                  ]}
+                  stroke={C.overlayText}
+                  strokeWidth={1.1}
+                  dash={[5, 4]}
+                  strokeScaleEnabled={false}
+                />
+                {/* Ligne fovéa–papille (séparation supérieur / inférieur) */}
+                {(() => {
+                  const slope = TEMPLATE.disc.y / TEMPLATE.disc.x;
+                  const hw = TEMPLATE.retina.halfWidthMm;
+                  return (
+                    <Line
+                      points={[-hw, slope * -hw, hw, slope * hw]}
+                      stroke={C.overlayText}
+                      strokeWidth={1.1}
+                      dash={[5, 4]}
+                      strokeScaleEnabled={false}
+                    />
+                  );
+                })()}
+                {/* Cercle maculaire (priorité MS/MI) */}
+                <Circle
+                  x={0}
+                  y={0}
+                  radius={TEMPLATE.maculaRadiusMm}
+                  stroke={C.overlayText}
+                  strokeWidth={1.3}
+                  dash={[4, 3]}
+                  strokeScaleEnabled={false}
+                />
+              </>
+            )}
+
             {/* Arcades vasculaires — masquées par défaut, visibles via la couche « Vaisseaux ». */}
             {isRetino && layers.vessels &&
               arcades.map((line, i) => (
@@ -601,7 +658,7 @@ export default function RetinaStage({ width, height, eye, readOnly, stageRef }: 
           // compris quand on zoome l'image (fix bug « lésion hors zone au zoom »).
           clipFunc={(ctx) => {
             ctx.beginPath();
-            const f = fieldShape(geometry, vp);
+            const f = fieldShape(geometry, vp, frameOverride);
             if (f.kind === "circle") {
               ctx.arc(f.cx, f.cy, f.r, 0, Math.PI * 2, false);
             } else {
@@ -848,6 +905,18 @@ export default function RetinaStage({ width, height, eye, readOnly, stageRef }: 
               fill={C.overlayText}
             />
           ))}
+        {isRetino && layers.nomenclature &&
+          nomenclatureLabels(vp).map((l) => (
+            <Text
+              key={l.text}
+              x={l.x - 12}
+              y={l.y - 7}
+              text={l.text}
+              fontSize={13}
+              fontStyle="700"
+              fill={C.overlayText}
+            />
+          ))}
         {/* La couche « zones anatomiques » n'affiche plus les libellés Papille,
             Macula, Rétine temporale/nasale (demande praticien) : seuls les repères
             graphiques (papille + macula) restent visibles. */}
@@ -882,6 +951,20 @@ function quadrantLabels(vp: Vp) {
     { text: "TI", ...toScreen(d.x + 5, d.y + 6, vp) },
     { text: "NS", ...toScreen(d.x - 3, d.y - 6, vp) },
     { text: "NI", ...toScreen(d.x - 3, d.y + 6, vp) },
+  ];
+}
+
+/** Libellés des 8 zones topographiques (mm modèle → écran, mirror géré par `vp`). */
+function nomenclatureLabels(vp: Vp) {
+  return [
+    { text: "MS", ...toScreen(0, -1.3, vp) },
+    { text: "MI", ...toScreen(0, 1.3, vp) },
+    { text: "TS-M", ...toScreen(4.3, -4, vp) },
+    { text: "TI-M", ...toScreen(4.3, 4, vp) },
+    { text: "NS-M", ...toScreen(-2.4, -4, vp) },
+    { text: "NI-M", ...toScreen(-2.4, 4, vp) },
+    { text: "NS-P", ...toScreen(-6.3, -4, vp) },
+    { text: "NI-P", ...toScreen(-6.3, 4, vp) },
   ];
 }
 

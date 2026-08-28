@@ -22,6 +22,7 @@ export interface FormulaireSettings {
   peripherie?: string[];
   motifs?: string[];
   antecedents?: string[];
+  medicaments?: string[];
   diagnostics?: string[];
   divers?: string[];
   hypothesesLibres?: string[];

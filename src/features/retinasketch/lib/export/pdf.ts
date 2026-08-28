@@ -107,6 +107,10 @@ export async function exportDoubleEyePDF(opts: {
   size: { width: number; height: number };
   stages: { OD: Konva.Stage | null; OS: Konva.Stage | null };
   info?: RetinaPrintInfo;
+  /** Titres d'œil éventuellement édités dans l'aperçu (sinon libellés par défaut). */
+  titles?: { OD: string; OS: string };
+  /** Descriptions éventuellement éditées dans l'aperçu (sinon rapport auto-généré). */
+  reports?: { OD: string; OS: string };
 }) {
   const { jsPDF } = await import("jspdf");
   const { width: W, height: H } = opts.size;
@@ -148,16 +152,20 @@ export async function exportDoubleEyePDF(opts: {
   const imgH = colW * (H / W);
   const top = 25;
   pdf.setFontSize(11);
-  pdf.text("Œil droit (OD)", margin, top);
-  pdf.text("Œil gauche (OG)", margin + colW + gap, top);
+  pdf.setFont("helvetica", "bold");
+  pdf.text(opts.titles?.OD ?? "Œil droit (OD)", margin, top);
+  pdf.text(opts.titles?.OS ?? "Œil gauche (OG)", margin + colW + gap, top);
+  pdf.setFont("helvetica", "normal");
 
   pdf.addImage(odCanvas.toDataURL("image/jpeg", 0.92), "JPEG", margin, top + 2, colW, imgH);
   pdf.addImage(osCanvas.toDataURL("image/jpeg", 0.92), "JPEG", margin + colW + gap, top + 2, colW, imgH);
 
   const ry = top + 2 + imgH + 6;
   pdf.setFontSize(9);
-  pdf.text(generateReport(opts.annotations, "OD").split("\n"), margin, ry, { maxWidth: colW });
-  pdf.text(generateReport(opts.annotations, "OS").split("\n"), margin + colW + gap, ry, { maxWidth: colW });
+  const reportOD = opts.reports?.OD ?? generateReport(opts.annotations, "OD");
+  const reportOS = opts.reports?.OS ?? generateReport(opts.annotations, "OS");
+  pdf.text(reportOD.split("\n"), margin, ry, { maxWidth: colW });
+  pdf.text(reportOS.split("\n"), margin + colW + gap, ry, { maxWidth: colW });
 
   pdf.save("retinasketch-compte-rendu.pdf");
 }

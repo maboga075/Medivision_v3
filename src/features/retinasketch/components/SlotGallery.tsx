@@ -16,7 +16,7 @@ import { useStore } from "@/features/retinasketch/store/useStore";
 import type { ImageKind, ImageGeometry, Laterality } from "@/features/retinasketch/lib/types";
 import { LABEL_FOR_KIND } from "@/features/retinasketch/lib/types";
 
-const ADD_KINDS: ImageKind[] = ["retino", "octa", "enface", "bscan", "cornea", "angle"];
+const ADD_KINDS: ImageKind[] = ["retino", "octa", "enface", "bscan", "cornea", "angle", "thickness", "free"];
 
 /** Pastille de forme (cercle / carré / rectangle) rappelant la géométrie du slot. */
 function ShapeGlyph({ geometry, className }: { geometry: ImageGeometry; className?: string }) {

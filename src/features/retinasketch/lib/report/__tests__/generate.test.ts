@@ -21,9 +21,10 @@ function ann(attrs: DerivedAttributes, lesionId = "drusen"): Annotation {
 }
 
 describe("generateReport — interprétation par type de coupe", () => {
-  it("rétinographie : localisation anatomique de face (comportement historique)", () => {
+  it("rétinographie : localisation par nomenclature topographique (8 zones)", () => {
     const a = ann({
       context: "retino",
+      topoZone: "NS-P",
       anatomicalZone: "Papille",
       quadrant: "TS",
       foveaBand: "3-6mm",
@@ -34,7 +35,8 @@ describe("generateReport — interprétation par type de coupe", () => {
     });
     const out = generateReport([a], "OD");
     expect(out).toContain("Œil droit (OD)");
-    expect(out).toContain("papille");
+    expect(out).toContain("NS-P");
+    expect(out).toContain("Nasal Supérieur de la Papille");
     expect(out).not.toContain("B-scan");
   });
 
@@ -64,6 +66,7 @@ describe("generateReport — interprétation par type de coupe", () => {
   it("groupe séparément une même lésion sur rétino et sur B-scan", () => {
     const retino = ann({
       context: "retino",
+      topoZone: "MS",
       anatomicalZone: "Macula",
       quadrant: "TI",
       foveaBand: "1-3mm",
@@ -78,6 +81,6 @@ describe("generateReport — interprétation par type de coupe", () => {
       .filter((l) => l.startsWith("•"));
     expect(lines).toHaveLength(2);
     expect(lines.some((l) => l.includes("B-scan"))).toBe(true);
-    expect(lines.some((l) => l.includes("maculaire") || l.includes("région maculaire"))).toBe(true);
+    expect(lines.some((l) => l.includes("MS") || l.includes("Macula Supérieure"))).toBe(true);
   });
 });

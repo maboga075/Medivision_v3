@@ -44,6 +44,8 @@ interface Props {
   background?: ImageBackgroundLike | null;
   annotations?: Annotation[];
   annotationOpacity?: number;
+  /** Demi-dimensions custom (mm) — template libre à cadre redimensionnable. */
+  frameHalfExtents?: { halfW: number; halfH: number } | null;
 }
 
 const ARROW_HEAD_MM = 0.7;
@@ -56,9 +58,10 @@ export default function ImagerySlotSvg({
   background = null,
   annotations = [],
   annotationOpacity = 1,
+  frameHalfExtents = null,
 }: Props) {
   const uid = useId();
-  const { halfW, halfH } = fieldHalfExtentsMm(geometry);
+  const { halfW, halfH } = fieldHalfExtentsMm(geometry, frameHalfExtents);
   const VB_H = Math.round((VB_W * halfH) / halfW); // 2:1 (rect) ou 1:1 (carré)
   const CX = VB_W / 2;
   const CY = VB_H / 2;

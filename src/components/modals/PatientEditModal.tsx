@@ -5,10 +5,12 @@ import { useSettings } from '../../hooks/useSettings';
 import { useToast } from '../shared/ToastProvider';
 import TagAutocomplete from '../forms/TagAutocomplete';
 import PrescriberCombobox from '../forms/PrescriberCombobox';
+import DateInput from '../forms/DateInput';
 import type { PatientFirestore, PatientFormData } from '../../types/patient';
 
 const DEFAULT_MOTIFS = ["Bilan visuel", "Suspicion de glaucome", "Baisse d'acuité visuelle", "Suivi diabétique", "DMLA", "Œil rouge"];
 const DEFAULT_ANTECEDENTS = ["Sans particularité", "Diabète", "HTA", "Myopie forte", "Glaucome familial", "Chirurgie cataracte"];
+const DEFAULT_MEDICAMENTS = ["Monoprost", "Cosopt", "Azarga", "Lumigan", "Ganfort", "Metformine", "Insuline"];
 const DEFAULT_DOCTORS = ["Dr. Milebou", "Dr. Kougou Ntoutoume", "Dr. Bongo", "Dr. Nyinko Aboughe", "Dr. Gabin", "Dr. Mekyna", "Dr. Matsanga", "Dr. Njilekissa", "Dr. Apedo", "Dr. Souleyman", "Pr. Mba Aki", "Dr. Baye", "Dr. Mboussou"];
 
 interface PatientEditModalProps {
@@ -26,7 +28,7 @@ const calculateAge = (dob: string): number => {
 
 const INITIAL_FORM: PatientFormData = {
   folderId: '', nom: '', sexe: '', dateNaissance: '', motifs: [], antecedents: [],
-  tel: '', email: '', hasTraitement: false, traitementTexte: '',
+  tel: '', email: '', traitements: [],
   medecinPrescripteur: '', dateExamen: '',
 };
 
@@ -42,6 +44,11 @@ export default function PatientEditModal({ isOpen, onClose, patient, onUpdate }:
   const availableAntecedents = (() => {
     const custom = settings?.formulario?.antecedents ?? [];
     return custom.length > 0 ? custom : DEFAULT_ANTECEDENTS;
+  })();
+
+  const availableMedicaments = (() => {
+    const custom = settings?.formulario?.medicaments ?? [];
+    return custom.length > 0 ? custom : DEFAULT_MEDICAMENTS;
   })();
 
   const availableDoctors = settings?.prescripteurs ?? DEFAULT_DOCTORS;
@@ -60,6 +67,10 @@ export default function PatientEditModal({ isOpen, onClose, patient, onUpdate }:
     if (!availableAntecedents.some((a) => a.toLowerCase() === item.toLowerCase()))
       updateBulles('antecedents', [...availableAntecedents, item]).catch(console.error);
   };
+  const persistMedicament = (item: string) => {
+    if (!availableMedicaments.some((m) => m.toLowerCase() === item.toLowerCase()))
+      updateBulles('medicaments', [...availableMedicaments, item]).catch(console.error);
+  };
 
   useEffect(() => {
     if (isOpen && patient) {
@@ -72,8 +83,7 @@ export default function PatientEditModal({ isOpen, onClose, patient, onUpdate }:
         antecedents: patient.antecedents ?? [],
         tel: patient.tel ?? '',
         email: patient.email ?? '',
-        hasTraitement: patient.hasTraitement ?? false,
-        traitementTexte: patient.traitementTexte ?? '',
+        traitements: patient.traitements ?? [],
         medecinPrescripteur: patient.medecinPrescripteur ?? '',
         dateExamen: patient.dateExamen ?? new Date().toISOString().split('T')[0],
       });
@@ -188,12 +198,21 @@ export default function PatientEditModal({ isOpen, onClose, patient, onUpdate }:
                     <span className="text-indigo-600 ml-2">({calculateAge(formData.dateNaissance)} ans)</span>
                   )}
                 </label>
-                <input
-                  type={type}
-                  value={formData[field] as string}
-                  onChange={(e) => setFormData({ ...formData, [field]: e.target.value })}
-                  className="w-full px-5 py-4 rounded-2xl border-2 border-slate-200 focus:ring-0 focus:border-indigo-500 outline-none transition-all text-lg bg-white"
-                />
+                {field === 'dateNaissance' ? (
+                  <DateInput
+                    aria-label="Date de naissance"
+                    value={formData.dateNaissance}
+                    onChange={(iso) => setFormData({ ...formData, dateNaissance: iso })}
+                    className="w-full pl-5 pr-12 py-4 rounded-2xl border-2 border-slate-200 focus:ring-0 focus:border-indigo-500 outline-none transition-all text-lg bg-white"
+                  />
+                ) : (
+                  <input
+                    type={type}
+                    value={formData[field] as string}
+                    onChange={(e) => setFormData({ ...formData, [field]: e.target.value })}
+                    className="w-full px-5 py-4 rounded-2xl border-2 border-slate-200 focus:ring-0 focus:border-indigo-500 outline-none transition-all text-lg bg-white"
+                  />
+                )}
               </div>
             ))}
             <div className="border-2 border-slate-100 p-4 rounded-3xl bg-slate-50/50">
@@ -246,23 +265,21 @@ export default function PatientEditModal({ isOpen, onClose, patient, onUpdate }:
               placeholder="Rechercher ou saisir un antécédent…"
             />
 
-            {/* Traitement */}
-            <div className="bg-slate-50 rounded-3xl p-6 border border-slate-200">
-              <div className="flex flex-col sm:flex-row sm:items-center gap-4 justify-between">
-                <label className="block text-sm font-bold text-slate-800 flex items-center gap-2">
-                  <Pill className="w-5 h-5 text-amber-500" /> Traitement(s) en cours ?
-                </label>
-                <div className="flex gap-2">
-                  <button onClick={() => setFormData({ ...formData, hasTraitement: true })} className={`px-6 py-3 rounded-xl text-sm font-bold border-2 ${formData.hasTraitement ? 'bg-amber-500 border-amber-500 text-white shadow-md' : 'bg-white border-slate-200 text-slate-600'}`}>Oui</button>
-                  <button onClick={() => setFormData({ ...formData, hasTraitement: false, traitementTexte: '' })} className={`px-6 py-3 rounded-xl text-sm font-bold border-2 ${!formData.hasTraitement ? 'bg-slate-600 border-slate-600 text-white shadow-md' : 'bg-white border-slate-200 text-slate-600'}`}>Non</button>
-                </div>
-              </div>
-              {formData.hasTraitement && (
-                <div className="mt-4 animate-in slide-in-from-top-2">
-                  <textarea className="w-full p-4 border-2 border-amber-200 rounded-2xl text-sm font-medium outline-none focus:border-amber-400 bg-amber-50/50 shadow-inner min-h-[100px]"
-                    placeholder="Traitements..." value={formData.traitementTexte}
-                    onChange={(e) => setFormData({ ...formData, traitementTexte: e.target.value })} />
-                </div>
+            {/* Traitement — champ auto-complétant à mémoire (façon motifs / antécédents). */}
+            <div>
+              <TagAutocomplete
+                label={<><Pill className="w-5 h-5 text-amber-500" /> Traitement(s) en cours</>}
+                accent="indigo"
+                selectedItems={formData.traitements}
+                suggestions={availableMedicaments}
+                onChange={(traitements) => setFormData((prev) => ({ ...prev, traitements }))}
+                onPersistNew={persistMedicament}
+                placeholder="Rechercher ou saisir un médicament…"
+              />
+              {formData.traitements.length === 0 && (
+                <p className="text-xs text-slate-400 italic mt-1.5 ml-1">
+                  Aucun renseigné · « Traitement non renseigné »
+                </p>
               )}
             </div>
           </section>

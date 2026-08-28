@@ -8,7 +8,7 @@
 ## État général du projet
 
 **Branche active :** `main` (→ Vercel `medivision-v3`)  
-**Dernière session :** 2026-08-14  
+**Dernière session :** 2026-08-28  
 **Build :** ✅ `tsc --noEmit` 0 erreur, **24 tests Vitest verts**, `vite build` OK  
 **Stack :** React + TypeScript + Vite · Firebase (Auth + Firestore) · Tailwind CSS · Konva + ONNX Runtime Web (RetinaSketch) · Framer Motion · jsPDF · Fonctions serverless Vercel (`api/ai`)
 
@@ -55,6 +55,57 @@ api/ai/generate-report  Fonction serverless (OpenAI/Anthropic/Gemini/DeepSeek).
 ---
 
 ## Historique des sessions
+
+---
+
+### Session 2026-08-28 (suite 3) — Vague 2 (fin) : pachymétrie (13) + template libre/crop (9) + angle IC Shaffer (12)
+
+**Demandé par :** Yoan (UX validée : crop = cadre fixe redimensionnable ; angle = 3 points → Shaffer) · **Statut :** ✅ Vague 2 terminée → **13/13 items faits**. `tsc` 0, **33 tests verts** (2 nouveaux fichiers de tests), `vite build` OK. **Non vérifié visuellement** (RSK derrière login).
+
+- **Item 13 — Pachymétrie sous coupe OCT antérieur.** Store RSK : `cornealThickness: EyeMap<string>` + `setCornealThickness` ([`store/useStore.ts`](src/features/retinasketch/store/useStore.ts)). Champ µm affiché sous l'image quand le slot actif est `cornea` ([`EyePane.tsx`](src/features/retinasketch/components/EyePane.tsx)). Seed au montage + remontée au commit ([`RetinaEditor.tsx`](src/features/retinasketch/components/RetinaEditor.tsx)) → `eye.cornealThickness` (alimente déjà `pachymetrie` dans le payload IA). ⚠ `EyeMap` indexé `OD`/`OS` (pas `OG`).
+- **Item 9 — Template libre + rognage dynamique.** Nouveau `ImageKind "free"` + géométrie `"free"`. Dimensions custom par slot (`SlotMeta.frameHalfWMm/HMm`), threadées via `fieldHalfExtentsMm(geometry, override)` / `fieldShape(...)` ([`geometry/template.ts`](src/features/retinasketch/lib/geometry/template.ts)) dans [`RetinaStage`](src/features/retinasketch/components/RetinaStage.tsx) + [`BackgroundImage`](src/features/retinasketch/components/BackgroundImage.tsx) + impression [`ImagerySlotSvg`](src/components/reports/visual/ImagerySlotSvg.tsx). Sliders L/H sous l'image (`EyePane`) → `setActiveSlotFrame`. Sérialisé dans `RetinaSlotSnapshot`. Slots `free` exclus des observations cliniques ([`clinicalPayload.ts`](src/utils/clinicalPayload.ts)).
+- **Item 12 — Angle IC : 3 points → Shaffer.** Helper [`geometry/angle.ts`](src/features/retinasketch/lib/geometry/angle.ts) (`computeAngleDeg`, `shafferFromAngle`, `SHAFFER_LABEL`). Overlay interactif [`AngleOverlay.tsx`](src/features/retinasketch/components/AngleOverlay.tsx) en vue mono (apex + 2 parois → angle) ; points stockés en fractions de largeur (redessin robuste). Bandeau sous l'image (`EyePane`) : angle + select Shaffer 0–4 modifiable (retour « auto »). Store : `angleMeasure`/`shafferOverride` par œil. Bridge commit → `eye.iridoCornealAngle` → payload `angle_irido_corneen`. **Limite** : les points dessinés ne sont pas re-seedés à la réouverture de RSK (seul le texte angle+Shaffer persiste dans le CR).
+
+**Questions 10/11 (IA reco couches / angle) :** répondu — pas de modèle libre fiable ; les outils livrés sont des **mesures déterministes** (pachymétrie saisie, angle 3 points), conformes à la règle « sorties déterministes et traçables ».
+
+---
+
+### Session 2026-08-28 (suite 2) — Vague 2 (début) : menu Imprimer éditable (6+7) + template 4:3 (8)
+
+**Demandé par :** Yoan · **Statut :** ✅ items 6+7 et 8 faits. `tsc` 0, 29 tests, `vite build` OK. **Non vérifié visuellement** (RSK derrière login).
+
+- **Item 8 — Template rectangulaire 4:3 (suivi épaisseurs).** Additif : nouveau `ImageKind` `"thickness"` + géométrie `"rect43"` (halfH = R·0.75) dans [`lib/types.ts`](src/features/retinasketch/lib/types.ts) / [`geometry/template.ts`](src/features/retinasketch/lib/geometry/template.ts) ; ajouté à `ADD_KINDS` ([`SlotGallery.tsx`](src/features/retinasketch/components/SlotGallery.tsx)). `attrContextForKind("thickness") = "bscan"` (référentiel coupe rétinienne, sélection de couche). Aspect dérivé automatiquement par `fieldHalfExtentsMm` → géré partout (stage, impression `ImagerySlotSvg`, glyphe).
+- **Items 6+7** — Dans l'aperçu Imprimer ([`DoubleEyeView.tsx`](src/features/retinasketch/components/DoubleEyeView.tsx)) : titres d'œil (« Œil droit (OD) »…) passés en **gras**, et **tous** les textes (titres, descriptions/rapport par œil, libellés de coupe « B-scan OD », « OCT-A OD ») rendus **éditables** via un composant `EditableText` (contentEditable non contrôlé, commit `onBlur`, soulignement pointillé à l'écran retiré à l'impression). Les surcharges sont réinitialisées à chaque ouverture de l'aperçu. Titres + descriptions édités sont **repris dans l'export PDF** ([`export/pdf.ts`](src/features/retinasketch/lib/export/pdf.ts) : nouveaux champs `titles`/`reports`, titres en gras `helvetica bold`). NB : l'export jsPDF ne rend pas les coupes complémentaires (B-scan/OCT-A) — leurs libellés édités n'apparaissent que dans `window.print()` (comportement pré-existant).
+
+**Reste Vague 2 :** 8 (template rect 4:3), 13 (pachymétrie sous coupe OCT antérieur), 9 (template libre + crop redimensionnable — UX validée : cadre fixe redimensionnable), 12 (mesure angle IC 3 points → Shaffer modifiable — UX validée).
+
+---
+
+### Session 2026-08-28 (suite) — Vague 3 : nomenclature topographique 8 zones (rétino / OCT-A / OCT de face)
+
+**Demandé par :** Yoan (images de nomenclature fournies) · **Statut :** ✅ terminé. `tsc` 0, **29 tests verts** (dont nouveau `engine.test.ts`), `vite build` OK.
+
+Nouvelle localisation des lésions demandée par le praticien : 8 zones définies par 2 repères (fovéa/macula + papille) — priorité au cercle maculaire (MS/MI).
+
+- **Item 4 — Classifieur 8 zones.** Nouveau type `TopoZone` + `TOPO_ZONE_LABEL` ([`lib/types.ts`](src/features/retinasketch/lib/types.ts)). Fonction `topoZone(pt)` dans [`engine.ts`](src/features/retinasketch/lib/geometry/engine.ts) : supérieur/inférieur = côté de la ligne fovéa–papille (produit vectoriel) ; colonnes = temporal (x≥0) / nasal-macula (disc.x≤x<0) / nasal-papille (x<disc.x) ; priorité cercle maculaire → MS/MI. Ajouté à `RetinoAttributes` et `OctaAttributes` (couvre octa + en-face), calculé dans `computeAttributes`.
+- **Phrases de rapport** ([`report/generate.ts`](src/features/retinasketch/lib/report/generate.ts)) : `sentenceRetino`/`sentenceOcta` réécrites autour de `topoZone` (« … en secteur NS-M (Nasal Supérieur de la Macula) »). **Se propage automatiquement à l'IA** (le payload `obs.retina/octa` consomme ces lignes). Anciennes tables `ZONE_PHRASE`/`QUADRANT_LABEL` supprimées ; `anatomicalLabel()` (chips) affiche la zone topo. Attributs géométriques historiques (quadrant/ETDRS/vasculaire) conservés dans le modèle (non-cassants).
+- **Item 5 — Menu Couches réduit** ([`FloatingControls.tsx`](src/features/retinasketch/components/FloatingControls.tsx)) : ne reste que « Zones anatomiques » + nouvelle entrée « Nouvelle nomenclature (8 zones) » (retrait quadrants/fovéa/ETDRS/périphérie/vaisseaux du menu). Nouveau calque `nomenclature` (`LayerKey` store + `RetinaLayers` type). Overlay dessiné dans [`RetinaStage.tsx`](src/features/retinasketch/components/RetinaStage.tsx) : axes fovéal + papillaire, ligne fovéa–papille, cercle maculaire + libellés des 8 zones (`nomenclatureLabels`).
+- **Limite** : overlay visuel rendu en contexte rétino (`isRetino`) ; la classification s'applique aussi à OCT-A/en-face (via le classifieur), sans overlay dédié sur ces coupes carrées. **Non vérifié visuellement dans le harness** (RSK derrière login Firebase) — à contrôler sur le serveur de dev.
+
+---
+
+### Session 2026-08-28 — Vague 1 : DateInput mobile, traitements auto-complétés, bouton rétine pleine largeur
+
+**Demandé par :** Yoan (lot de 13 corrections, hiérarchisé en 3 vagues) · **Statut :** ✅ Vague 1 terminée. `tsc --noEmit` 0 erreur, `vite build` OK. **Non vérifié visuellement dans le harness** (serveur Vite de l'utilisateur sur port 51449, le harness ciblait 5173 — à contrôler sur la fenêtre déjà ouverte).
+
+- **Item 2 — Saisie date de naissance au clavier (mobile).** Nouveau composant [`DateInput`](src/components/forms/DateInput.tsx) : champ texte `inputMode="numeric"` format `JJ/MM/AAAA` auto-formaté (insertion des `/` à la frappe, validation jour/mois/année bissextile), contrat ISO `AAAA-MM-JJ` inchangé côté parent + bouton calendrier (`showPicker()`) pour le sélecteur natif. Remplace `<input type="date">` dans [`Accueil`](src/pages/Accueil.tsx) et [`PatientEditModal`](src/components/modals/PatientEditModal.tsx). Résout le défilement année par année pénible (patients âgés).
+- **Item 3 — Traitements en champ à mémoire.** Suppression du toggle Oui/Non + textarea. Réutilisation de [`TagAutocomplete`](src/components/forms/TagAutocomplete.tsx) (chips + création à la volée + « garder ») avec nouvelle catégorie `medicaments` dans `formulario` (persistée via `updateBulles`). Vide → indice « Traitement non renseigné ». **Modèle patient** : `hasTraitement: boolean` + `traitementTexte?: string` → **`traitements: string[]`** ([`types/patient.ts`](src/types/patient.ts), [`types/settings.ts`](src/types/settings.ts)). Champs anciens **non consommés en aval** (aucun impact IA/CR) — pas de migration (app en dev).
+- **Item 1 — Bouton « Annoter la rétine » repensé.** Passé d'une colonne étroite entre OD/OG à une **barre pleine largeur** au-dessus des deux colonnes ([`Consultation.tsx`](src/pages/Consultation.tsx)). État visuel piloté par les annotations validées : dashed teal « Annoter la rétine » si vide → **plein emerald + ✓ « Rétine annotée »** dès qu'une lésion est validée, avec **résumé par œil** (`summarizeEye` → `getLesion(a.lesionId).name`, comptage `×N`).
+
+**Reste à faire (mêmes 13 demandes) :**
+- **Vague 2 (RetinaSketch)** : items 6+7 (titres menu Imprimer `B-SCAN OD`/`OCT-A OD` en gras + éditables, descriptions éditables — cf. [`DoubleEyeView`](src/features/retinasketch/components/DoubleEyeView.tsx)), 8 (template rect 4:3 suivi épaisseurs), 9 (template libre + rognage dynamique), 13 (épaisseur cornéenne sous coupe OCT antérieur), 12 (template angle IC : mesure d'angle + Shaffer modifiable).
+- **Vague 3 (BLOQUÉE ⛔)** : items 4 (nouvelle nomenclature localisation rétino/OCTA/OCT de face) + 5 (onglet Couches : ne garder que zones anatomiques + nouvelle nomenclature) — **attend l'image de nomenclature** non fournie.
+- **Questions 10/11 (IA couches B-scan / angle AOD-TISA)** : pas de modèle libre fiable → recommandation d'outils de **mesure déterministes** plutôt que reconnaissance auto.
 
 ---
 

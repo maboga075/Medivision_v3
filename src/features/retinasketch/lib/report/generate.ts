@@ -4,27 +4,13 @@ import type {
   RetinoAttributes,
   BscanAttributes,
   CorneaAttributes,
+  OctaAttributes,
+  TopoZone,
 } from "../types";
+import { TOPO_ZONE_LABEL } from "../types";
 import { getLesion } from "../ontology/lesions";
 
 /** Génère un compte rendu clinique à partir des annotations validées. */
-
-const ZONE_PHRASE: Record<string, string> = {
-  Papille: "au niveau de la papille",
-  "Zone péripapillaire": "en région péripapillaire",
-  Macula: "maculaire(s)",
-  Fovéa: "fovéolaire(s)",
-  "Rétine temporale": "en rétine temporale",
-  "Rétine nasale": "en rétine nasale",
-  Périphérie: "en périphérie",
-};
-
-const QUADRANT_LABEL: Record<string, string> = {
-  TS: "temporal supérieur",
-  TI: "temporal inférieur",
-  NS: "nasal supérieur",
-  NI: "nasal inférieur",
-};
 
 function mostFrequent(values: string[]): string {
   const counts = new Map<string, number>();
@@ -69,30 +55,19 @@ function finalize(s: string): string {
   return t.charAt(0).toUpperCase() + t.slice(1) + ".";
 }
 
-/** Phrase pour une rétinographie (référentiel fovéa/papille/quadrant/ETDRS). */
+/** Localisation en toutes lettres à partir d'une zone topographique (8 zones). */
+function topoLocation(zone: TopoZone): string {
+  return `en secteur ${zone} (${TOPO_ZONE_LABEL[zone]})`;
+}
+
+/** Phrase pour une rétinographie (nomenclature topographique 8 zones). */
 function sentenceRetino(lesionName: string, items: Annotation[]): string {
   const attrs = items
     .map((a) => a.attrs)
     .filter((x): x is RetinoAttributes => x.context === "retino");
   const n = attrs.length;
-  const zone = mostFrequent(attrs.map((a) => a.anatomicalZone));
-  const quadrant = mostFrequent(attrs.map((a) => a.quadrant));
-  const etdrs = attrs
-    .map((a) => a.etdrsSector)
-    .filter((x): x is NonNullable<typeof x> => !!x);
-
-  let loc: string;
-  if (zone === "Macula" || zone === "Fovéa") {
-    loc = zone === "Fovéa" ? "à proximité fovéolaire" : "en région maculaire";
-  } else {
-    loc = `${ZONE_PHRASE[zone] ?? ""}, quadrant ${QUADRANT_LABEL[quadrant]}`;
-  }
-
-  let s = `${presenceCount(lesionName, n)} ${loc}`;
-  if (etdrs.length) {
-    s += ` (secteur${etdrs.length > 1 ? "s" : ""} ETDRS ${[...new Set(etdrs)].join(", ")})`;
-  }
-  return finalize(s);
+  const zone = mostFrequent(attrs.map((a) => a.topoZone)) as TopoZone;
+  return finalize(`${presenceCount(lesionName, n)} ${topoLocation(zone)}`);
 }
 
 /** Couche dominante d'un lot d'attributs de coupe (ou null si non renseignée). */
@@ -125,10 +100,14 @@ function sentenceCornea(lesionName: string, items: Annotation[]): string {
   return finalize(`${presenceCount(lesionName, n)} sur la coupe de cornée${layerPart}, en région ${zone}`);
 }
 
-/** Phrase pour une coupe OCT-A / en-face (région simple). */
+/** Phrase pour une coupe OCT-A / en-face (nomenclature topographique 8 zones). */
 function sentenceOcta(lesionName: string, items: Annotation[]): string {
-  const n = items.length;
-  return finalize(`${presenceCount(lesionName, n)} en OCT-angiographie`);
+  const attrs = items
+    .map((a) => a.attrs)
+    .filter((x): x is OctaAttributes => x.context === "octa");
+  const n = attrs.length;
+  const zone = mostFrequent(attrs.map((a) => a.topoZone)) as TopoZone;
+  return finalize(`${presenceCount(lesionName, n)} en OCT-angiographie, ${topoLocation(zone)}`);
 }
 
 /** Dispatch de la phrase selon le contexte d'attribution du groupe. */

@@ -15,8 +15,8 @@ export interface PatientFirestore {
   antecedents: string[];
   tel?: string;
   email?: string;
-  hasTraitement: boolean;
-  traitementTexte?: string;
+  /** Traitements en cours (noms libres). Vide = « traitement non renseigné ». */
+  traitements: string[];
   medecinPrescripteur?: string;
   dateExamen: string;
   statut: 'en_attente' | 'traite';
@@ -33,8 +33,8 @@ export interface PatientFormData {
   antecedents: string[];
   tel: string;
   email: string;
-  hasTraitement: boolean;
-  traitementTexte: string;
+  /** Traitements en cours (noms libres). Vide = « traitement non renseigné ». */
+  traitements: string[];
   medecinPrescripteur: string;
   dateExamen: string;
 }

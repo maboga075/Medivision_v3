@@ -48,6 +48,7 @@ const DRAFT = '#94a3b8';
 // calques) : on conserve le schéma historique (arcades + papille + macula + labels).
 const LEGACY_LAYERS: RetinaLayers = {
   anatomy: true,
+  nomenclature: false,
   vessels: true,
   quadrants: false,
   fovea: false,

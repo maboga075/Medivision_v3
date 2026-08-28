@@ -113,7 +113,8 @@ const buildObservations = (eye: EyeState, laterality: 'OD' | 'OG'): Observations
   // Autres coupes (B-scan, cornée, OCT-A) : annotations des slots non-rétino,
   // chacune interprétée dans le référentiel de sa coupe (couche + position).
   const crossAnns = (eye.retinaSlots ?? [])
-    .filter((sl) => sl.kind !== 'retino')
+    // Les images libres (annexes) ne sont pas des observations cliniques structurées.
+    .filter((sl) => sl.kind !== 'retino' && sl.kind !== 'free')
     .flatMap((sl) => (sl.annotations ?? []) as Annotation[]);
   for (const ctx of ['bscan', 'cornea', 'octa'] as const) {
     const subset = crossAnns.filter(
@@ -160,6 +161,7 @@ const normalizeEyeData = (eye: EyeState, laterality: 'OD' | 'OG'): EyeDataNormal
     ...(discExcluded ? { disque_non_interpretable: true } : {}),
     ...(!discExcluded && eye.cupDisc ? { cup_disc_vertical: toNumberIfPossible(eye.cupDisc) } : {}),
     ...(eye.cornealThickness ? { pachymetrie: toNumberIfPossible(eye.cornealThickness) } : {}),
+    ...(eye.iridoCornealAngle ? { angle_irido_corneen: eye.iridoCornealAngle } : {}),
     ...(!discExcluded && eye.discSurface ? { discSurface: eye.discSurface } : {}),
     ...(eye.octaPerformed ? { octaPerformed: true } : {}),
     ...(eye.obsFree ? { obsFree: eye.obsFree } : {}),

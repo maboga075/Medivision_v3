@@ -9,6 +9,7 @@ import type {
   FoveaBand,
   ImageKind,
   TransverseZone,
+  TopoZone,
 } from "../types";
 
 /** Moteur géométrique pur : aucune dépendance UI. Calcule les 4 niveaux. */
@@ -67,6 +68,29 @@ function anatomicalZone(pt: P, dFovea: number, dDisc: number): AnatomicalZone {
   return pt.x >= TEMPLATE.disc.x ? "Rétine temporale" : "Rétine nasale";
 }
 
+/**
+ * Nomenclature 8 zones (fovéa/macula + papille). Espace mm modèle OD :
+ * +x = temporal, -x = nasal ; +y = inférieur, -y = supérieur ; papille en `disc`.
+ *
+ * Règles :
+ *  - Priorité : lésion dans le cercle maculaire → MS (sup.) ou MI (inf.).
+ *  - Supérieur/inférieur : côté de la lésion par rapport à la ligne fovéa–papille.
+ *  - Colonnes : temporal à l'axe fovéal (x≥0) = *-M temporal ; entre axes fovéal
+ *    et papillaire (disc.x ≤ x < 0) = N*-M ; nasal à l'axe papillaire (x < disc.x)
+ *    = N*-P.
+ */
+function topoZone(pt: P, dFovea: number): TopoZone {
+  // Côté supérieur = signe du produit vectoriel (F→P) × (F→pt) ; >0 ⇒ au-dessus.
+  const superior = TEMPLATE.disc.x * pt.y - TEMPLATE.disc.y * pt.x > 0;
+
+  // Priorité absolue : cercle maculaire.
+  if (dFovea <= TEMPLATE.maculaRadiusMm) return superior ? "MS" : "MI";
+
+  if (pt.x >= 0) return superior ? "TS-M" : "TI-M"; // temporal à l'axe fovéal
+  if (pt.x >= TEMPLATE.disc.x) return superior ? "NS-M" : "NI-M"; // entre fovéa et papille
+  return superior ? "NS-P" : "NI-P"; // nasal à l'axe papillaire
+}
+
 /** Niveau 2 — Quadrant (centré papille, convention OD). */
 function quadrant(pt: P): Quadrant {
   const temporal = pt.x >= TEMPLATE.disc.x;
@@ -109,6 +133,7 @@ function computeRetinoAttributes(centroidMm: P): RetinoAttributes {
 
   return {
     context: "retino",
+    topoZone: topoZone(centroidMm, dFovea),
     anatomicalZone: anatomicalZone(centroidMm, dFovea, dDisc),
     quadrant: quadrant(centroidMm),
     foveaBand: foveaBand(dFovea),
@@ -162,9 +187,10 @@ export function computeAttributes(
         layer: null,
       };
     case "octa":
-      // Champ carré : éloignement radial au centre.
+      // Champ carré centré macula : nomenclature 8 zones + éloignement radial.
       return {
         context: "octa",
+        topoZone: topoZone(centroidMm, Math.hypot(centroidMm.x, centroidMm.y)),
         transverseZone: transverseZone(Math.hypot(centroidMm.x, centroidMm.y) / R),
       };
   }
