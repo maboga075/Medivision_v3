@@ -64,6 +64,7 @@ export default function RetinaStage({ width, height, eye, readOnly, stageRef }: 
   const spotRadiusMm = useStore((s) => s.spotRadiusMm);
   const drawTool = useStore((s) => s.drawTool);
   const annotationOpacity = useStore((s) => s.annotationOpacity);
+  const overlayOpacity = useStore((s) => s.overlayOpacity);
   const addSpot = useStore((s) => s.addSpot);
   const addFreeform = useStore((s) => s.addFreeform);
   const addArrow = useStore((s) => s.addArrow);
@@ -435,12 +436,14 @@ export default function RetinaStage({ width, height, eye, readOnly, stageRef }: 
       }
     >
       <Layer>
-        {/* Schéma + couches : FIXES (ne suivent pas l'image), non-interactifs */}
+        {/* Schéma + couches : FIXES (ne suivent pas l'image), non-interactifs.
+            `overlayOpacity` module la visibilité des repères/couches à l'impression. */}
         <Group
           x={vp.cx}
           y={vp.cy}
           scaleX={vp.pxPerMm * vp.mirror}
           scaleY={vp.pxPerMm}
+          opacity={overlayOpacity}
           listening={false}
         >
           {/* Template + couches : non-interactifs, on dessine au travers */}

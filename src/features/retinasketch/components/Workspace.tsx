@@ -49,9 +49,13 @@ export default function Workspace({ onClose, onCreateLesion, printInfo }: Worksp
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // On ignore les raccourcis pendant une saisie — champs classiques ET zones
+      // éditables (contentEditable) comme les titres/descriptions du menu Imprimer,
+      // sinon Entrée y ouvre la palette au lieu d'ajouter une ligne.
+      const t = e.target;
       const typing =
-        e.target instanceof HTMLElement &&
-        ["INPUT", "TEXTAREA"].includes(e.target.tagName);
+        t instanceof HTMLElement &&
+        (["INPUT", "TEXTAREA"].includes(t.tagName) || t.isContentEditable);
       if (typing) return;
       // Suppr / Retour arrière → supprime la lésion sélectionnée (mode Sélection).
       if ((e.key === "Delete" || e.key === "Backspace") && selectedAnnotationId) {

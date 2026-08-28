@@ -58,6 +58,16 @@ api/ai/generate-report  Fonction serverless (OpenAI/Anthropic/Gemini/DeepSeek).
 
 ---
 
+### Session 2026-08-28 (suite 6) — Menu Imprimer : réglages d'affichage, export WYSIWYG, touche Entrée
+
+**Demandé par :** Yoan (recette PDF, cf. retinasketch-compte-rendu (2).pdf) · **Statut :** ✅ fait. `tsc` 0, 34 tests, `vite build` OK. **Export non vérifié visuellement** (RSK derrière login) — capture html2canvas de canvas Konva à valider.
+
+- **Export PDF WYSIWYG (#3 gras, #5 coupes manquantes, #2 légende)** : l'ancien `exportDoubleEyePDF` (jsPDF) ne rendait QUE la rétino, sans coupes ni légende, titres non gras → **remplacé** par une capture `html2pdf` de l'aperçu réel `.print-area` ([`DoubleEyeView.tsx`](src/features/retinasketch/components/DoubleEyeView.tsx)) : titres gras (DOM), coupes sélectionnées et légende inclus. `ignoreElements` masque le `.no-print` ; `pagebreak.avoid` sur `figure`/`[data-legend]`/`[data-eye-col]`. **Légende déplacée en haut** de la zone imprimable (`breakInside: avoid`) → toujours page 1, jamais coupée. Fichier `lib/export/pdf.ts` supprimé (mort).
+- **#4 Touche Entrée n'ajoutait pas de ligne** : le keydown global de [`Workspace.tsx`](src/features/retinasketch/components/Workspace.tsx) interceptait Entrée (ouverture palette) car son garde « en saisie » ne couvrait pas `contentEditable`. Ajout de `t.isContentEditable`.
+- **Réglages d'affichage du menu Imprimer (#1)** : 2ᵉ rangée dans la barre — bascule **Repères** (couches on/off, sauvegarde/restaure via `setLayers`), bascule **Papille/macula** (`anatomyVisible`), slider **Opacité annotations** (`annotationOpacity`), slider **Opacité repères** (nouveau `overlayOpacity` store, appliqué au groupe des couches dans [`RetinaStage`](src/features/retinasketch/components/RetinaStage.tsx)).
+
+---
+
 ### Session 2026-08-28 (suite 5) — Alignement poignées, nomenclature dynamique, légende impression
 
 **Demandé par :** Yoan (2ᵉ vague de recette, image du #8 fournie) · **Statut :** ✅ fait. `tsc` 0, **34 tests**, `vite build` OK. **Non vérifié visuellement** (RSK derrière login).

@@ -2,7 +2,6 @@ import { useEffect, useRef, useState, lazy, Suspense } from "react";
 import type Konva from "konva";
 import { useStore } from "@/features/retinasketch/store/useStore";
 import { generateReport } from "@/features/retinasketch/lib/report/generate";
-import { exportDoubleEyePDF } from "@/features/retinasketch/lib/export/pdf";
 import type { RetinaPrintInfo } from "@/features/retinasketch/lib/printInfo";
 import type { Laterality } from "@/features/retinasketch/lib/types";
 import BackgroundImage from "./BackgroundImage";
@@ -35,8 +34,31 @@ export default function DoubleEyeView({ printInfo }: { printInfo?: RetinaPrintIn
   const slotsMap = useStore((s) => s.slots);
   const selectSlot = useStore((s) => s.selectSlot);
 
+  // Réglages d'affichage du menu Imprimer (couches, anatomie, opacités).
+  const layers = useStore((s) => s.layers);
+  const setLayers = useStore((s) => s.setLayers);
+  const anatomyVisible = useStore((s) => s.anatomyVisible);
+  const setAnatomyVisible = useStore((s) => s.setAnatomyVisible);
+  const annotationOpacity = useStore((s) => s.annotationOpacity);
+  const setAnnotationOpacity = useStore((s) => s.setAnnotationOpacity);
+  const overlayOpacity = useStore((s) => s.overlayOpacity);
+  const setOverlayOpacity = useStore((s) => s.setOverlayOpacity);
+  const savedLayers = useRef<Record<string, boolean> | null>(null);
+  const anyLayerOn = Object.values(layers).some(Boolean);
+  const toggleLayers = () => {
+    if (anyLayerOn) {
+      savedLayers.current = { ...layers };
+      const allOff = Object.fromEntries(Object.keys(layers).map((k) => [k, false]));
+      setLayers(allOff as typeof layers);
+    } else {
+      const restore = savedLayers.current ?? { ...layers, anatomy: true, nomenclature: true };
+      setLayers(restore as typeof layers);
+    }
+  };
+
   const odStage = useRef<Konva.Stage>(null);
   const osStage = useRef<Konva.Stage>(null);
+  const printAreaRef = useRef<HTMLDivElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -72,20 +94,39 @@ export default function DoubleEyeView({ printInfo }: { printInfo?: RetinaPrintIn
 
   if (!doubleView) return null;
 
+  /**
+   * Export PDF **WYSIWYG** : on capture l'aperçu réel (`.print-area`) → titres en
+   * gras, coupes complémentaires sélectionnées ET légende sont inclus, identiques
+   * à l'écran. (L'ancien export jsPDF ne rendait que la rétinographie.)
+   */
   const onPdf = async () => {
+    const el = printAreaRef.current;
+    if (!el) return;
     setBusy(true);
     setError("");
     try {
-      await exportDoubleEyePDF({
-        annotations,
-        backgrounds,
-        size: { width: PANEL_W, height: PANEL_H },
-        stages: { OD: odStage.current, OS: osStage.current },
-        info: printInfo,
-        // Reprend les textes éventuellement édités dans l'aperçu.
-        titles: { OD: effTitle("OD"), OS: effTitle("OS") },
-        reports: { OD: effReport("OD"), OS: effReport("OS") },
-      });
+      const html2pdf = (await import("html2pdf.js")).default;
+      const name = (printInfo?.patientName ?? "compte-rendu").replace(/\s+/g, "_");
+      // Objet passé par variable (et non littéral) pour éviter le contrôle strict
+      // des propriétés excédentaires du typage html2pdf (pagebreak non déclaré).
+      const opt = {
+        margin: 6,
+        filename: `retinasketch_${name}.pdf`,
+        image: { type: "jpeg" as const, quality: 0.95 },
+        html2canvas: {
+          scale: 2,
+          useCORS: true,
+          allowTaint: true,
+          backgroundColor: "#ffffff",
+          logging: false,
+          // Ignore les éléments non imprimables (sélecteurs de coupes, indices d'édition).
+          ignoreElements: (node: Element) => node.classList?.contains("no-print"),
+        },
+        jsPDF: { unit: "mm", format: "a4", orientation: "landscape" as const },
+        // N'éclate jamais une colonne d'œil, une figure ou la légende sur 2 pages.
+        pagebreak: { mode: ["css", "legacy"], avoid: ["figure", "[data-legend]", "[data-eye-col]"] },
+      };
+      await html2pdf().set(opt).from(el).save();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Échec de l'export PDF");
     } finally {
@@ -98,39 +139,92 @@ export default function DoubleEyeView({ printInfo }: { printInfo?: RetinaPrintIn
       <style>{PRINT_CSS}</style>
 
       {/* Barre d'outils (masquée à l'impression) */}
-      <div className="no-print flex shrink-0 items-center gap-3 border-b border-slate-200 px-4 py-2.5">
-        <span className="text-sm font-semibold tracking-tight">
-          Aperçu impression — rétinographie des deux yeux
-        </span>
-        {error && <span className="text-xs font-medium text-red-600">⚠ {error}</span>}
-        <div className="flex-1" />
-        <button
-          onClick={() => window.print()}
-          className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-        >
-          Imprimer
-        </button>
-        <button
-          onClick={onPdf}
-          disabled={busy}
-          className="rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-slate-700 disabled:opacity-50"
-        >
-          {busy ? "Export…" : "Exporter PDF"}
-        </button>
-        <button
-          onClick={() => setDoubleView(false)}
-          className="rounded-lg px-3 py-1.5 text-sm font-medium text-slate-500 transition hover:text-slate-900"
-        >
-          Fermer
-        </button>
+      <div className="no-print shrink-0 border-b border-slate-200 px-4 py-2.5">
+        <div className="flex items-center gap-3">
+          <span className="text-sm font-semibold tracking-tight">
+            Aperçu impression — rétinographie des deux yeux
+          </span>
+          {error && <span className="text-xs font-medium text-red-600">⚠ {error}</span>}
+          <div className="flex-1" />
+          <button
+            onClick={() => window.print()}
+            className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+          >
+            Imprimer
+          </button>
+          <button
+            onClick={onPdf}
+            disabled={busy}
+            className="rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-slate-700 disabled:opacity-50"
+          >
+            {busy ? "Export…" : "Exporter PDF"}
+          </button>
+          <button
+            onClick={() => setDoubleView(false)}
+            className="rounded-lg px-3 py-1.5 text-sm font-medium text-slate-500 transition hover:text-slate-900"
+          >
+            Fermer
+          </button>
+        </div>
+
+        {/* Réglages d'affichage (appliqués à l'aperçu, à l'impression et à l'export). */}
+        <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-slate-600">
+          <button
+            onClick={toggleLayers}
+            className={`rounded-md border px-2.5 py-1 font-medium transition ${
+              anyLayerOn ? "border-slate-300 bg-white text-slate-700" : "border-slate-300 bg-slate-100 text-slate-400"
+            }`}
+            title="Afficher/masquer les repères (couches anatomiques, nomenclature…)"
+          >
+            {anyLayerOn ? "Repères : affichés" : "Repères : masqués"}
+          </button>
+          <button
+            onClick={() => setAnatomyVisible(!anatomyVisible)}
+            className={`rounded-md border px-2.5 py-1 font-medium transition ${
+              anatomyVisible ? "border-slate-300 bg-white text-slate-700" : "border-slate-300 bg-slate-100 text-slate-400"
+            }`}
+            title="Afficher/masquer la papille et la macula détectées"
+          >
+            {anatomyVisible ? "Papille/macula : affichées" : "Papille/macula : masquées"}
+          </button>
+          <label className="flex items-center gap-1.5">
+            Opacité annotations
+            <input
+              type="range"
+              min={0.1}
+              max={1}
+              step={0.05}
+              value={annotationOpacity}
+              onChange={(e) => setAnnotationOpacity(Number(e.target.value))}
+              className="w-28 accent-teal-600"
+            />
+            <span className="w-8 tabular-nums text-right">{Math.round(annotationOpacity * 100)}%</span>
+          </label>
+          <label className="flex items-center gap-1.5">
+            Opacité repères
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.05}
+              value={overlayOpacity}
+              onChange={(e) => setOverlayOpacity(Number(e.target.value))}
+              className="w-28 accent-teal-600"
+            />
+            <span className="w-8 tabular-nums text-right">{Math.round(overlayOpacity * 100)}%</span>
+          </label>
+        </div>
       </div>
 
       {/* Zone imprimable : en-tête patient + OD | OG pleine largeur (paysage) */}
-      <div className="print-area mx-auto flex w-full max-w-[1180px] flex-1 flex-col gap-4 p-6">
+      <div ref={printAreaRef} className="print-area mx-auto flex w-full max-w-[1180px] flex-1 flex-col gap-4 p-6">
         {printInfo && <PrintHeader info={printInfo} />}
 
+        {/* Légende en haut → toujours sur la 1ʳᵉ page et jamais coupée. */}
+        <LesionLegend annotations={annotations} />
+
         <div className="flex flex-1 items-start justify-center gap-6">
-          <div className="flex flex-1 flex-col gap-3">
+          <div data-eye-col className="flex flex-1 flex-col gap-3">
             <EyePanel
               key={`od-${doubleView}`}
               eye="OD"
@@ -143,7 +237,7 @@ export default function DoubleEyeView({ printInfo }: { printInfo?: RetinaPrintIn
             />
             <EyeImagery eye="OD" labelOverrides={labelOverrides} onLabelChange={(id, v) => setLabelOverrides((p) => ({ ...p, [id]: v }))} />
           </div>
-          <div className="flex flex-1 flex-col gap-3">
+          <div data-eye-col className="flex flex-1 flex-col gap-3">
             <EyePanel
               key={`os-${doubleView}`}
               eye="OS"
@@ -157,9 +251,6 @@ export default function DoubleEyeView({ printInfo }: { printInfo?: RetinaPrintIn
             <EyeImagery eye="OS" labelOverrides={labelOverrides} onLabelChange={(id, v) => setLabelOverrides((p) => ({ ...p, [id]: v }))} />
           </div>
         </div>
-
-        {/* Légende du code couleurs des annotations présentes (lisible à l'impression). */}
-        <LesionLegend annotations={annotations} />
       </div>
     </div>
   );
@@ -182,7 +273,7 @@ function LesionLegend({ annotations }: { annotations: import("@/features/retinas
   if (items.length === 0) return null;
 
   return (
-    <div className="mt-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5">
+    <div data-legend className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5" style={{ breakInside: "avoid" }}>
       <div className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-500">
         Légende des annotations
       </div>

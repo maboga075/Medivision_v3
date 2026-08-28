@@ -359,6 +359,9 @@ interface State {
   togglePapillaQualifier: (q: string, eye?: Laterality) => void;
   /** Publie la taille de la zone de dessin plein cadre (pour les overlays). */
   setPaneSize: (w: number, h: number) => void;
+  /** Opacité des repères/couches (grille anatomie/nomenclature) — 0..1. */
+  overlayOpacity: number;
+  setOverlayOpacity: (v: number) => void;
 
   setBackgroundImage: (src: string, fileName: string, eye?: Laterality) => void;
   updateBackground: (patch: Partial<BackgroundState>, eye?: Laterality) => void;
@@ -549,6 +552,7 @@ export const useStore = create<State>((set, get) => ({
   shafferOverride: { OD: null, OS: null },
   papillaQualifiers: { OD: [], OS: [] },
   paneSize: { w: 0, h: 0 },
+  overlayOpacity: 1,
   ...initialSlots(),
   slotStash: {},
 
@@ -599,6 +603,7 @@ export const useStore = create<State>((set, get) => ({
     }),
   setPaneSize: (w, h) =>
     set((s) => (s.paneSize.w === w && s.paneSize.h === h ? {} : { paneSize: { w, h } })),
+  setOverlayOpacity: (v) => set({ overlayOpacity: Math.max(0, Math.min(1, v)) }),
 
   setBackgroundImage: (src, fileName, eye) =>
     set((s) => {
@@ -1080,6 +1085,7 @@ export const useStore = create<State>((set, get) => ({
         doubleView: false,
         drawTool: "lesion",
         annotationOpacity: DEFAULT_ANNOTATION_OPACITY,
+        overlayOpacity: 1,
       };
     }),
 }));
