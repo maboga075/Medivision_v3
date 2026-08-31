@@ -95,7 +95,7 @@ export default function DateInput({
   };
 
   return (
-    <div className="relative flex items-center">
+    <div className="relative flex w-full min-w-0 items-center">
       <input
         id={id}
         type="text"
@@ -105,7 +105,7 @@ export default function DateInput({
         value={text}
         onChange={(e) => handleTextChange(e.target.value)}
         placeholder="JJ/MM/AAAA"
-        className={className}
+        className={`min-w-0 ${className}`}
       />
       <button
         type="button"

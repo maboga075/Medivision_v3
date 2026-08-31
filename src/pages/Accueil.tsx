@@ -260,7 +260,7 @@ export default function Accueil() {
                 </button>
               </div>
             </div>
-            <div className="border border-slate-200 p-3 rounded-2xl bg-slate-50/50">
+            <div className="min-w-0 border border-slate-200 p-3 rounded-2xl bg-slate-50/50">
               <label className="block text-sm font-bold text-slate-700 mb-2">
                 Date de naissance{' '}
                 {formData.dateNaissance && (
@@ -411,7 +411,7 @@ export default function Accueil() {
                 type="date"
                 value={formData.dateExamen}
                 onChange={(e) => setFormData({ ...formData, dateExamen: e.target.value })}
-                className="w-full px-4 py-2.5 rounded-xl border-2 border-slate-200 focus:ring-0 focus:border-teal-500 outline-none transition-all text-base bg-white"
+                className="w-full min-w-0 px-4 py-2.5 rounded-xl border-2 border-slate-200 focus:ring-0 focus:border-teal-500 outline-none transition-all text-base bg-white"
               />
             </div>
             <div>

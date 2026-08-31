@@ -58,6 +58,15 @@ api/ai/generate-report  Fonction serverless (OpenAI/Anthropic/Gemini/DeepSeek).
 
 ---
 
+### Session 2026-08-28 (suite 9) — Fix débordement champs date (mobile) + fusion sur main (déploiement Vercel)
+
+**Demandé par :** Yoan · **Statut :** ✅ fait. `tsc` 0, build OK.
+
+- **Débordement des champs date sur mobile** : `input[type=date]` a une largeur intrinsèque qui débordait de la carte grise (items de grille avec `min-width:auto`). Fix : `min-w-0` ajouté au composant [`DateInput.tsx`](src/components/forms/DateInput.tsx) (wrapper + input) et aux champs concernés d'[`Accueil.tsx`](src/pages/Accueil.tsx) (carte « Date de naissance » + input « Date de l'examen »).
+- **Déploiement Vercel** : les commits précédents étaient sur la branche `feat/corrections-medivision-aout2026` (6 commits d'avance sur `main`) → Vercel (prod = `main`) ne voyait rien. **Fusion fast-forward de la branche sur `main` + push `main`** pour déclencher le déploiement de production.
+
+---
+
 ### Session 2026-08-28 (suite 8) — Ajustement anatomie en vue double, calque par défaut, légende agrégée, PDF paginé
 
 **Demandé par :** Yoan (recette PDF + UX détection, cf. retinasketch_Test.pdf) · **Statut :** ✅ fait. `tsc` 0, 34 tests, `vite build` OK. **PDF/ajustement à revérifier** (RSK derrière login).
