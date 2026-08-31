@@ -63,6 +63,7 @@ api/ai/generate-report  Fonction serverless (OpenAI/Anthropic/Gemini/DeepSeek).
 **Demandé par :** Yoan · **Statut :** ✅ fait. `tsc` 0, build OK.
 
 - **Débordement des champs date sur mobile** : `input[type=date]` a une largeur intrinsèque qui débordait de la carte grise (items de grille avec `min-width:auto`). Fix : `min-w-0` ajouté au composant [`DateInput.tsx`](src/components/forms/DateInput.tsx) (wrapper + input) et aux champs concernés d'[`Accueil.tsx`](src/pages/Accueil.tsx) (carte « Date de naissance » + input « Date de l'examen »).
+- **Date de naissance ouvrait le calendrier natif iOS au lieu du clavier** : dans l'ancien design, l'icône calendrier était EN SUPERPOSITION (`absolute right-2`) dans le champ → sur iPhone le tap tombait sur le bouton → sélecteur natif. Restructuré : champ texte principal (clavier numérique, `inputMode=numeric`, `autoComplete=off`) + bouton calendrier **séparé à côté** ; input `type=date` natif passé en `sr-only` (piloté uniquement par le bouton, ne capte plus le tap). Padding droit `pr-11/pr-12` retiré côté Accueil + PatientEditModal.
 - **Déploiement Vercel** : les commits précédents étaient sur la branche `feat/corrections-medivision-aout2026` (6 commits d'avance sur `main`) → Vercel (prod = `main`) ne voyait rien. **Fusion fast-forward de la branche sur `main` + push `main`** pour déclencher le déploiement de production.
 
 ---

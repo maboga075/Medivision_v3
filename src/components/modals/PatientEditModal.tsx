@@ -203,7 +203,7 @@ export default function PatientEditModal({ isOpen, onClose, patient, onUpdate }:
                     aria-label="Date de naissance"
                     value={formData.dateNaissance}
                     onChange={(iso) => setFormData({ ...formData, dateNaissance: iso })}
-                    className="w-full pl-5 pr-12 py-4 rounded-2xl border-2 border-slate-200 focus:ring-0 focus:border-indigo-500 outline-none transition-all text-lg bg-white"
+                    className="w-full px-5 py-4 rounded-2xl border-2 border-slate-200 focus:ring-0 focus:border-indigo-500 outline-none transition-all text-lg bg-white"
                   />
                 ) : (
                   <input

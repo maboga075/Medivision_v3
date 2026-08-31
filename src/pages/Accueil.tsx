@@ -274,7 +274,7 @@ export default function Accueil() {
                 aria-label="Date de naissance"
                 value={formData.dateNaissance}
                 onChange={(iso) => setFormData({ ...formData, dateNaissance: iso })}
-                className="w-full pl-4 pr-11 py-2.5 rounded-xl border-2 border-slate-200 focus:ring-0 focus:border-teal-500 outline-none transition-all text-base bg-white"
+                className="w-full px-4 py-2.5 rounded-xl border-2 border-slate-200 focus:ring-0 focus:border-teal-500 outline-none transition-all text-base bg-white"
               />
             </div>
           </section>

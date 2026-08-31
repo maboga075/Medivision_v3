@@ -95,28 +95,31 @@ export default function DateInput({
   };
 
   return (
-    <div className="relative flex w-full min-w-0 items-center">
+    <div className="flex w-full min-w-0 items-stretch gap-2">
+      {/* Champ PRINCIPAL : saisie directe au clavier numérique (JJ/MM/AAAA). */}
       <input
         id={id}
         type="text"
         inputMode="numeric"
-        autoComplete="bday"
+        autoComplete="off"
         aria-label={ariaLabel}
         value={text}
         onChange={(e) => handleTextChange(e.target.value)}
         placeholder="JJ/MM/AAAA"
-        className={`min-w-0 ${className}`}
+        className={`min-w-0 flex-1 ${className}`}
       />
+      {/* Bouton calendrier SÉPARÉ (secondaire) : ouvre le sélecteur natif. */}
       <button
         type="button"
         onClick={openNativePicker}
-        aria-label="Ouvrir le calendrier"
-        title="Ouvrir le calendrier"
-        className="absolute right-2 p-1.5 rounded-lg text-slate-400 hover:text-teal-600 hover:bg-slate-100 transition-colors"
+        aria-label="Choisir dans le calendrier"
+        title="Choisir dans le calendrier"
+        className="grid shrink-0 place-items-center rounded-xl border-2 border-slate-200 bg-white px-3 text-slate-400 transition-colors hover:border-teal-300 hover:text-teal-600"
       >
-        <Calendar className="w-5 h-5" />
+        <Calendar className="h-5 w-5" />
       </button>
-      {/* Sélecteur natif caché, piloté par le bouton calendrier. */}
+      {/* Sélecteur natif : hors flux (sr-only), piloté par le bouton uniquement —
+          il ne peut jamais capter le tap sur le champ de saisie. */}
       <input
         ref={nativeRef}
         type="date"
@@ -127,7 +130,7 @@ export default function DateInput({
         }}
         tabIndex={-1}
         aria-hidden="true"
-        className="absolute right-2 w-0 h-0 opacity-0 pointer-events-none"
+        className="sr-only"
       />
     </div>
   );
