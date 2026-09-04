@@ -6,6 +6,7 @@ import { useToast } from '../components/shared/ToastProvider';
 import TagAutocomplete from '../components/forms/TagAutocomplete';
 import PrescriberCombobox from '../components/forms/PrescriberCombobox';
 import DateInput from '../components/forms/DateInput';
+import { calculateAge } from '../utils/age';
 import type { PatientFormData } from '../types/patient';
 
 const COMMON_MOTIFS = [
@@ -48,11 +49,6 @@ const INITIAL_DOCTORS = [
   "Dr. Baye",
   "Dr. Mboussou",
 ];
-
-const calculateAge = (dob: string): number => {
-  const diff = Date.now() - new Date(dob).getTime();
-  return Math.abs(new Date(diff).getUTCFullYear() - 1970);
-};
 
 const EMPTY_FORM: PatientFormData = {
   folderId: '',

@@ -2,7 +2,32 @@ import { useState } from "react";
 import { useStore } from "@/features/retinasketch/store/useStore";
 import { detectAnatomy } from "@/features/retinasketch/lib/vision/anatomy";
 import { detectDiscCup } from "@/features/retinasketch/lib/ai/discCup";
+import { TEMPLATE } from "@/features/retinasketch/lib/geometry/template";
+import type { EyeAnatomy } from "@/features/retinasketch/lib/vision/anatomy";
 import type { Laterality } from "@/features/retinasketch/lib/types";
+
+/** Anatomie par défaut (repli quand la détection auto échoue) : papille + macula
+ *  posées à des positions plausibles, que le clinicien ajuste ensuite à la main. */
+function defaultAnatomy(img: HTMLImageElement, eye: Laterality): EyeAnatomy | null {
+  const natW = img.naturalWidth;
+  const natH = img.naturalHeight;
+  if (!natW || !natH) return null;
+  const pxPerMm = Math.min(natW, natH) / (2 * TEMPLATE.retina.halfWidthMm);
+  const discR = TEMPLATE.discRadiusMm * pxPerMm;
+  const maculaR = TEMPLATE.maculaRadiusMm * pxPerMm;
+  const cx = natW / 2;
+  const cy = natH / 2;
+  const discDist = Math.abs(TEMPLATE.disc.x) * pxPerMm;
+  const dir = eye === "OD" ? 1 : -1; // papille d'un côté ; ajustable à la main
+  return {
+    disc: { cx: cx + dir * discDist, cy, rx: discR, ry: discR },
+    macula: { cx, cy, r: maculaR },
+    natW,
+    natH,
+    source: "heuristic",
+    updatedAt: new Date().toISOString(),
+  };
+}
 
 /** Charge une image (dataURL/blob) en HTMLImageElement. */
 function loadImage(src: string): Promise<HTMLImageElement> {
@@ -50,7 +75,9 @@ export default function DetectAnatomyButton() {
     const src = retinoSrc(eye);
     if (!src) return false;
     const img = await loadImage(src);
-    const a = detectAnatomy(img, eye); // papille + macula ensemble
+    // Détection auto ; si elle échoue, on pose une anatomie par défaut déplaçable
+    // (plutôt que « rien ne se passe ») pour que le clinicien la place à la main.
+    const a = detectAnatomy(img, eye) ?? defaultAnatomy(img, eye);
     if (!a) return false;
     const st = useStore.getState();
     st.setAnatomy(eye, {

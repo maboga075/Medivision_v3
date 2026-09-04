@@ -58,6 +58,18 @@ api/ai/generate-report  Fonction serverless (OpenAI/Anthropic/Gemini/DeepSeek).
 
 ---
 
+### Session 2026-09-04 — Suite d'audit : âge, code-splitting, build type-checké, lint, dette
+
+**Demandé par :** Yoan (audit, hors #1 règles Firestore et #7 modèles ONNX) · **Statut :** ✅ fait. `tsc` 0, **39 tests** (nouveau `age.test.ts`), `npm run build` (tsc+vite) OK. Poussé sur `main`.
+
+- **#2 `calculateAge` dupliqué + imprécis** : extrait dans [`utils/age.ts`](src/utils/age.ts) (calcul Y/M/J exact) + tests ; remplacé dans Accueil / PatientEditModal / Patients (3 copies supprimées).
+- **#6 Code-splitting** : pages en `React.lazy` ([`App.tsx`](src/App.tsx)) + `manualChunks` vendor ([`vite.config.ts`](vite.config.ts) : firebase/konva/pdf/motion/react). **Bundle d'entrée : 2246 Ko → 17 Ko.** Consultation (konva/jsPDF/html2pdf) et les libs lourdes ne chargent plus au démarrage.
+- **#8 Build/lint** : `build` ne type-checkait PAS (Vercel = `vite build` seul → erreurs de type possibles en prod). Corrigé : `"build": "tsc --noEmit && vite build"` + ajout `typecheck` ; `lint` (cassé, eslint absent) repointé sur `tsc --noEmit` (ESLint complet = tâche séparée si souhaité).
+- **#9 Logique morte** : catégorie `vasculaire` (jamais peuplée) retirée de `clinicalSummary`/`ObservationsNormalisees` ; détection RD étendue aux lésions `bscan`/`octa`.
+- **#4 Repli détection anatomie** : quand `detectAnatomy` échoue, on pose une **anatomie par défaut déplaçable** ([`DetectAnatomyButton.tsx`](src/features/retinasketch/components/DetectAnatomyButton.tsx)) au lieu de « rien ne se passe ».
+- **#12 (fuite URL objets)** : faux positif — le store révoque déjà centralement (`revokeBackground`). Aucun correctif.
+- **Restant** : #5 (découper RetinaStage/useStore), #10 (recalcul nomenclature), #11 (tests composants/flux), #13 (accessibilité) — non traités ce lot.
+
 ### Session 2026-09-01 — Angle IC en vue double, pachymétrie/type-examen retirés de Consultation, macula bornée
 
 **Demandé par :** Yoan (recette, cf. capture ajustement anatomie) · **Statut :** ✅ fait. `tsc` 0, 34 tests, `vite build` OK. Poussé sur `main` (déploiement Vercel).

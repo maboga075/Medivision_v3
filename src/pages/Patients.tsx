@@ -4,16 +4,11 @@ import { Search, UserRound, Clock, CheckCircle, Stethoscope, FolderOpen } from '
 import { db, collection, query, orderBy, limit, getDocs, doc, updateDoc, serverTimestamp } from '../services/firebase';
 import { useConsultationDrafts } from '../hooks/useConsultationDrafts';
 import { useToast } from '../components/shared/ToastProvider';
+import { calculateAge } from '../utils/age';
 import type { PatientFirestore } from '../types/patient';
 
 // Plafond de lecture pour éviter de charger toute la collection (coût/latence).
 const PATIENTS_FETCH_LIMIT = 300;
-
-const calculateAge = (dob: string): number => {
-  if (!dob) return 0;
-  const diff = Date.now() - new Date(dob).getTime();
-  return Math.abs(new Date(diff).getUTCFullYear() - 1970);
-};
 
 export default function Patients() {
   const navigate = useNavigate();

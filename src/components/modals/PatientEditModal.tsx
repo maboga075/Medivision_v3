@@ -6,6 +6,7 @@ import { useToast } from '../shared/ToastProvider';
 import TagAutocomplete from '../forms/TagAutocomplete';
 import PrescriberCombobox from '../forms/PrescriberCombobox';
 import DateInput from '../forms/DateInput';
+import { calculateAge } from '../../utils/age';
 import type { PatientFirestore, PatientFormData } from '../../types/patient';
 
 const DEFAULT_MOTIFS = ["Bilan visuel", "Suspicion de glaucome", "Baisse d'acuité visuelle", "Suivi diabétique", "DMLA", "Œil rouge"];
@@ -20,11 +21,6 @@ interface PatientEditModalProps {
   onUpdate: (updated: PatientFirestore) => void;
 }
 
-const calculateAge = (dob: string): number => {
-  if (!dob) return 0;
-  const diff = Date.now() - new Date(dob).getTime();
-  return Math.abs(new Date(diff).getUTCFullYear() - 1970);
-};
 
 const INITIAL_FORM: PatientFormData = {
   folderId: '', nom: '', sexe: '', dateNaissance: '', motifs: [], antecedents: [],

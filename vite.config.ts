@@ -95,4 +95,22 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        // Isole les grosses dépendances dans des chunks vendor dédiés : meilleur
+        // cache (elles changent rarement) et allègement du bundle d'entrée.
+        // onnxruntime-web n'est PAS listé → il reste chargé en dynamique (lazy).
+        manualChunks(id: string) {
+          if (!id.includes('node_modules')) return undefined;
+          if (id.includes('firebase')) return 'vendor-firebase';
+          if (id.includes('konva')) return 'vendor-konva';
+          if (id.includes('jspdf') || id.includes('html2pdf') || id.includes('html2canvas')) return 'vendor-pdf';
+          if (id.includes('framer-motion')) return 'vendor-motion';
+          if (id.includes('react-router') || id.includes('react-dom') || /[\\/]react[\\/]/.test(id)) return 'vendor-react';
+          return undefined;
+        },
+      },
+    },
+  },
 });

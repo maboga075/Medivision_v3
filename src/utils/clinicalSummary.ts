@@ -92,8 +92,9 @@ const analyzeEye = (eye: EyeDataNormalisee | null, contexteStr: string): Analyse
   const isDiabeticContext = ctxLow.includes('diabète') || ctxLow.includes('diabete');
   const diabeticVascularKw = ['micro-anévrisme', 'microanévrisme', 'néovaisseau', 'neovaisseau', 'hémorragie', 'hemorragie', 'exsudat', 'nodule cotonneux'];
   const hasDiabeticSigns =
-    hasSign(obs, 'vasculaire', diabeticVascularKw) ||
     hasSign(obs, 'retina', diabeticVascularKw) ||
+    hasSign(obs, 'bscan', diabeticVascularKw) ||
+    hasSign(obs, 'octa', diabeticVascularKw) ||
     hasSign(obs, 'macula', ['exsudat', 'oedème', 'oedeme', 'œdème']) ||
     hasSign(obs, 'favoris', ['micro-anévrisme', 'hémorragie', 'exsudat']);
 
@@ -103,9 +104,11 @@ const analyzeEye = (eye: EyeDataNormalisee | null, contexteStr: string): Analyse
       ? `${suspicion} et Rétinopathie diabétique`
       : 'Rétinopathie diabétique';
 
-    if (hasSign(obs, 'vasculaire', ['hémorragie', 'hemorragie']) || hasSign(obs, 'retina', ['hémorragie', 'hemorragie'])) anomalies.push('Hémorragies rétiniennes');
-    if (hasSign(obs, 'vasculaire', ['micro-anévrisme', 'microanévrisme']) || hasSign(obs, 'retina', ['micro-anévrisme', 'microanévrisme'])) anomalies.push('Micro-anévrismes');
-    if (hasSign(obs, 'vasculaire', ['néovaisseau', 'neovaisseau']) || hasSign(obs, 'retina', ['néovaisseau', 'neovaisseau'])) anomalies.push('Néovaisseaux');
+    const inLesions = (kw: string[]) =>
+      hasSign(obs, 'retina', kw) || hasSign(obs, 'bscan', kw) || hasSign(obs, 'octa', kw);
+    if (inLesions(['hémorragie', 'hemorragie'])) anomalies.push('Hémorragies rétiniennes');
+    if (inLesions(['micro-anévrisme', 'microanévrisme'])) anomalies.push('Micro-anévrismes');
+    if (inLesions(['néovaisseau', 'neovaisseau'])) anomalies.push('Néovaisseaux');
     if (hasSign(obs, 'macula', ['exsudat'])) anomalies.push('Exsudats maculaires');
     if (hasSign(obs, 'macula', ['oedème', 'oedeme', 'œdème'])) anomalies.push('Œdème maculaire');
   }

@@ -136,7 +136,6 @@ export interface EyeState {
 export interface ObservationsNormalisees {
   papille?: string[];
   macula?: string[];
-  vasculaire?: string[];
   peripherie?: string[];
   anterieur?: string[];
   octa?: string[];
