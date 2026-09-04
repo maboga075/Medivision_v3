@@ -58,6 +58,14 @@ api/ai/generate-report  Fonction serverless (OpenAI/Anthropic/Gemini/DeepSeek).
 
 ---
 
+### Session 2026-09-04 (suite) — Angle IC + pachymétrie sous les coupes du CR, labels gras
+
+**Demandé par :** Yoan (rendu CR : cf. capture) · **Statut :** ✅ items valeur+gras faits ; schéma d'angle reporté (voir note). `tsc` 0, 39 tests, build OK.
+
+- **Angle IC + Shaffer et épaisseur cornéenne affichés SOUS la coupe** dans le CR : nouveau champ `measure` sur `ReportImageSlot` ([`types/report.ts`](src/types/report.ts)), rempli par [`reportDataMapper.tsx`](src/utils/reportDataMapper.tsx) (`angle` → `eye.iridoCornealAngle`, `cornea` → `eye.cornealThickness µm`), rendu via `.imagery-measure` dans [`OCTReport.tsx`](src/components/reports/OCTReport.tsx) / [`OCTReport.css`](src/components/reports/OCTReport.css). L'angle n'était jamais mappé auparavant.
+- **Labels « OCT angle IC » / « OCT cornée » en gras** (`figcaption` `fontWeight:700`).
+- **Reporté — schéma de la mesure d'angle** : les 3 points sont stockés en fractions du panneau (pas en coordonnées image) et non persistés au slot → non reproductibles dans le CR sans rework (stocker en coords image + persister au slot + dessin dans `ImagerySlotSvg`). À faire séparément (risque de mauvais placement si bâclé sur un CR médical).
+
 ### Session 2026-09-04 — Suite d'audit : âge, code-splitting, build type-checké, lint, dette
 
 **Demandé par :** Yoan (audit, hors #1 règles Firestore et #7 modèles ONNX) · **Statut :** ✅ fait. `tsc` 0, **39 tests** (nouveau `age.test.ts`), `npm run build` (tsc+vite) OK. Poussé sur `main`.

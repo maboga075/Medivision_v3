@@ -21,6 +21,9 @@ export interface ReportImageSlot {
   annotations?: Annotation[];
   /** Légende des lésions auto-générée (interprétée par coupe), éditable dans le CR. */
   caption?: string;
+  /** Mesure clinique associée à la coupe (angle IC + Shaffer, ou épaisseur
+   *  cornéenne) — affichée sous l'image dans le compte rendu. */
+  measure?: string;
 }
 
 export type ExamenType = 'OCT' | 'Retinographie' | 'OCTA' | 'Pachymetrie' | 'Segment_Anterieur';

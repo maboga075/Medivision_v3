@@ -298,6 +298,13 @@ function buildEyeData(
       background: sl.background,
       annotations: sl.annotations,
       caption: slotCaption(sl.annotations, side),
+      // Mesure clinique sous l'image : angle IC + Shaffer, ou épaisseur cornéenne.
+      measure:
+        sl.kind === 'angle' && eye.iridoCornealAngle
+          ? `Angle IC : ${eye.iridoCornealAngle}`
+          : sl.kind === 'cornea' && eye.cornealThickness
+            ? `Épaisseur cornéenne : ${eye.cornealThickness} µm`
+            : undefined,
     }));
 
   // Données du rendu visuel (V3) — recopiées telles quelles depuis la saisie.

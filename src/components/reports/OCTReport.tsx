@@ -245,7 +245,9 @@ const ImageryEyeColumn: React.FC<{ eye: EyeData }> = ({ eye }) => {
             annotations={s.annotations}
             annotationOpacity={opacity}
           />
-          <figcaption>{s.label}</figcaption>
+          <figcaption style={{ fontWeight: 700 }}>{s.label}</figcaption>
+          {/* Mesure clinique de la coupe (angle IC + Shaffer, ou épaisseur cornéenne). */}
+          {s.measure && <div className="imagery-measure">{s.measure}</div>}
           {/* Légende des lésions, auto-générée par coupe et éditable en place */}
           <div
             className="imagery-caption"
