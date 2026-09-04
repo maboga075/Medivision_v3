@@ -7,3 +7,7 @@ dist/
 .vercel
 .env*.local
 .env*
+
+# Artefacts de synchro iCloud (duplicats " 2")
+*\ 2.*
+* 2.*
