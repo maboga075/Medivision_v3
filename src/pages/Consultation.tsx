@@ -500,8 +500,6 @@ export default function Consultation() {
                   </header>
 
                   <ExamTypeSelector
-                    reportType={form.reportType}
-                    onReportTypeChange={form.handleReportTypeChange}
                     selectedDoctorId={selectedDoctorId}
                     onDoctorChange={setSelectedDoctorId}
                     doctors={settings?.doctors}

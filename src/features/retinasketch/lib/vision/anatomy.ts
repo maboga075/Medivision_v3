@@ -116,6 +116,22 @@ export function detectAnatomy(
     macY = fov.y;
   }
 
+  // Bornage : la macula ne doit jamais sortir du champ rétinien (cercle centré,
+  // rayon = fieldDiaPx/2). Sans ce garde, une papille mal détectée pouvait
+  // projeter la macula hors champ. On la ramène sur le bord si nécessaire.
+  {
+    const fcx = natW / 2;
+    const fcy = natH / 2;
+    const maxR = Math.max(0, fieldDiaPx / 2 - maculaRadiusPx);
+    const dx = macX - fcx;
+    const dy = macY - fcy;
+    const d = Math.hypot(dx, dy);
+    if (d > maxR && d > 1e-6) {
+      macX = fcx + (dx / d) * maxR;
+      macY = fcy + (dy / d) * maxR;
+    }
+  }
+
   return {
     disc: discShape,
     macula: { cx: macX, cy: macY, r: maculaRadiusPx },

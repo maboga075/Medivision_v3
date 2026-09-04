@@ -1,27 +1,29 @@
 import { useRef, useState } from "react";
 import { useStore } from "@/features/retinasketch/store/useStore";
+import type { Laterality } from "@/features/retinasketch/lib/types";
 import { computeAngleDeg, shafferFromAngle, type Pt } from "@/features/retinasketch/lib/geometry/angle";
 
 interface Props {
+  eye: Laterality;
   width: number;
   height: number;
 }
 
 /**
- * Outil de mesure de l'angle iridocornéen (template angle IC), en vue mono.
- * L'utilisateur pose 3 points : apex (éperon scléral) puis 2 points le long des
- * parois. L'angle est calculé et la classe de Shaffer proposée (modifiable via
- * le bandeau sous l'image). Les points sont stockés en fractions de la largeur
- * du panneau (redessin robuste au redimensionnement).
+ * Outil de mesure de l'angle iridocornéen (template angle IC). Rendu PAR ŒIL →
+ * disponible directement en vue double (sans passer en mono). L'utilisateur pose
+ * 3 points : apex (éperon scléral) puis 2 points le long des parois. L'angle est
+ * calculé et la classe de Shaffer proposée. Points en fractions de la largeur
+ * (redessin robuste). Hors mesure, l'overlay est `pointer-events-none` → ne
+ * bloque pas le dessin.
  */
-export default function AngleOverlay({ width, height }: Props) {
-  const laterality = useStore((s) => s.laterality);
-  // Actif seulement si le slot affiché est un angle IC.
+export default function AngleOverlay({ eye, width, height }: Props) {
+  // Actif seulement si le slot affiché de CET œil est un angle IC.
   const isAngle = useStore((s) => {
-    const id = s.activeSlot[laterality];
-    return s.slots[laterality].find((sl) => sl.id === id)?.kind === "angle";
+    const id = s.activeSlot[eye];
+    return s.slots[eye].find((sl) => sl.id === id)?.kind === "angle";
   });
-  const measure = useStore((s) => s.angleMeasure[laterality]);
+  const measure = useStore((s) => s.angleMeasure[eye]);
   const setAngleMeasure = useStore((s) => s.setAngleMeasure);
 
   const ref = useRef<HTMLDivElement>(null);
@@ -44,7 +46,7 @@ export default function AngleOverlay({ width, height }: Props) {
     }
     const [apex, armA, armB] = next;
     const angleDeg = computeAngleDeg(apex, armA, armB);
-    setAngleMeasure({ apex: toFrac(apex), armA: toFrac(armA), armB: toFrac(armB), angleDeg }, laterality);
+    setAngleMeasure({ apex: toFrac(apex), armA: toFrac(armA), armB: toFrac(armB), angleDeg }, eye);
     setPending([]);
     setArmed(false);
   };
@@ -57,7 +59,7 @@ export default function AngleOverlay({ width, height }: Props) {
   const shaffer = measure ? shafferFromAngle(measure.angleDeg) : null;
 
   const startNew = () => {
-    setAngleMeasure(null, laterality);
+    setAngleMeasure(null, eye);
     setPending([]);
     setArmed(true);
   };

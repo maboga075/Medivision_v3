@@ -58,6 +58,15 @@ api/ai/generate-report  Fonction serverless (OpenAI/Anthropic/Gemini/DeepSeek).
 
 ---
 
+### Session 2026-09-01 — Angle IC en vue double, pachymétrie/type-examen retirés de Consultation, macula bornée
+
+**Demandé par :** Yoan (recette, cf. capture ajustement anatomie) · **Statut :** ✅ fait. `tsc` 0, 34 tests, `vite build` OK. Poussé sur `main` (déploiement Vercel).
+
+- **Macula détectée hors champ** ([`lib/vision/anatomy.ts`](src/features/retinasketch/lib/vision/anatomy.ts)) : la macula, projetée géométriquement depuis la papille, pouvait sortir du champ. Ajout d'un **bornage au cercle rétinien** (rayon `fieldDiaPx/2 − maculaRadiusPx`).
+- **Outil angle IC absent** : il était mono-only. [`AngleOverlay.tsx`](src/features/retinasketch/components/AngleOverlay.tsx) paramétré par `eye` et rendu **par œil dans `EyePane`** (slot angle) → disponible directement en vue double. Retiré du bloc mono de `Workspace`. Bandeau angle sous l'image : retrait du bouton « Mesurer (plein cadre) » (l'overlay a son propre bouton « Mesurer l'angle »).
+- **Épaisseur cornéenne retirée de Consultation** ([`EyeExamSection.tsx`](src/components/forms/EyeExamSection.tsx)) : le champ « Épaisseur cornéenne (µm) » (qui apparaissait via `showAnterior` quand un slot cornea/angle existe) est supprimé — la pachymétrie se saisit désormais UNIQUEMENT dans RetinaSketch (strip sous la coupe OCT cornée, déjà en place). Les observations cornéennes restent.
+- **Champ « Type d'examen » supprimé** ([`ExamTypeSelector.tsx`](src/features/consultation/components/ExamTypeSelector.tsx) + [`Consultation.tsx`](src/pages/Consultation.tsx)) : le sélecteur ne garde que « Médecin examinateur ». `reportType` reste en état (défaut « Compte rendu OCT », ajustable via le toggle du rapport) ; OCTA/segment antérieur sont déjà déduits des templates RSK.
+
 ### Session 2026-08-28 (suite 9) — Fix débordement champs date (mobile) + fusion sur main (déploiement Vercel)
 
 **Demandé par :** Yoan · **Statut :** ✅ fait. `tsc` 0, build OK.

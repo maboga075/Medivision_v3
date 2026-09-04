@@ -248,24 +248,13 @@ export default function EyeExamSection({
           {/* RetinaSketch : bouton unique déplacé entre les colonnes OD/OG
               (géré par le parent Consultation), plus de bouton par œil. */}
 
-          {/* Segment Antérieur — affiché dès qu'une coupe cornée/angle existe */}
+          {/* Segment Antérieur — affiché dès qu'une coupe cornée/angle existe.
+              L'ÉPAISSEUR CORNÉENNE se saisit désormais dans RetinaSketch (sous la
+              coupe OCT cornée), plus ici. On ne garde que les observations. */}
           {showAnterior && (
             <div className="space-y-3 pt-2 border-t border-indigo-100">
               <div className="text-xs font-black text-indigo-600 uppercase tracking-wider pb-1">
                 Cornée / Segment antérieur
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase mb-2">
-                  Épaisseur cornéenne (µm)
-                </label>
-                <input
-                  type="number"
-                  disabled={isImpossible}
-                  className="w-full p-2.5 border-2 border-indigo-100 rounded-xl text-sm font-bold outline-none focus:border-indigo-400 disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-slate-100"
-                  placeholder="Ex: 540"
-                  value={eye.cornealThickness}
-                  onChange={(e) => update('cornealThickness', e.target.value)}
-                />
               </div>
               <BubblePicker
                 title="Observations cornéennes"

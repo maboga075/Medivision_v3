@@ -13,7 +13,6 @@ import DrawToolControls from "./DrawToolControls";
 import BackgroundControls from "./BackgroundControls";
 import AlignOverlay from "./AlignOverlay";
 import AdjustImageOverlay from "./AdjustImageOverlay";
-import AngleOverlay from "./AngleOverlay";
 import ZoomControl from "./ZoomControl";
 import DoubleEyeView from "./DoubleEyeView";
 import LearningPanel from "./LearningPanel";
@@ -224,7 +223,6 @@ export default function Workspace({ onClose, onCreateLesion, printInfo }: Worksp
           <>
             <AlignOverlay width={paneSize.w} height={paneSize.h} />
             <AdjustImageOverlay width={paneSize.w} height={paneSize.h} />
-            <AngleOverlay width={paneSize.w} height={paneSize.h} />
             <SamOverlay width={paneSize.w} height={paneSize.h} />
           </>
         )}

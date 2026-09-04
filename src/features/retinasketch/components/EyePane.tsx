@@ -6,6 +6,7 @@ import BackgroundImage from "./BackgroundImage";
 import SelectionPicker from "./SelectionPicker";
 import SlotGallery from "./SlotGallery";
 import AnatomyOverlay from "./AnatomyOverlay";
+import AngleOverlay from "./AngleOverlay";
 import { computeAutoFrame } from "@/features/retinasketch/lib/geometry/autoframe";
 import { TEMPLATE } from "@/features/retinasketch/lib/geometry/template";
 import { shafferFromAngle, SHAFFER_LABEL } from "@/features/retinasketch/lib/geometry/angle";
@@ -167,6 +168,10 @@ export default function EyePane({ eye, active, layout }: Props) {
             {activeKind === "retino" && (
               <AnatomyOverlay eye={eye} width={size.w} height={size.h} />
             )}
+            {/* Outil de mesure d'angle IC — PAR ŒIL, directement en vue double. */}
+            {activeKind === "angle" && (
+              <AngleOverlay eye={eye} width={size.w} height={size.h} />
+            )}
           </>
         )}
 
@@ -299,21 +304,15 @@ export default function EyePane({ eye, active, layout }: Props) {
       {activeKind === "angle" && (
         <div className="flex shrink-0 flex-wrap items-center justify-center gap-x-3 gap-y-1 border-t border-slate-200 bg-slate-50 px-3 py-2">
           <span className="text-xs font-semibold text-slate-600">Angle IC</span>
-          {angleMeasure && (
+          {angleMeasure ? (
             <span className="text-xs text-slate-700">
               <b>{angleMeasure.angleDeg}°</b>
             </span>
+          ) : (
+            <span className="text-xs italic text-slate-400">
+              utilisez « Mesurer l'angle » sur l'image
+            </span>
           )}
-          <button
-            onClick={() => {
-              setLaterality(eye);
-              setLayout("mono"); // l'outil de mesure vit en plein cadre
-            }}
-            className="rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-700 transition hover:bg-amber-100"
-            title="Passer en plein cadre et mesurer l'angle"
-          >
-            {angleMeasure ? "Re-mesurer" : "Mesurer (plein cadre)"}
-          </button>
           <label className="flex items-center gap-1.5 text-xs text-slate-500">
             Shaffer
             <select
